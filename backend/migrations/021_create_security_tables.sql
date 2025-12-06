@@ -18,6 +18,7 @@ CREATE INDEX idx_ip_blacklist_expires ON ip_blacklist(expires_at);
 -- Login attempts tracking tablosu
 CREATE TABLE IF NOT EXISTS login_attempts (
   id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
   ip_address VARCHAR(45) NOT NULL,
   username VARCHAR(100),
   success BOOLEAN DEFAULT false,
@@ -26,6 +27,7 @@ CREATE TABLE IF NOT EXISTS login_attempts (
 );
 
 -- Index'ler
+CREATE INDEX idx_login_attempts_user ON login_attempts(user_id);
 CREATE INDEX idx_login_attempts_ip ON login_attempts(ip_address);
 CREATE INDEX idx_login_attempts_created ON login_attempts(created_at);
 CREATE INDEX idx_login_attempts_success ON login_attempts(success);

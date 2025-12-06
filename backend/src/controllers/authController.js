@@ -178,14 +178,10 @@ const login = async (req, res) => {
       VALUES ($1, $2, $3, true, $4)
     `, [user.id, clientIp, email, userAgent]);
 
-    // Kullanıcının aktif oturumunu kaydet/güncelle
+    // Kullanıcının aktif oturumunu kaydet
     await pool.query(`
-      INSERT INTO user_sessions (user_id, session_token, ip_address, user_agent, last_activity)
-      VALUES ($1, $2, $3, $4, NOW())
-      ON CONFLICT (user_id, session_token) 
-      DO UPDATE SET 
-        last_activity = NOW(),
-        ip_address = EXCLUDED.ip_address
+      INSERT INTO user_sessions (user_id, session_token, ip_address, user_agent, last_activity, expires_at)
+      VALUES ($1, $2, $3, $4, NOW(), NOW() + INTERVAL '7 days')
     `, [user.id, token, clientIp, userAgent]);
 
     // Log activity in audit_logs

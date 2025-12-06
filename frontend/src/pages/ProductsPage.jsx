@@ -4,6 +4,9 @@ import ImportProductsDialog from '../components/Products/ImportProductsDialog';
 import CategoryFilter from '../components/Products/CategoryFilter';
 import useUIStore from '../store/uiStore';
 import PermissionGuard from '../components/PermissionGuard';
+import { exportProductsToPDF, exportProductsToExcel } from '../utils/exportUtils';
+import { FileDown, FileSpreadsheet } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function ProductsPage() {
   const { showSuccess, showError, showConfirm } = useUIStore();
@@ -122,10 +125,34 @@ export default function ProductsPage() {
           <p className="text-gray-600 mt-2">Ürün yönetimi ve stok takibi</p>
         </div>
         <div className="flex space-x-3">
+          {/* Export Buttons */}
+          <button
+            onClick={() => {
+              exportProductsToPDF(products);
+              toast.success('PDF olarak indirildi!');
+            }}
+            className="bg-red-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-red-700 transition flex items-center space-x-2"
+            title="PDF olarak indir"
+          >
+            <FileDown className="w-5 h-5" />
+            <span>PDF</span>
+          </button>
+          <button
+            onClick={() => {
+              exportProductsToExcel(products);
+              toast.success('Excel olarak indirildi!');
+            }}
+            className="bg-green-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-green-700 transition flex items-center space-x-2"
+            title="Excel olarak indir"
+          >
+            <FileSpreadsheet className="w-5 h-5" />
+            <span>Excel</span>
+          </button>
+          
           <PermissionGuard permission="products.create">
             <button
               onClick={() => setShowImportDialog(true)}
-              className="bg-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700 transition"
+              className="bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition"
             >
               📥 Excel'den Yükle
             </button>
