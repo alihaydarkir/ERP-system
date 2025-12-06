@@ -1,0 +1,175 @@
+.preferences-tab {
+  background: white;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.tab-header {
+  margin-bottom: 2rem;
+}
+
+.tab-header h3 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: #333;
+}
+
+.preference-section {
+  margin-bottom: 2.5rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid #eee;
+}
+
+.preference-section:last-of-type {
+  border-bottom: none;
+}
+
+.preference-section h4 {
+  margin: 0 0 1.5rem 0;
+  font-size: 1.1rem;
+  color: #333;
+  font-weight: 600;
+}
+
+.preference-options {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.radio-option,
+.checkbox-option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 2px solid #e9ecef;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #fff;
+}
+
+.radio-option:hover,
+.checkbox-option:hover {
+  border-color: #007bff;
+  background: #f8f9fa;
+}
+
+.radio-option input[type="radio"],
+.checkbox-option input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  accent-color: #007bff;
+}
+
+.radio-option input[type="radio"]:disabled,
+.checkbox-option input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+}
+
+.radio-option span,
+.checkbox-option span {
+  font-size: 1rem;
+  color: #333;
+  user-select: none;
+}
+
+.radio-option input[type="radio"]:checked + span,
+.checkbox-option input[type="checkbox"]:checked + span {
+  font-weight: 500;
+  color: #007bff;
+}
+
+.preference-checkboxes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.form-actions {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+}
+
+.btn-save {
+  width: 100%;
+  padding: 0.75rem 1.5rem;
+  background: #28a745;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background 0.2s;
+}
+
+.btn-save:hover:not(:disabled) {
+  background: #218838;
+}
+
+.btn-save:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .preferences-tab {
+    padding: 1.5rem;
+  }
+
+  .radio-option,
+  .checkbox-option {
+    padding: 0.75rem;
+  }
+}
+
+/* Dark Theme */
+body[data-theme="dark"] .preferences-tab {
+  background: #1e293b;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+body[data-theme="dark"] .tab-header h3 {
+  color: #f1f5f9;
+}
+
+body[data-theme="dark"] .preference-section {
+  border-bottom: 1px solid #334155;
+}
+
+body[data-theme="dark"] .preference-section h4 {
+  color: #f1f5f9;
+}
+
+body[data-theme="dark"] .radio-option,
+body[data-theme="dark"] .checkbox-option {
+  border: 2px solid #334155;
+  background: #0f172a;
+}
+
+body[data-theme="dark"] .radio-option:hover,
+body[data-theme="dark"] .checkbox-option:hover {
+  border-color: #3b82f6;
+  background: #1e293b;
+}
+
+body[data-theme="dark"] .radio-option span,
+body[data-theme="dark"] .checkbox-option span {
+  color: #f1f5f9;
+}
+
+body[data-theme="dark"] .form-actions {
+  border-top: 1px solid #334155;
+}
+
+body[data-theme="dark"] .btn-save {
+  background: #10b981;
+}
+
+body[data-theme="dark"] .btn-save:hover:not(:disabled) {
+  background: #059669;
+}
