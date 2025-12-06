@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
 import { productService } from '../services/productService';
 import { orderService } from '../services/orderService';
-import { TrendingUp, TrendingDown, Package, ShoppingCart, AlertTriangle, DollarSign, Clock, CheckCircle, XCircle, Eye } from 'lucide-react';
+import { TrendingUp, TrendingDown, Package, ShoppingCart, AlertTriangle, DollarSign, Clock, CheckCircle, XCircle, Eye, BarChart3, PieChart } from 'lucide-react';
+import { 
+  LineChart, Line, BarChart, Bar, PieChart as RechartsPie, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart
+} from 'recharts';
 
 export default function DashboardPage() {
   const [stats, setStats] = useState({
@@ -311,6 +315,143 @@ export default function DashboardPage() {
               <span className="font-semibold text-blue-600 text-lg">{stats.totalProducts}</span>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        {/* Revenue Trend Chart */}
+        <div className="bg-white rounded-xl shadow-md p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-800 flex items-center">
+              <BarChart3 className="w-5 h-5 mr-2 text-blue-500" />
+              Gelir Trendi
+            </h2>
+            <select className="text-sm border rounded px-2 py-1">
+              <option>Son 7 Gün</option>
+              <option>Son 30 Gün</option>
+              <option>Son 3 Ay</option>
+            </select>
+          </div>
+          <ResponsiveContainer width="100%" height={250}>
+            <AreaChart data={[
+              { name: 'Pzt', gelir: 4000, siparis: 24 },
+              { name: 'Sal', gelir: 3000, siparis: 18 },
+              { name: 'Çar', gelir: 5000, siparis: 32 },
+              { name: 'Per', gelir: 2780, siparis: 16 },
+              { name: 'Cum', gelir: 4890, siparis: 28 },
+              { name: 'Cmt', gelir: 6390, siparis: 38 },
+              { name: 'Paz', gelir: 3490, siparis: 21 }
+            ]}>
+              <defs>
+                <linearGradient id="colorGelir" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="name" stroke="#6b7280" />
+              <YAxis stroke="#6b7280" />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                labelStyle={{ color: '#374151', fontWeight: 'bold' }}
+              />
+              <Area type="monotone" dataKey="gelir" stroke="#3b82f6" fillOpacity={1} fill="url(#colorGelir)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Order Status Pie Chart */}
+        <div className="bg-white rounded-xl shadow-md p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-800 flex items-center">
+              <PieChart className="w-5 h-5 mr-2 text-purple-500" />
+              Sipariş Durumu
+            </h2>
+          </div>
+          <ResponsiveContainer width="100%" height={250}>
+            <RechartsPie>
+              <Pie
+                data={[
+                  { name: 'Bekleyen', value: stats.pendingOrders, color: '#f59e0b' },
+                  { name: 'Tamamlanan', value: stats.completedOrders, color: '#10b981' },
+                  { name: 'İptal', value: stats.cancelledOrders, color: '#ef4444' }
+                ]}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                outerRadius={80}
+                fill="#8884d8"
+                dataKey="value"
+              >
+                {[
+                  { name: 'Bekleyen', value: stats.pendingOrders, color: '#f59e0b' },
+                  { name: 'Tamamlanan', value: stats.completedOrders, color: '#10b981' },
+                  { name: 'İptal', value: stats.cancelledOrders, color: '#ef4444' }
+                ].map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip />
+              <Legend />
+            </RechartsPie>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Top Products Bar Chart */}
+        <div className="bg-white rounded-xl shadow-md p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-800 flex items-center">
+              <Package className="w-5 h-5 mr-2 text-green-500" />
+              En Çok Stoklu Ürünler
+            </h2>
+          </div>
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={stats.topProducts.map(p => ({
+              name: p.name?.substring(0, 15) + '...' || 'Ürün',
+              stok: p.stock_quantity || 0
+            }))}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="name" stroke="#6b7280" angle={-15} textAnchor="end" height={80} />
+              <YAxis stroke="#6b7280" />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+              />
+              <Bar dataKey="stok" fill="#10b981" radius={[8, 8, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Weekly Orders Line Chart */}
+        <div className="bg-white rounded-xl shadow-md p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-800 flex items-center">
+              <ShoppingCart className="w-5 h-5 mr-2 text-indigo-500" />
+              Haftalık Sipariş Trendi
+            </h2>
+          </div>
+          <ResponsiveContainer width="100%" height={250}>
+            <LineChart data={[
+              { gun: 'Pzt', siparis: 24, tamamlanan: 20 },
+              { gun: 'Sal', siparis: 18, tamamlanan: 15 },
+              { gun: 'Çar', siparis: 32, tamamlanan: 28 },
+              { gun: 'Per', siparis: 16, tamamlanan: 14 },
+              { gun: 'Cum', siparis: 28, tamamlanan: 22 },
+              { gun: 'Cmt', siparis: 38, tamamlanan: 32 },
+              { gun: 'Paz', siparis: 21, tamamlanan: 18 }
+            ]}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="gun" stroke="#6b7280" />
+              <YAxis stroke="#6b7280" />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+              />
+              <Legend />
+              <Line type="monotone" dataKey="siparis" stroke="#6366f1" strokeWidth={2} name="Toplam" />
+              <Line type="monotone" dataKey="tamamlanan" stroke="#10b981" strokeWidth={2} name="Tamamlanan" />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
       </div>
 

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import useAuthStore from '../store/authStore';
 import { authService } from '../services/authService';
 
@@ -21,10 +22,13 @@ export default function LoginPage() {
 
       if (response.success) {
         login(response.data.token, response.data.user, response.data.refreshToken);
+        toast.success(`Hoş geldiniz, ${response.data.user.username}! 🎉`);
         navigate('/dashboard');
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Giriş başarısız!');
+      const errorMsg = err.response?.data?.message || 'Giriş başarısız!';
+      setError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
