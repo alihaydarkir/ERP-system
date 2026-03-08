@@ -4,14 +4,14 @@ class Product {
   /**
    * Create a new product
    */
-  static async create({ name, description, price, stock, category, sku, low_stock_threshold = 10 }) {
+  static async create({ name, description, price, stock, category, sku, low_stock_threshold = 10, supplier_id = null, company_id }) {
     const query = `
-      INSERT INTO products (name, description, price, stock_quantity, category, sku, low_stock_threshold)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO products (name, description, price, stock_quantity, category, sku, low_stock_threshold, supplier_id, company_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `;
 
-    const values = [name, description, price, stock, category, sku, low_stock_threshold];
+    const values = [name, description, price, stock, category, sku, low_stock_threshold, supplier_id, company_id];
     const result = await pool.query(query, values);
     return result.rows[0];
   }
@@ -19,27 +19,48 @@ class Product {
   /**
    * Find product by ID
    */
-  static async findById(id) {
-    const query = 'SELECT * FROM products WHERE id = $1';
-    const result = await pool.query(query, [id]);
+  static async findById(id, company_id = null) {
+    let query = 'SELECT * FROM products WHERE id = $1';
+    const values = [id];
+    
+    if (company_id) {
+      query += ' AND company_id = $2';
+      values.push(company_id);
+    }
+    
+    const result = await pool.query(query, values);
     return result.rows[0];
   }
 
   /**
    * Find product by SKU
    */
-  static async findBySku(sku) {
-    const query = 'SELECT * FROM products WHERE sku = $1';
-    const result = await pool.query(query, [sku]);
+  static async findBySku(sku, company_id = null) {
+    let query = 'SELECT * FROM products WHERE sku = $1';
+    const values = [sku];
+    
+    if (company_id) {
+      query += ' AND company_id = $2';
+      values.push(company_id);
+    }
+    
+    const result = await pool.query(query, values);
     return result.rows[0];
   }
 
   /**
    * Find product by name
    */
-  static async findByName(name) {
-    const query = 'SELECT * FROM products WHERE name = $1';
-    const result = await pool.query(query, [name]);
+  static async findByName(name, company_id = null) {
+    let query = 'SELECT * FROM products WHERE name = $1';
+    const values = [name];
+    
+    if (company_id) {
+      query += ' AND company_id = $2';
+      values.push(company_id);
+    }
+    
+    const result = await pool.query(query, values);
     return result.rows[0];
   }
 
@@ -50,6 +71,13 @@ class Product {
     let query = 'SELECT * FROM products WHERE 1=1';
     const values = [];
     let paramCount = 1;
+
+    // MULTI-TENANCY: Filter by company_id
+    if (filters.company_id) {
+      query += ` AND company_id = $${paramCount}`;
+      values.push(filters.company_id);
+      paramCount++;
+    }
 
     if (filters.category) {
       query += ` AND category = $${paramCount}`;
@@ -106,7 +134,7 @@ class Product {
     const values = [];
     let paramCount = 1;
 
-    const allowedFields = ['name', 'description', 'price', 'stock_quantity', 'category', 'sku', 'low_stock_threshold'];
+    const allowedFields = ['name', 'description', 'price', 'stock_quantity', 'category', 'sku', 'low_stock_threshold', 'supplier_id'];
 
     for (const field of allowedFields) {
       if (data[field] !== undefined) {
@@ -177,18 +205,34 @@ class Product {
   /**
    * Get low stock products
    */
-  static async getLowStock(threshold = 10) {
-    const query = 'SELECT * FROM products WHERE stock_quantity < $1 ORDER BY stock_quantity ASC';
-    const result = await pool.query(query, [threshold]);
+  static async getLowStock(threshold = 10, company_id = null) {
+    let query = 'SELECT * FROM products WHERE stock_quantity < $1';
+    const values = [threshold];
+    
+    if (company_id) {
+      query += ' AND company_id = $2';
+      values.push(company_id);
+    }
+    
+    query += ' ORDER BY stock_quantity ASC';
+    const result = await pool.query(query, values);
     return result.rows;
   }
 
   /**
    * Get products by category
    */
-  static async getByCategory(category) {
-    const query = 'SELECT * FROM products WHERE category = $1 ORDER BY name ASC';
-    const result = await pool.query(query, [category]);
+  static async getByCategory(category, company_id = null) {
+    let query = 'SELECT * FROM products WHERE category = $1';
+    const values = [category];
+    
+    if (company_id) {
+      query += ' AND company_id = $2';
+      values.push(company_id);
+    }
+    
+    query += ' ORDER BY name ASC';
+    const result = await pool.query(query, values);
     return result.rows;
   }
 
@@ -199,6 +243,13 @@ class Product {
     let query = 'SELECT COUNT(*) FROM products WHERE 1=1';
     const values = [];
     let paramCount = 1;
+
+    // MULTI-TENANCY: Filter by company_id
+    if (filters.company_id) {
+      query += ` AND company_id = $${paramCount}`;
+      values.push(filters.company_id);
+      paramCount++;
+    }
 
     if (filters.category) {
       query += ` AND category = $${paramCount}`;
@@ -213,9 +264,17 @@ class Product {
   /**
    * Get all categories
    */
-  static async getCategories() {
-    const query = 'SELECT DISTINCT category FROM products WHERE category IS NOT NULL ORDER BY category';
-    const result = await pool.query(query);
+  static async getCategories(company_id = null) {
+    let query = 'SELECT DISTINCT category FROM products WHERE category IS NOT NULL';
+    const values = [];
+    
+    if (company_id) {
+      query += ' AND company_id = $1';
+      values.push(company_id);
+    }
+    
+    query += ' ORDER BY category';
+    const result = await pool.query(query, values);
     return result.rows.map(row => row.category);
   }
 }

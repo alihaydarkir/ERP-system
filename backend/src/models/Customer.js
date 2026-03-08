@@ -4,14 +4,14 @@ class Customer {
   /**
    * Create a new customer
    */
-  static async create({ user_id, full_name, company_name, tax_office, tax_number, phone_number, company_location }) {
+  static async create({ user_id, full_name, company_name, tax_office, tax_number, phone_number, company_location, company_id }) {
     const query = `
-      INSERT INTO customers (user_id, full_name, company_name, tax_office, tax_number, phone_number, company_location)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO customers (user_id, full_name, company_name, tax_office, tax_number, phone_number, company_location, company_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
     `;
 
-    const values = [user_id, full_name, company_name, tax_office, tax_number, phone_number, company_location];
+    const values = [user_id, full_name, company_name, tax_office, tax_number, phone_number, company_location, company_id];
     const result = await pool.query(query, values);
     return result.rows[0];
   }
@@ -35,7 +35,7 @@ class Customer {
    * Find all customers with filters
    */
   static async findAll(filters = {}) {
-    const { user_id, limit = 50, offset = 0, search } = filters;
+    const { company_id, limit = 50, offset = 0, search } = filters;
 
     let query = `
       SELECT c.*, u.username as user_name, u.email as user_email
@@ -47,10 +47,10 @@ class Customer {
     const values = [];
     let paramCount = 1;
 
-    // Filter by user_id if provided
-    if (user_id) {
-      query += ` AND c.user_id = $${paramCount}`;
-      values.push(user_id);
+    // MULTI-TENANCY: Filter by company_id
+    if (company_id) {
+      query += ` AND c.company_id = $${paramCount}`;
+      values.push(company_id);
       paramCount++;
     }
 
@@ -76,15 +76,16 @@ class Customer {
    * Count customers with filters
    */
   static async count(filters = {}) {
-    const { user_id, search } = filters;
+    const { company_id, search } = filters;
 
     let query = 'SELECT COUNT(*) FROM customers WHERE 1=1';
     const values = [];
     let paramCount = 1;
 
-    if (user_id) {
-      query += ` AND user_id = $${paramCount}`;
-      values.push(user_id);
+    // MULTI-TENANCY
+    if (company_id) {
+      query += ` AND company_id = $${paramCount}`;
+      values.push(company_id);
       paramCount++;
     }
 
@@ -153,13 +154,13 @@ class Customer {
   /**
    * Find customer by tax number
    */
-  static async findByTaxNumber(tax_number, user_id) {
+  static async findByTaxNumber(tax_number, company_id) {
     const query = `
       SELECT * FROM customers
-      WHERE tax_number = $1 AND user_id = $2
+      WHERE tax_number = $1 AND company_id = $2
     `;
 
-    const result = await pool.query(query, [tax_number, user_id]);
+    const result = await pool.query(query, [tax_number, company_id]);
     return result.rows[0];
   }
 }

@@ -1,0 +1,55 @@
+# =============================================================================
+# docker-compose.override.yml — LOCAL DEVELOPMENT OVERRIDES
+# =============================================================================
+# This file is automatically merged with docker-compose.yml by Docker Compose
+# when you run: docker compose up
+#
+# It exposes ports, mounts source code for hot-reload, and relaxes constraints
+# for a comfortable dev experience.
+# =============================================================================
+
+version: '3.9'
+
+services:
+
+  postgres:
+    # Expose to localhost for tools like DBeaver / pgAdmin
+    ports:
+      - "5432:5432"
+
+  redis:
+    # Expose for local debugging
+    ports:
+      - "6379:6379"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../Dockerfile.backend
+    # Override command to use nodemon for hot-reload
+    entrypoint: ["sh", "-c", "node scripts/migrate-db.js && npm run dev"]
+    environment:
+      NODE_ENV: development
+    volumes:
+      - ./backend:/app
+      - /app/node_modules          # Don't overwrite container's node_modules
+    ports:
+      - "5000:5000"
+    deploy:
+      resources:
+        limits:
+          memory: 1G               # More headroom for dev
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../Dockerfile.frontend
+    # Override: use Vite dev server instead of nginx build
+    entrypoint: ["sh", "-c", "npm run dev -- --host 0.0.0.0"]
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: "http://localhost:5000"

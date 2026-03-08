@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS rag_knowledge (
 );
 
 -- Create indexes
-CREATE INDEX idx_rag_knowledge_category ON rag_knowledge(category);
-CREATE INDEX idx_rag_knowledge_title ON rag_knowledge USING gin(to_tsvector('english', title));
-CREATE INDEX idx_rag_knowledge_content ON rag_knowledge USING gin(to_tsvector('english', content));
+CREATE INDEX IF NOT EXISTS idx_rag_knowledge_category ON rag_knowledge(category);
+CREATE INDEX IF NOT EXISTS idx_rag_knowledge_title ON rag_knowledge USING gin(to_tsvector('english', title));
+CREATE INDEX IF NOT EXISTS idx_rag_knowledge_content ON rag_knowledge USING gin(to_tsvector('english', content));
 

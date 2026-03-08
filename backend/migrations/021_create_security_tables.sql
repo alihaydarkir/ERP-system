@@ -11,9 +11,9 @@ CREATE TABLE IF NOT EXISTS ip_blacklist (
 );
 
 -- Index'ler
-CREATE INDEX idx_ip_blacklist_ip ON ip_blacklist(ip_address);
-CREATE INDEX idx_ip_blacklist_active ON ip_blacklist(is_active);
-CREATE INDEX idx_ip_blacklist_expires ON ip_blacklist(expires_at);
+CREATE INDEX IF NOT EXISTS idx_ip_blacklist_ip ON ip_blacklist(ip_address);
+CREATE INDEX IF NOT EXISTS idx_ip_blacklist_active ON ip_blacklist(is_active);
+CREATE INDEX IF NOT EXISTS idx_ip_blacklist_expires ON ip_blacklist(expires_at);
 
 -- Login attempts tracking tablosu
 CREATE TABLE IF NOT EXISTS login_attempts (
@@ -27,10 +27,10 @@ CREATE TABLE IF NOT EXISTS login_attempts (
 );
 
 -- Index'ler
-CREATE INDEX idx_login_attempts_user ON login_attempts(user_id);
-CREATE INDEX idx_login_attempts_ip ON login_attempts(ip_address);
-CREATE INDEX idx_login_attempts_created ON login_attempts(created_at);
-CREATE INDEX idx_login_attempts_success ON login_attempts(success);
+CREATE INDEX IF NOT EXISTS idx_login_attempts_user ON login_attempts(user_id);
+CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip_address);
+CREATE INDEX IF NOT EXISTS idx_login_attempts_created ON login_attempts(created_at);
+CREATE INDEX IF NOT EXISTS idx_login_attempts_success ON login_attempts(success);
 
 -- Session tracking tablosu
 CREATE TABLE IF NOT EXISTS user_sessions (
@@ -46,10 +46,10 @@ CREATE TABLE IF NOT EXISTS user_sessions (
 );
 
 -- Index'ler
-CREATE INDEX idx_user_sessions_user ON user_sessions(user_id);
-CREATE INDEX idx_user_sessions_token ON user_sessions(session_token);
-CREATE INDEX idx_user_sessions_active ON user_sessions(is_active);
-CREATE INDEX idx_user_sessions_expires ON user_sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(session_token);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_active ON user_sessions(is_active);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_expires ON user_sessions(expires_at);
 
 COMMENT ON TABLE ip_blacklist IS 'Engellenen IP adresleri';
 COMMENT ON TABLE login_attempts IS 'Giriş denemeleri geçmişi';

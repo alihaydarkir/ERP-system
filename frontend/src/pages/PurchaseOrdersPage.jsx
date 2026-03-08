@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'react';
 import PurchaseOrderList from '../components/Suppliers/PurchaseOrderList';
+import PODetailModal from '../components/Suppliers/PODetailModal';
 import useSupplierStore from '../store/supplierStore';
+import useUIStore from '../store/uiStore';
 
 export default function PurchaseOrdersPage() {
   const [statusFilter, setStatusFilter] = useState('');
+  const [detailPO, setDetailPO] = useState(null);
+  const { showSuccess, showError, showConfirm } = useUIStore();
 
   const {
     purchaseOrders,
@@ -29,69 +33,73 @@ export default function PurchaseOrdersPage() {
   const handleView = async (po) => {
     try {
       const detailedPO = await fetchPurchaseOrderById(po.id);
-      alert(`PO Detayı:\n\nPO Numarası: ${detailedPO.po_number}\nTedarikçi: ${detailedPO.supplier_name}\nDurum: ${detailedPO.status}\nToplam: ${detailedPO.total_amount} TL\n\nÜrün Sayısı: ${detailedPO.items?.length || 0}`);
+      setDetailPO(detailedPO);
     } catch (error) {
-      console.error('View PO error:', error);
-      alert('PO detayı yüklenirken hata oluştu');
+      showError('PO detayı yüklenirken hata oluştu');
     }
   };
 
   const handleSend = async (po) => {
-    if (!confirm(`${po.po_number} numaralı siparişi tedarikçiye göndermek istediğinize emin misiniz?`)) {
-      return;
-    }
-
-    try {
-      await sendPurchaseOrder(po.id);
-      alert('Sipariş başarıyla gönderildi');
-      fetchPurchaseOrders({ status: statusFilter || undefined, limit: 100 });
-    } catch (error) {
-      console.error('Send PO error:', error);
-      alert(error.response?.data?.message || 'Sipariş gönderilirken hata oluştu');
-    }
+    showConfirm({
+      title: 'Siparişi Gönder',
+      message: `${po.po_number} numaralı siparişi tedarikçiye göndermek istediğinize emin misiniz?`,
+      confirmText: 'Gönder',
+      type: 'warning',
+      onConfirm: async () => {
+        try {
+          await sendPurchaseOrder(po.id);
+          showSuccess('Sipariş başarıyla tedarikçiye gönderildi');
+          fetchPurchaseOrders({ status: statusFilter || undefined, limit: 100 });
+        } catch (error) {
+          showError(error.response?.data?.message || 'Sipariş gönderilirken hata oluştu');
+        }
+      },
+    });
   };
 
   const handleReceive = async (po) => {
-    // Simplified receive - in real app, show modal to enter received quantities
-    const detailedPO = await fetchPurchaseOrderById(po.id);
-
-    if (!detailedPO.items || detailedPO.items.length === 0) {
-      alert('Bu siparişte ürün bulunmuyor');
-      return;
-    }
-
-    const items = detailedPO.items.map(item => ({
-      po_item_id: item.id,
-      received_quantity: item.quantity - (item.received_quantity || 0)
-    }));
-
-    if (!confirm(`${po.po_number} numaralı siparişi teslim almak istediğinize emin misiniz?`)) {
-      return;
-    }
-
-    try {
-      await receivePurchaseOrder(po.id, items);
-      alert('Sipariş başarıyla teslim alındı, stok güncellendi');
-      fetchPurchaseOrders({ status: statusFilter || undefined, limit: 100 });
-    } catch (error) {
-      console.error('Receive PO error:', error);
-      alert(error.response?.data?.message || 'Sipariş teslim alınırken hata oluştu');
-    }
+    showConfirm({
+      title: 'Siparişi Teslim Al',
+      message: `${po.po_number} numaralı siparişi teslim almak istediğinize emin misiniz? Stok otomatik güncellenecek.`,
+      confirmText: 'Teslim Al',
+      type: 'success',
+      onConfirm: async () => {
+        try {
+          const detailedPO = await fetchPurchaseOrderById(po.id);
+          if (!detailedPO.items || detailedPO.items.length === 0) {
+            showError('Bu siparişte ürün bulunmuyor');
+            return;
+          }
+          const items = detailedPO.items.map(item => ({
+            po_item_id: item.id,
+            received_quantity: item.quantity - (item.received_quantity || 0),
+          }));
+          await receivePurchaseOrder(po.id, items);
+          showSuccess('Sipariş teslim alındı, stok güncellendi');
+          fetchPurchaseOrders({ status: statusFilter || undefined, limit: 100 });
+        } catch (error) {
+          showError(error.response?.data?.message || 'Sipariş teslim alınırken hata oluştu');
+        }
+      },
+    });
   };
 
   const handleCancel = async (po) => {
-    if (!confirm(`${po.po_number} numaralı siparişi iptal etmek istediğinize emin misiniz?`)) {
-      return;
-    }
-
-    try {
-      await cancelPurchaseOrder(po.id);
-      alert('Sipariş başarıyla iptal edildi');
-      fetchPurchaseOrders({ status: statusFilter || undefined, limit: 100 });
-    } catch (error) {
-      console.error('Cancel PO error:', error);
-      alert(error.response?.data?.message || 'Sipariş iptal edilirken hata oluştu');
-    }
+    showConfirm({
+      title: 'Siparişi İptal Et',
+      message: `${po.po_number} numaralı siparişi iptal etmek istediğinize emin misiniz? Bu işlem geri alınamaz.`,
+      confirmText: 'İptal Et',
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          await cancelPurchaseOrder(po.id);
+          showSuccess('Sipariş başarıyla iptal edildi');
+          fetchPurchaseOrders({ status: statusFilter || undefined, limit: 100 });
+        } catch (error) {
+          showError(error.response?.data?.message || 'Sipariş iptal edilirken hata oluştu');
+        }
+      },
+    });
   };
 
   return (
@@ -188,6 +196,11 @@ export default function PurchaseOrdersPage() {
           isLoading={isLoading}
         />
       </div>
+
+      {/* PO Detay Modal */}
+      {detailPO && (
+        <PODetailModal po={detailPO} onClose={() => setDetailPO(null)} />
+      )}
     </div>
   );
 }

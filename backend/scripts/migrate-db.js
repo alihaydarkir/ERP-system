@@ -19,7 +19,16 @@ async function runMigrations() {
       if (file.endsWith('.sql')) {
         console.log(`✅ Running migration: ${file}`);
         const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
-        await pool.query(sql);
+        try {
+          await pool.query(sql);
+        } catch (error) {
+          // Skip pgvector extension error if not installed
+          if (file === '006_pgvector_extension.sql' && error.code === '0A000') {
+            console.log(`⚠️  Skipping ${file}: pgvector extension not installed (optional)`);
+            continue;
+          }
+          throw error;
+        }
       }
     }
 

@@ -6,6 +6,7 @@ import ChequeList from '../components/Cheques/ChequeList';
 import ChequeForm from '../components/Cheques/ChequeForm';
 import ChequeDetailView from '../components/Cheques/ChequeDetailView';
 import ChequeExcelImport from '../components/Cheques/ChequeExcelImport';
+import ChequeStatusChangeModal from '../components/Cheques/ChequeStatusChangeModal';
 import DueSoonAlert from '../components/Cheques/DueSoonAlert';
 import useUIStore from '../store/uiStore';
 
@@ -27,6 +28,7 @@ const ChequesPage = () => {
 
   const [showForm, setShowForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showStatusModal, setShowStatusModal] = useState(false);
   const [selectedCheque, setSelectedCheque] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
   const [editingCheque, setEditingCheque] = useState(null);
@@ -150,9 +152,9 @@ const ChequesPage = () => {
     });
   };
 
-  const handleChangeStatus = async (chequeId, newStatus, notes) => {
+  const handleChangeStatus = async (chequeId, updateData) => {
     try {
-      const response = await chequeService.changeStatus(chequeId, newStatus, notes);
+      const response = await chequeService.update(chequeId, updateData);
       if (response.success) {
         updateCheque(chequeId, response.data);
         setShowDetail(false);
@@ -191,10 +193,29 @@ const ChequesPage = () => {
       const response = await chequeService.getById(cheque.id);
       if (response.success) {
         setSelectedCheque(response.data);
-        setShowDetail(true);
+        setShowStatusModal(true);
       }
     } catch (error) {
       console.error('Failed to load cheque details:', error);
+      showError('Çek detayları yüklenemedi');
+    }
+  };
+
+  const handleStatusUpdate = async (chequeId, updateData) => {
+    try {
+      const response = await chequeService.update(chequeId, updateData);
+      if (response.success) {
+        updateCheque(chequeId, response.data);
+        setShowStatusModal(false);
+        setSelectedCheque(null);
+        loadCheques();
+        loadStatistics();
+        loadDueSoon();
+        showSuccess('Çek durumu başarıyla güncellendi');
+      }
+    } catch (error) {
+      console.error('Failed to update status:', error);
+      showError('Durum güncellenirken hata oluştu');
     }
   };
 
@@ -298,6 +319,17 @@ const ChequesPage = () => {
           <ChequeExcelImport
             onClose={() => setShowImport(false)}
             onImportComplete={handleImportComplete}
+          />
+        )}
+
+        {showStatusModal && selectedCheque && (
+          <ChequeStatusChangeModal
+            cheque={selectedCheque}
+            onClose={() => {
+              setShowStatusModal(false);
+              setSelectedCheque(null);
+            }}
+            onSubmit={handleStatusUpdate}
           />
         )}
       </div>

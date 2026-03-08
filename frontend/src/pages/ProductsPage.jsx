@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { productService } from '../services/productService';
+import { supplierService } from '../services/supplierService';
+import { warehouseService } from '../services/warehouseService';
 import ImportProductsDialog from '../components/Products/ImportProductsDialog';
 import CategoryFilter from '../components/Products/CategoryFilter';
 import useUIStore from '../store/uiStore';
@@ -11,6 +13,8 @@ import toast from 'react-hot-toast';
 export default function ProductsPage() {
   const { showSuccess, showError, showConfirm } = useUIStore();
   const [products, setProducts] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
@@ -24,11 +28,33 @@ export default function ProductsPage() {
     category: '',
     sku: '',
     low_stock_threshold: '10',
+    supplier_id: '',
+    warehouse_id: '',
   });
 
   useEffect(() => {
     fetchProducts();
+    fetchSuppliers();
+    fetchWarehouses();
   }, [selectedCategory]);
+
+  const fetchSuppliers = async () => {
+    try {
+      const response = await supplierService.getAll({ limit: 100, is_active: 'true' });
+      setSuppliers(response.data || []);
+    } catch (error) {
+      console.error('Suppliers fetch error:', error);
+    }
+  };
+
+  const fetchWarehouses = async () => {
+    try {
+      const response = await warehouseService.getAll({ limit: 100, is_active: 'true' });
+      setWarehouses(response.data || []);
+    } catch (error) {
+      console.error('Warehouses fetch error:', error);
+    }
+  };
 
   const fetchProducts = async () => {
     try {
@@ -74,6 +100,8 @@ export default function ProductsPage() {
       category: product.category,
       sku: product.sku,
       low_stock_threshold: product.low_stock_threshold || '10',
+      supplier_id: product.supplier_id || '',
+      warehouse_id: product.warehouse_id || '',
     });
     setShowModal(true);
   };
@@ -106,6 +134,8 @@ export default function ProductsPage() {
       category: '',
       sku: '',
       low_stock_threshold: '10',
+      supplier_id: '',
+      warehouse_id: '',
     });
     setEditingProduct(null);
   };
@@ -201,6 +231,12 @@ export default function ProductsPage() {
                     Kategori
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Tedarikçi
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Depo
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Fiyat
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -229,6 +265,12 @@ export default function ProductsPage() {
                       <span className="px-2 py-1 rounded-full bg-blue-100 text-blue-800">
                         {product.category}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      {suppliers.find(s => s.id === product.supplier_id)?.supplier_name || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      {warehouses.find(w => w.id === product.warehouse_id)?.warehouse_code || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       ₺{product.price?.toFixed(2)}
@@ -308,6 +350,40 @@ export default function ProductsPage() {
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                 className="w-full px-4 py-2 border rounded-lg"
               />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tedarikçi
+                </label>
+                <select
+                  value={formData.supplier_id}
+                  onChange={(e) => setFormData({ ...formData, supplier_id: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Tedarikçi Seçiniz</option>
+                  {suppliers.map(supplier => (
+                    <option key={supplier.id} value={supplier.id}>
+                      {supplier.supplier_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Depo
+                </label>
+                <select
+                  value={formData.warehouse_id}
+                  onChange={(e) => setFormData({ ...formData, warehouse_id: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Depo Seçiniz</option>
+                  {warehouses.map(warehouse => (
+                    <option key={warehouse.id} value={warehouse.id}>
+                      {warehouse.warehouse_name} ({warehouse.warehouse_code})
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <input
                   type="number"

@@ -10,25 +10,27 @@ class Cheque {
     check_issuer,
     customer_id,
     bank_name,
+    collateral_bank,
     received_date,
     due_date,
     amount,
     currency = 'TRY',
     status = 'pending',
+    given_to_customer_id,
     notes
   }) {
     const query = `
       INSERT INTO cheques (
-        user_id, check_serial_no, check_issuer, customer_id, bank_name,
-        received_date, due_date, amount, currency, status, notes
+        user_id, check_serial_no, check_issuer, customer_id, bank_name, collateral_bank,
+        received_date, due_date, amount, currency, status, given_to_customer_id, notes
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *
     `;
 
     const values = [
-      user_id, check_serial_no, check_issuer, customer_id, bank_name,
-      received_date, due_date, amount, currency, status, notes
+      user_id, check_serial_no, check_issuer, customer_id, bank_name, collateral_bank,
+      received_date, due_date, amount, currency, status, given_to_customer_id, notes
     ];
 
     const result = await pool.query(query, values);

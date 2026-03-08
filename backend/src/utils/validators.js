@@ -10,7 +10,12 @@ const userSchemas = {
     username: Joi.string().min(3).max(30).required(),
     email: Joi.string().email({ tlds: { allow: false } }).required(),
     password: Joi.string().min(6).required(),
-    role: Joi.string().valid('admin', 'manager', 'user').default('user')
+    role: Joi.string().valid('admin', 'manager', 'user').default('user'),
+    // Company fields for multi-tenancy
+    companyAction: Joi.string().valid('join_default', 'create', 'join').optional(),
+    companyName: Joi.string().min(2).max(100).optional().allow(''),
+    companyCode: Joi.string().min(2).max(50).optional().allow(''),
+    joinCompanyCode: Joi.string().min(2).max(50).optional().allow('')
   }),
 
   login: Joi.object({
@@ -35,7 +40,8 @@ const productSchemas = {
     stock: Joi.number().integer().min(0).required(),
     category: Joi.string().max(100).allow('', null),
     sku: Joi.string().max(100).required(),
-    low_stock_threshold: Joi.number().integer().min(0).default(10)
+    low_stock_threshold: Joi.number().integer().min(0).default(10),
+    supplier_id: Joi.number().integer().allow(null)
   }),
 
   update: Joi.object({
@@ -45,7 +51,8 @@ const productSchemas = {
     stock: Joi.number().integer().min(0),
     category: Joi.string().max(100).allow('', null),
     sku: Joi.string().max(100),
-    low_stock_threshold: Joi.number().integer().min(0)
+    low_stock_threshold: Joi.number().integer().min(0),
+    supplier_id: Joi.number().integer().allow(null)
   }).min(1),
 
   updateStock: Joi.object({
@@ -86,7 +93,7 @@ const orderSchemas = {
 
 // Chat validation schemas
 const chatSchemas = {
-  message: Joi.object({
+  sendMessage: Joi.object({
     message: Joi.string().min(1).max(1000).required(),
     context: Joi.object().optional()
   })
@@ -131,6 +138,40 @@ const customerSchemas = {
       Joi.string().pattern(/^[0-9+\-() ]+$/).min(10).max(20)
     ),
     company_location: Joi.string().max(255).allow('', null).optional()
+  }).min(1)
+};
+
+// Supplier validation schemas
+const supplierSchemas = {
+  create: Joi.object({
+    supplier_name: Joi.string().min(3).max(100).required(),
+    contact_person: Joi.string().max(100).allow('', null),
+    email: Joi.string().email({ tlds: { allow: false } }).allow('', null),
+    phone: Joi.string().max(20).allow('', null),
+    address: Joi.string().max(500).allow('', null),
+    tax_office: Joi.string().max(255).allow('', null),
+    tax_number: Joi.string().max(50).allow('', null),
+    iban: Joi.string().max(50).allow('', null),
+    payment_terms: Joi.string().max(50).default('Net 30'),
+    currency: Joi.string().length(3).default('TRY'),
+    notes: Joi.string().max(1000).allow('', null),
+    rating: Joi.number().integer().min(1).max(5).allow(null)
+  }),
+
+  update: Joi.object({
+    supplier_name: Joi.string().min(3).max(100),
+    contact_person: Joi.string().max(100).allow('', null),
+    email: Joi.string().email({ tlds: { allow: false } }).allow('', null),
+    phone: Joi.string().max(20).allow('', null),
+    address: Joi.string().max(500).allow('', null),
+    tax_office: Joi.string().max(255).allow('', null),
+    tax_number: Joi.string().max(50).allow('', null),
+    iban: Joi.string().max(50).allow('', null),
+    payment_terms: Joi.string().max(50),
+    currency: Joi.string().length(3),
+    notes: Joi.string().max(1000).allow('', null),
+    rating: Joi.number().integer().min(1).max(5).allow(null),
+    is_active: Joi.boolean()
   }).min(1)
 };
 
@@ -182,6 +223,13 @@ const querySchemas = {
     page: Joi.number().integer().min(1).default(1),
     limit: Joi.number().integer().min(1).max(10000).default(50),
     offset: Joi.number().integer().min(0).default(0)
+  }).unknown(true),
+
+  supplierFilters: Joi.object({
+    search: Joi.string(),
+    is_active: Joi.string().valid('true', 'false'),
+    page: Joi.number().integer().min(1).default(1),
+    limit: Joi.number().integer().min(1).max(10000).default(50)
   }).unknown(true)
 };
 
@@ -221,6 +269,7 @@ module.exports = {
   chatSchemas,
   ragSchemas,
   customerSchemas,
+  supplierSchemas,
   querySchemas,
   validate
 };

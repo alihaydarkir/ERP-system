@@ -29,6 +29,11 @@ const ConfirmDialog = ({
           icon: 'text-blue-600',
           button: 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500'
         };
+      case 'success':
+        return {
+          icon: 'text-green-600',
+          button: 'bg-green-600 hover:bg-green-700 focus:ring-green-500'
+        };
       default:
         return {
           icon: 'text-gray-600',

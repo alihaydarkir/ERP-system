@@ -13,7 +13,7 @@ class Order {
   /**
    * Create a new order
    */
-  static async create({ user_id, customer_id, items, total_amount, status = 'pending' }) {
+  static async create({ user_id, customer_id, items, total_amount, status = 'pending', company_id }) {
     const client = await pool.connect();
 
     try {
@@ -24,17 +24,17 @@ class Order {
 
       // Create order
       const orderQuery = `
-        INSERT INTO orders (user_id, customer_id, order_number, total_amount, status)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO orders (user_id, customer_id, order_number, total_amount, status, company_id)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING *
       `;
-      const orderResult = await client.query(orderQuery, [user_id, customer_id, orderNumber, total_amount, status]);
+      const orderResult = await client.query(orderQuery, [user_id, customer_id, orderNumber, total_amount, status, company_id]);
       const order = orderResult.rows[0];
 
       // Create order items
       const itemsQuery = `
-        INSERT INTO order_items (order_id, product_id, quantity, price)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO order_items (order_id, product_id, quantity, price, company_id)
+        VALUES ($1, $2, $3, $4, $5)
       `;
 
       for (const item of items) {
@@ -42,7 +42,8 @@ class Order {
           order.id,
           item.product_id,
           item.quantity,
-          item.price
+          item.price,
+          company_id
         ]);
 
         // Update product stock
@@ -73,7 +74,7 @@ class Order {
   /**
    * Find order by ID with items
    */
-  static async findById(id) {
+  static async findById(id, company_id = null) {
     const orderQuery = `
       SELECT
         o.*,
@@ -87,9 +88,10 @@ class Order {
       FROM orders o
       LEFT JOIN users u ON o.user_id = u.id
       LEFT JOIN customers c ON o.customer_id = c.id
-      WHERE o.id = $1
+      WHERE o.id = $1 ${company_id ? 'AND o.company_id = $2' : ''}
     `;
-    const orderResult = await pool.query(orderQuery, [id]);
+    const params = company_id ? [id, company_id] : [id];
+    const orderResult = await pool.query(orderQuery, params);
 
     if (orderResult.rows.length === 0) {
       return null;
@@ -145,6 +147,13 @@ class Order {
     `;
     const values = [];
     let paramCount = 1;
+
+    // MULTI-TENANCY: Always filter by company_id first
+    if (filters.company_id) {
+      query += ` AND o.company_id = $${paramCount}`;
+      values.push(filters.company_id);
+      paramCount++;
+    }
 
     if (filters.user_id) {
       query += ` AND o.user_id = $${paramCount}`;
@@ -337,6 +346,13 @@ class Order {
     const values = [];
     let paramCount = 1;
 
+    // MULTI-TENANCY
+    if (filters.company_id) {
+      query += ` AND company_id = $${paramCount}`;
+      values.push(filters.company_id);
+      paramCount++;
+    }
+
     if (filters.start_date) {
       query += ` AND created_at >= $${paramCount}`;
       values.push(filters.start_date);
@@ -359,6 +375,13 @@ class Order {
     let query = 'SELECT COUNT(*) FROM orders WHERE 1=1';
     const values = [];
     let paramCount = 1;
+
+    // MULTI-TENANCY: Always filter by company_id first
+    if (filters.company_id) {
+      query += ` AND company_id = $${paramCount}`;
+      values.push(filters.company_id);
+      paramCount++;
+    }
 
     if (filters.status) {
       query += ` AND status = $${paramCount}`;

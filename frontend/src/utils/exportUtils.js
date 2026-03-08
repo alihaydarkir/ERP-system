@@ -276,3 +276,86 @@ export const exportReportToPDF = (reportData, reportTitle) => {
   
   doc.save(`${reportTitle.toLowerCase().replace(/\s/g, '_')}_${new Date().getTime()}.pdf`);
 };
+
+/**
+ * Tedarikçileri PDF olarak export et
+ */
+export const exportSuppliersToPDF = (suppliers) => {
+  const doc = new jsPDF();
+  
+  doc.setFontSize(18);
+  doc.text('Tedarikçi Listesi', 14, 22);
+  
+  doc.setFontSize(10);
+  doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, 14, 30);
+  
+  const tableData = suppliers.map(s => [
+    s.id,
+    s.supplier_name || s.company_name || '-',
+    s.contact_person || s.contact_name || '-',
+    s.email || '-',
+    s.phone || s.phone_number || '-',
+    s.payment_terms || '-',
+    s.is_active ? 'Aktif' : 'Pasif'
+  ]);
+  
+  doc.autoTable({
+    head: [['ID', 'Tedarikçi Adı', 'İletişim Kişisi', 'E-posta', 'Telefon', 'Ödeme Vadesi', 'Durum']],
+    body: tableData,
+    startY: 35,
+    styles: { fontSize: 8, cellPadding: 2 },
+    headStyles: { fillColor: [139, 92, 246], textColor: 255 },
+    alternateRowStyles: { fillColor: [245, 247, 250] },
+  });
+  
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.text(
+      `Sayfa ${i} / ${pageCount}`,
+      doc.internal.pageSize.width / 2,
+      doc.internal.pageSize.height - 10,
+      { align: 'center' }
+    );
+  }
+  
+  doc.save(`tedarikciler_${new Date().getTime()}.pdf`);
+};
+
+/**
+ * Tedarikçileri Excel olarak export et
+ */
+export const exportSuppliersToExcel = (suppliers) => {
+  const data = suppliers.map(s => ({
+    'ID': s.id,
+    'Tedarikçi Adı': s.supplier_name || s.company_name || '',
+    'İletişim Kişisi': s.contact_person || s.contact_name || '',
+    'E-posta': s.email || '',
+    'Telefon': s.phone || s.phone_number || '',
+    'Adres': s.address || s.location || '',
+    'Vergi Dairesi': s.tax_office || '',
+    'Vergi No': s.tax_number || '',
+    'IBAN': s.iban || '',
+    'Ödeme Vadesi': s.payment_terms || '',
+    'Para Birimi': s.currency || 'TRY',
+    'Değerlendirme': s.rating || '',
+    'Durum': s.is_active ? 'Aktif' : 'Pasif',
+    'Notlar': s.notes || ''
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Tedarikçiler');
+  
+  // Sütun genişliklerini ayarla
+  const colWidths = [
+    { wch: 5 }, { wch: 25 }, { wch: 20 }, { wch: 25 },
+    { wch: 15 }, { wch: 30 }, { wch: 20 }, { wch: 15 },
+    { wch: 30 }, { wch: 15 }, { wch: 10 }, { wch: 12 },
+    { wch: 10 }, { wch: 30 }
+  ];
+  ws['!cols'] = colWidths;
+  
+  XLSX.writeFile(wb, `tedarikciler_${new Date().getTime()}.xlsx`);
+};

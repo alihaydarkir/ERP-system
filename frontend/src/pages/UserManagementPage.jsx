@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { 
   Users, Search, Plus, Edit, Trash2, Key, Filter, 
-  ChevronDown, UserCheck, Shield, Activity 
+  ChevronDown, UserCheck, Shield, Activity, UserPlus, X, Check 
 } from 'lucide-react';
 import api from '../services/api';
 import useUIStore from '../store/uiStore';
@@ -10,6 +10,8 @@ import usePermissionStore from '../store/permissionStore';
 const UserManagementPage = () => {
   const [users, setUsers] = useState([]);
   const [statistics, setStatistics] = useState(null);
+  const [pendingApprovals, setPendingApprovals] = useState([]);
+  const [showPendingBox, setShowPendingBox] = useState(false);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [showUserModal, setShowUserModal] = useState(false);
@@ -24,6 +26,7 @@ const UserManagementPage = () => {
   useEffect(() => {
     fetchUsers();
     fetchStatistics();
+    fetchPendingApprovals();
   }, [search, roleFilter]);
 
   const fetchUsers = async () => {
@@ -49,6 +52,53 @@ const UserManagementPage = () => {
       }
     } catch (error) {
       console.error('İstatistikler yüklenemedi:', error);
+    }
+  };
+
+  const fetchPendingApprovals = async () => {
+    try {
+      const response = await api.get('/api/employee-approval/pending');
+      if (response?.data?.data?.requests) {
+        setPendingApprovals(response.data.data.requests);
+        // Otomatik olarak kutuyu göster eğer pending approval varsa
+        if (response.data.data.requests.length > 0) {
+          setShowPendingBox(true);
+        }
+      }
+    } catch (error) {
+      console.error('Pending approvals yüklenemedi:', error);
+    }
+  };
+
+  const handleApprove = async (userId) => {
+    try {
+      await api.post(`/api/employee-approval/${userId}/approve`);
+      showSuccess('Kullanıcı onaylandı');
+      fetchPendingApprovals();
+      fetchUsers();
+      fetchStatistics();
+    } catch (error) {
+      showError('Kullanıcı onaylanamadı');
+    }
+  };
+
+  const handleReject = async (userId) => {
+    const confirmed = await showConfirm(
+      'Bu kullanıcıyı reddetmek istediğinizden emin misiniz?',
+      'Kullanıcıyı Reddet',
+      'danger'
+    );
+
+    if (confirmed) {
+      try {
+        await api.post(`/api/employee-approval/${userId}/reject`);
+        showSuccess('Kullanıcı reddedildi');
+        fetchPendingApprovals();
+        fetchUsers();
+        fetchStatistics();
+      } catch (error) {
+        showError('Kullanıcı reddedilemedi');
+      }
     }
   };
 
@@ -147,6 +197,67 @@ const UserManagementPage = () => {
               </div>
               <Activity className="w-8 h-8 text-green-500" />
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pending Approvals Box */}
+      {pendingApprovals.length > 0 && (
+        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded-lg shadow">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-3 flex-1">
+              <UserPlus className="w-6 h-6 text-yellow-600" />
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-yellow-800 mb-1">
+                  Bekleyen Onaylar ({pendingApprovals.length})
+                </h3>
+                <p className="text-sm text-yellow-700 mb-3">
+                  Şirketinize katılmak isteyen kullanıcılar var
+                </p>
+                
+                {showPendingBox && (
+                  <div className="space-y-2 mt-3">
+                    {pendingApprovals.map((user) => (
+                      <div key={user.id} className="bg-white p-3 rounded-lg border border-yellow-200">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium text-gray-800">{user.username}</p>
+                            <p className="text-sm text-gray-600">{user.email}</p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Talep: {new Date(user.created_at).toLocaleString('tr-TR')}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleApprove(user.id)}
+                              className="flex items-center gap-1 bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                              title="Onayla"
+                            >
+                              <Check className="w-4 h-4" />
+                              Onayla
+                            </button>
+                            <button
+                              onClick={() => handleReject(user.id)}
+                              className="flex items-center gap-1 bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 transition-colors"
+                              title="Reddet"
+                            >
+                              <X className="w-4 h-4" />
+                              Reddet
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={() => setShowPendingBox(!showPendingBox)}
+              className="ml-4 text-yellow-700 hover:text-yellow-900 font-medium text-sm"
+            >
+              {showPendingBox ? 'Gizle' : 'Göster'}
+            </button>
           </div>
         </div>
       )}

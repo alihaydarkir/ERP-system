@@ -13,11 +13,14 @@ const { ORDER_STATUS, isValidStatusTransition, getNextStatuses } = require('../c
  */
 const getAllOrders = async (req, res) => {
   try {
-    const { user_id, status, start_date, end_date, page = 1, limit = 20 } = req.query;
+    const { status, start_date, end_date, page = 1, limit = 20 } = req.query;
+    const { company_id } = req.user; // MULTI-TENANCY
+
+    console.log('🔍 getAllOrders called:', { company_id, user_id: req.user.userId, status });
 
     // Build filters
     const filters = {
-      user_id: user_id ? parseInt(user_id) : undefined,
+      company_id, // MULTI-TENANCY
       status,
       start_date: start_date ? new Date(start_date) : undefined,
       end_date: end_date ? new Date(end_date) : undefined,
@@ -26,7 +29,9 @@ const getAllOrders = async (req, res) => {
     };
 
     const orders = await Order.findAll(filters);
-    const total = await Order.count({ user_id, status });
+    const total = await Order.count({ company_id, status });
+
+    console.log('📊 Orders found:', orders.length, 'Total:', total);
 
     const result = formatPaginated(
       formatOrders(orders),
@@ -49,8 +54,9 @@ const getAllOrders = async (req, res) => {
 const getOrderById = async (req, res) => {
   try {
     const { id } = req.params;
+    const { company_id } = req.user; // MULTI-TENANCY
 
-    const order = await Order.findById(id);
+    const order = await Order.findById(id, company_id); // MULTI-TENANCY
 
     if (!order) {
       return res.status(404).json(formatError('Order not found'));
@@ -85,7 +91,8 @@ const createOrder = async (req, res) => {
       customer_id,
       items,
       total_amount,
-      status
+      status,
+      company_id: req.user.company_id // MULTI-TENANCY
     });
 
     // Log activity
@@ -95,7 +102,8 @@ const createOrder = async (req, res) => {
       entity_type: 'order',
       entity_id: order.id,
       changes: { order_id: order.id, total_amount, items_count: items.length },
-      ip_address: getClientIP(req)
+      ip_address: getClientIP(req),
+      company_id: req.user.company_id // MULTI-TENANCY
     });
 
     // Log to activity logs
@@ -131,7 +139,14 @@ const createOrder = async (req, res) => {
 const updateOrder = async (req, res) => {
   try {
     const { id } = req.params;
+    const { company_id } = req.user; // MULTI-TENANCY
     const updates = req.body;
+
+    // First check if order belongs to this company
+    const existingOrder = await Order.findById(id, company_id);
+    if (!existingOrder) {
+      return res.status(404).json(formatError('Order not found'));
+    }
 
     const order = await Order.update(id, updates);
 
@@ -146,7 +161,8 @@ const updateOrder = async (req, res) => {
       entity_type: 'order',
       entity_id: id,
       changes: updates,
-      ip_address: getClientIP(req)
+      ip_address: getClientIP(req),
+      company_id // MULTI-TENANCY
     });
 
     // Log to activity logs
@@ -177,8 +193,9 @@ const updateOrder = async (req, res) => {
 const deleteOrder = async (req, res) => {
   try {
     const { id } = req.params;
+    const { company_id } = req.user; // MULTI-TENANCY
 
-    const order = await Order.findById(id);
+    const order = await Order.findById(id, company_id); // MULTI-TENANCY
     if (!order) {
       return res.status(404).json(formatError('Order not found'));
     }
@@ -192,7 +209,8 @@ const deleteOrder = async (req, res) => {
       entity_type: 'order',
       entity_id: id,
       changes: { deleted_order: id },
-      ip_address: getClientIP(req)
+      ip_address: getClientIP(req),
+      company_id // MULTI-TENANCY
     });
 
     // Log to activity logs

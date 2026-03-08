@@ -142,9 +142,16 @@ const formatSuccess = (data, message = 'Success') => {
 
 /**
  * Format error response
+ * @param {string} message - İnsan-okuyabilir hata mesajı
+ * @param {*} errors       - Detaylı hata listesi (validation vb.)
+ * @param {string} code    - Makine-okuyabilir hata kodu (AI agent'lar için)
+ *   Standart kodlar: NOT_FOUND | UNAUTHORIZED | FORBIDDEN | VALIDATION_ERROR |
+ *   DUPLICATE_ENTRY | INSUFFICIENT_STOCK | INVALID_STATUS_TRANSITION | SERVER_ERROR
  */
-const formatError = (message, errors = null) => {
-  return formatResponse(false, null, message, errors);
+const formatError = (message, errors = null, code = null) => {
+  const response = formatResponse(false, null, message, errors);
+  if (code) response.code = code;
+  return response;
 };
 
 /**

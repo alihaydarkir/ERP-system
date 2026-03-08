@@ -3,28 +3,33 @@ import usePermissionStore from './permissionStore';
 
 const useAuthStore = create((set) => ({
   user: JSON.parse(localStorage.getItem('user')) || null,
+  company: JSON.parse(localStorage.getItem('company')) || null,
   token: localStorage.getItem('token') || null,
   refreshToken: localStorage.getItem('refreshToken') || null,
   isAuthenticated: !!localStorage.getItem('token'),
 
-  login: (token, user, refreshToken) => {
+  login: (token, user, refreshToken, company = null) => {
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(user));
     if (refreshToken) {
       localStorage.setItem('refreshToken', refreshToken);
     }
-    set({ token, refreshToken, user, isAuthenticated: true });
+    if (company) {
+      localStorage.setItem('company', JSON.stringify(company));
+    }
+    set({ token, refreshToken, user, company, isAuthenticated: true });
   },
 
   logout: () => {
     localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
+    localStorage.removeItem('company');
     
     // Clear permissions on logout
     usePermissionStore.getState().clearPermissions();
     
-    set({ token: null, refreshToken: null, user: null, isAuthenticated: false });
+    set({ token: null, refreshToken: null, user: null, company: null, isAuthenticated: false });
   },
 
   setUser: (user) => {
@@ -32,6 +37,13 @@ const useAuthStore = create((set) => ({
       localStorage.setItem('user', JSON.stringify(user));
     }
     set({ user });
+  },
+
+  setCompany: (company) => {
+    if (company) {
+      localStorage.setItem('company', JSON.stringify(company));
+    }
+    set({ company });
   },
 
   updateToken: (token) => {

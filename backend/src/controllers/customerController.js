@@ -10,18 +10,18 @@ const { getClientIP, calculateOffset } = require('../utils/helpers');
 const getAllCustomers = async (req, res) => {
   try {
     const { search, page = 1, limit = 50, offset } = req.query;
-    const userId = req.user.id;
+    const { company_id } = req.user; // MULTI-TENANCY
 
     // Build filters
     const filters = {
-      user_id: userId,
+      company_id, // MULTI-TENANCY
       search,
       limit: parseInt(limit),
       offset: offset ? parseInt(offset) : calculateOffset(parseInt(page), parseInt(limit))
     };
 
     const customers = await Customer.findAll(filters);
-    const total = await Customer.count({ user_id: userId, search });
+    const total = await Customer.count({ company_id, search });
 
     const result = formatPaginated(
       customers,
@@ -72,9 +72,10 @@ const createCustomer = async (req, res) => {
   try {
     const { full_name, company_name, tax_office, tax_number, phone_number, company_location } = req.body;
     const userId = req.user.id;
+    const { company_id } = req.user; // MULTI-TENANCY
 
-    // Check if customer with same tax number already exists for this user
-    const existingCustomer = await Customer.findByTaxNumber(tax_number, userId);
+    // Check if customer with same tax number already exists for this company
+    const existingCustomer = await Customer.findByTaxNumber(tax_number, company_id);
     if (existingCustomer) {
       return res.status(400).json(formatError('A customer with this tax number already exists'));
     }
@@ -87,7 +88,8 @@ const createCustomer = async (req, res) => {
       tax_office,
       tax_number,
       phone_number,
-      company_location
+      company_location,
+      company_id // MULTI-TENANCY
     });
 
     // Log the action
@@ -98,7 +100,8 @@ const createCustomer = async (req, res) => {
       entity_id: customer.id,
       ip_address: getClientIP(req),
       user_agent: req.get('user-agent'),
-      details: { company_name, tax_number }
+      details: { company_name, tax_number },
+      company_id // MULTI-TENANCY
     });
 
     // Log to activity logs

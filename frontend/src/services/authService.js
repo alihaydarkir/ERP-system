@@ -6,13 +6,17 @@ export const authService = {
     return response.data;
   },
 
-  register: async (username, email, password, role = 'user') => {
-    const response = await api.post('/api/auth/register', {
-      username,
-      email,
-      password,
-      role,
-    });
+  register: async (data) => {
+    // Support both old and new formats
+    if (typeof data === 'string') {
+      // Old format: register(username, email, password, role)
+      const [username, email, password, role] = arguments;
+      data = { username, email, password, role };
+    }
+    
+    console.log('🚀 authService.register - About to send:', data);
+    
+    const response = await api.post('/api/auth/register', data);
     return response.data;
   },
 

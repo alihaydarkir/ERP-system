@@ -1,31 +1,185 @@
-name: Deploy
+# =============================================================================
+# CI/CD Pipeline — Build, Test, Push, Deploy
+# =============================================================================
+# Trigger: push to main (production) or tags v*.*.*
+#
+# Required GitHub Secrets:
+#   DOCKERHUB_USERNAME   — Docker Hub username
+#   DOCKERHUB_TOKEN      — Docker Hub access token (not password)
+#   SSH_HOST             — VPS IP address or hostname
+#   SSH_USER             — VPS SSH username (e.g. ubuntu, root)
+#   SSH_PRIVATE_KEY      — VPS SSH private key (-----BEGIN ... -----)
+#   VITE_API_URL         — Leave empty "" for Docker Compose setup
+# =============================================================================
+
+name: 🚀 Build & Deploy
 
 on:
   push:
     branches: [main]
+    tags: ['v*.*.*']
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: docker.io
+  BACKEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/erp-backend
+  FRONTEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/erp-frontend
 
 jobs:
-  deploy-backend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Deploy to Railway
-        uses: bervProject/railway-deploy@master
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
 
-  deploy-frontend:
+  # ── 1. Test ────────────────────────────────────────────────────────────────
+  test:
+    name: 🧪 Run Tests
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: erp_test
+        options: >-
+          --health-cmd "pg_isready -U test_user"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
     steps:
-      - uses: actions/checkout@v3
-      
-      - name: Deploy to Vercel
-        uses: amondnet/vercel-action@v20
+      - name: 📦 Checkout
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Node.js 20
+        uses: actions/setup-node@v4
         with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          vercel-args: '--prod'
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: 📥 Install backend dependencies
+        working-directory: ./backend
+        run: npm ci
+
+      - name: 🔍 Lint backend
+        working-directory: ./backend
+        run: npm run lint || true
+
+      - name: 🧪 Run backend tests
+        working-directory: ./backend
+        run: npm test
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/erp_test
+          JWT_SECRET: test_jwt_secret_at_least_32_characters_long
+          REDIS_URL: ""
+
+      - name: 📥 Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: 🏗️ Build frontend (validates no build errors)
+        working-directory: ./frontend
+        run: npm run build
+        env:
+          VITE_API_URL: ""
+
+  # ── 2. Build & Push Docker Images ─────────────────────────────────────────
+  build-and-push:
+    name: 🐳 Build & Push Images
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push'
+
+    steps:
+      - name: 📦 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🐳 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔐 Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: 🏗️ Build & push Backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./Dockerfile.backend
+          push: true
+          tags: |
+            ${{ env.BACKEND_IMAGE }}:latest
+            ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+      - name: 🏗️ Build & push Frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./Dockerfile.frontend
+          push: true
+          tags: |
+            ${{ env.FRONTEND_IMAGE }}:latest
+            ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+          build-args: |
+            VITE_API_URL=${{ secrets.VITE_API_URL }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+  # ── 3. Deploy to VPS ───────────────────────────────────────────────────────
+  deploy:
+    name: 🌍 Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: production
+      url: https://${{ secrets.SSH_HOST }}
+
+    steps:
+      - name: 📦 Checkout
+        uses: actions/checkout@v4
+
+      - name: 📤 Copy compose files to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "docker-compose.yml,nginx/"
+          target: "/opt/erp"
+
+      - name: 🚀 Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            cd /opt/erp
+            export DOCKERHUB_USERNAME="${{ secrets.DOCKERHUB_USERNAME }}"
+            export IMAGE_TAG="${{ github.sha }}"
+
+            echo "📥 Pulling latest images..."
+            docker compose pull backend frontend
+
+            echo "🔄 Restarting services..."
+            docker compose up -d --remove-orphans --no-build
+
+            echo "🧹 Cleaning up old images..."
+            docker image prune -f
+
+            echo "✅ Deployment complete!"
+            docker compose ps
 

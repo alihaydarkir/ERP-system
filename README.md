@@ -11,16 +11,17 @@
 ## 📋 İÇİNDEKİLER
 
 1. [Proje Özeti](#proje-özeti)
-2. [Hardware & Setup](#hardware--setup)
+2. [Hızlı Başlangıç](#hızlı-başlangıç)
 3. [Tech Stack](#tech-stack)
-4. [Task Bölüşümü](#task-bölüşümü)
-5. [Başlangıç Rehberi](#başlangıç-rehberi)
-6. [Repo Yapısı](#repo-yapısı)
-7. [Git Workflow](#git-workflow)
-8. [Sohbet Timeline](#sohbet-timeline)
-9. [API Endpoints](#api-endpoints)
-10. [Deployment](#deployment)
-11. [Troubleshooting](#troubleshooting)
+4. [Repo Yapısı](#repo-yapısı)
+5. [API Endpoints](#api-endpoints)
+6. [Docker Yapılandırması](#docker-yapılandırması)
+7. [Güvenlik](#güvenlik)
+8. [Troubleshooting](#troubleshooting)
+
+> 📖 **Ek Dokümantasyon:**  
+> • [QUICK_START.md](QUICK_START.md) - Hızlı kurulum rehberi  
+> • [SECURITY_CLEANUP.md](SECURITY_CLEANUP.md) - Güvenlik raporu ve özellikleri
 
 ---
 
@@ -860,7 +861,31 @@ psql -U postgres erp_db < backup_20251026.sql
 
 ---
 
-## 🐛 Troubleshooting
+## � Docker Yapılandırması
+
+### Mevcut Durum (Ocak 2026)
+Proje şu anda **local development** modunda çalışmaktadır:
+- PostgreSQL: Local kurulum (Port 5432)
+- Redis: Opsiyonel
+- Backend: Port 5000
+- Frontend: Port 5173
+
+### Docker'a Geçiş
+Docker yapılandırması `docker-archive/` klasöründe arşivlenmiştir. İleride Docker'a geçmek için:
+
+```powershell
+# Docker dosyalarını geri yükle
+.\docker-archive\DOCKER_RESTORE.ps1
+
+# Veya manuel olarak
+Move-Item -Path "docker-archive\devops" -Destination "devops" -Force
+```
+
+Detaylı bilgi için: [`docker-archive/README.md`](docker-archive/README.md)
+
+---
+
+## �🐛 Troubleshooting
 
 ### Ollama Sorunları
 

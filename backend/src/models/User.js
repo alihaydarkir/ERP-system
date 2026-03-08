@@ -5,16 +5,28 @@ class User {
   /**
    * Create a new user
    */
-  static async create({ username, email, password, role = 'user', full_name = null }) {
+  static async create({ username, email, password, role = 'user', full_name = null, company_id = null, approval_status = 'approved' }) {
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Get default company if not provided
+    let finalCompanyId = company_id;
+    if (!finalCompanyId) {
+      const defaultCompany = await pool.query(
+        "SELECT id FROM companies WHERE company_code = 'DEFAULT_COMPANY' LIMIT 1"
+      );
+      if (defaultCompany.rows.length > 0) {
+        finalCompanyId = defaultCompany.rows[0].id;
+      }
+    }
+
     const query = `
-      INSERT INTO users (username, email, password_hash, role, full_name)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING id, username, email, role, full_name, created_at
+      INSERT INTO users (username, email, password_hash, role, full_name, company_id, approval_status, approved_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING id, username, email, role, full_name, company_id, approval_status, created_at
     `;
 
-    const values = [username, email, hashedPassword, role, full_name];
+    const approvedAt = approval_status === 'approved' ? new Date() : null;
+    const values = [username, email, hashedPassword, role, full_name, finalCompanyId, approval_status, approvedAt];
     const result = await pool.query(query, values);
     return result.rows[0];
   }

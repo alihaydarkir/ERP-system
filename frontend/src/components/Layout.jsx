@@ -7,7 +7,7 @@ export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout: logoutFn } = useAuthStore();
+  const { user, company, logout: logoutFn } = useAuthStore();
 
   const isActive = (path) => location.pathname === path;
 
@@ -20,17 +20,18 @@ export default function Layout({ children }) {
   const baseMenuItems = [
     { path: '/dashboard', label: 'Dashboard', icon: '📊' },
     { path: '/products', label: 'Ürünler', icon: '📦' },
+    { path: '/warehouses', label: 'Depolar', icon: '🏢' },
     { path: '/orders', label: 'Siparişler', icon: '🛒' },
     { path: '/customers', label: 'Müşteriler', icon: '👥' },
+    { path: '/suppliers', label: 'Tedarikçiler', icon: '🏭' },
     { path: '/cheques', label: 'Çekler', icon: '📋' },
-    { path: '/chat', label: 'AI Chatbot', icon: '🤖' },
+    { path: '/invoices', label: 'Faturalar', icon: '🧾' },    { path: '/current-accounts', label: 'Cari Hesaplar', icon: '📊' },    { path: '/chat', label: 'AI Chatbot', icon: '🤖' },
     { path: '/reports', label: 'Raporlar', icon: '📈' },
   ];
 
   // Admin-only menu items
   const adminMenuItems = [
     { path: '/user-management', label: 'Kullanıcı Yönetimi', icon: '👤' },
-    { path: '/activity-logs', label: 'Aktivite Logları', icon: '📜' },
     { path: '/settings', label: 'Ayarlar', icon: '⚙️' }
   ];
 
@@ -59,6 +60,17 @@ export default function Layout({ children }) {
           <div className="flex items-center space-x-4">
             {/* Currency Ticker */}
             <CurrencyTicker />
+            
+            {/* Company Badge */}
+            {company && (
+              <div className="flex items-center space-x-2 px-3 py-2 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+                <span className="text-lg">🏭</span>
+                <div className="text-sm">
+                  <div className="font-semibold text-gray-800">{company.company_name}</div>
+                  <div className="text-xs text-gray-500">Kod: {company.company_code}</div>
+                </div>
+              </div>
+            )}
             
             <Link
               to="/profile"

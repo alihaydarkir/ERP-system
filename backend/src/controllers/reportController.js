@@ -7,9 +7,10 @@ const { formatSuccess, formatError } = require('../utils/formatters');
 const getDailyReport = async (req, res) => {
   try {
     const { date } = req.query;
+    const { company_id } = req.user; // MULTI-TENANCY
     const reportDate = date ? new Date(date) : new Date();
 
-    const report = await reportService.getDailyReport(reportDate);
+    const report = await reportService.getDailyReport(reportDate, company_id);
 
     if (!report.success) {
       throw new Error(report.error || 'Failed to generate daily report');
@@ -29,6 +30,7 @@ const getDailyReport = async (req, res) => {
 const getWeeklyReport = async (req, res) => {
   try {
     const { start_date, end_date } = req.query;
+    const { company_id } = req.user; // MULTI-TENANCY
 
     // Default to current week if not provided
     const endDate = end_date ? new Date(end_date) : new Date();
@@ -36,7 +38,7 @@ const getWeeklyReport = async (req, res) => {
       ? new Date(start_date)
       : new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-    const report = await reportService.getSalesReport(startDate, endDate);
+    const report = await reportService.getSalesReport(startDate, endDate, company_id);
 
     if (!report.success) {
       throw new Error(report.error || 'Failed to generate weekly report');
@@ -61,11 +63,12 @@ const getWeeklyReport = async (req, res) => {
 const getMonthlyReport = async (req, res) => {
   try {
     const { year, month } = req.query;
+    const { company_id } = req.user; // MULTI-TENANCY
 
     const reportYear = year ? parseInt(year) : new Date().getFullYear();
     const reportMonth = month ? parseInt(month) : new Date().getMonth() + 1;
 
-    const report = await reportService.getMonthlyReport(reportYear, reportMonth);
+    const report = await reportService.getMonthlyReport(reportYear, reportMonth, company_id);
 
     if (!report.success) {
       throw new Error(report.error || 'Failed to generate monthly report');
@@ -90,6 +93,7 @@ const getMonthlyReport = async (req, res) => {
 const exportReport = async (req, res) => {
   try {
     const { type = 'sales', format = 'json', start_date, end_date } = req.query;
+    const { company_id } = req.user; // MULTI-TENANCY
 
     let reportData;
 
@@ -97,22 +101,24 @@ const exportReport = async (req, res) => {
       case 'sales':
         reportData = await reportService.getSalesReport(
           new Date(start_date),
-          new Date(end_date)
+          new Date(end_date),
+          company_id
         );
         break;
 
       case 'inventory':
-        reportData = await reportService.getInventoryReport();
+        reportData = await reportService.getInventoryReport(company_id);
         break;
 
       case 'low-stock':
-        reportData = await reportService.getLowStockReport();
+        reportData = await reportService.getLowStockReport(10, company_id);
         break;
 
       case 'top-products':
         reportData = await reportService.getTopSellingProducts(10, {
           start_date,
-          end_date
+          end_date,
+          company_id
         });
         break;
 
@@ -139,11 +145,12 @@ const exportReport = async (req, res) => {
 };
 
 /**
- * Get dashboard statistics
+ * Get dashboard statistics (legacy simple version)
  */
 const getDashboardStats = async (req, res) => {
   try {
-    const stats = await reportService.getDashboardStats();
+    const { company_id } = req.user; // MULTI-TENANCY
+    const stats = await reportService.getDashboardStats(company_id);
 
     if (!stats.success) {
       throw new Error(stats.error || 'Failed to get dashboard stats');
@@ -158,11 +165,31 @@ const getDashboardStats = async (req, res) => {
 };
 
 /**
+ * ⚡ GET /api/reports/summary — Tek çağrıyla tüm dashboard verisi
+ */
+const getDashboardSummary = async (req, res) => {
+  try {
+    const { company_id } = req.user;
+    const result = await reportService.getDashboardSummary(company_id);
+
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to get dashboard summary');
+    }
+
+    res.json(formatSuccess(result.summary, 'Dashboard summary loaded'));
+  } catch (error) {
+    console.error('Dashboard summary error:', error);
+    res.status(500).json(formatError('Dashboard özeti yüklenemedi'));
+  }
+};
+
+/**
  * Get inventory report
  */
 const getInventoryReport = async (req, res) => {
   try {
-    const report = await reportService.getInventoryReport();
+    const { company_id } = req.user; // MULTI-TENANCY
+    const report = await reportService.getInventoryReport(company_id);
 
     if (!report.success) {
       throw new Error(report.error || 'Failed to generate inventory report');
@@ -182,10 +209,12 @@ const getInventoryReport = async (req, res) => {
 const getTopProducts = async (req, res) => {
   try {
     const { limit = 10, start_date, end_date } = req.query;
+    const { company_id } = req.user; // MULTI-TENANCY
 
     const report = await reportService.getTopSellingProducts(parseInt(limit), {
       start_date,
-      end_date
+      end_date,
+      company_id
     });
 
     if (!report.success) {
@@ -206,6 +235,7 @@ module.exports = {
   getMonthlyReport,
   exportReport,
   getDashboardStats,
+  getDashboardSummary,
   getInventoryReport,
   getTopProducts
 };

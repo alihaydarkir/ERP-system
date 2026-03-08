@@ -11,12 +11,52 @@ const ChequeForm = ({ cheque, onSubmit, onCancel }) => {
     due_date: '',
     amount: '',
     currency: 'TRY',
+    status: 'pending',
+    collateral_bank: '', // Teminat bankası
+    given_to_customer_id: '', // Verilen müşteri
     notes: ''
   });
 
   const [customers, setCustomers] = useState([]);
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Türkiye'deki bankalar
+  const turkishBanks = [
+    'Türkiye İş Bankası',
+    'Garanti BBVA',
+    'Yapı Kredi Bankası',
+    'Akbank',
+    'Ziraat Bankası',
+    'Halkbank',
+    'Vakıfbank',
+    'QNB Finansbank',
+    'Denizbank',
+    'TEB',
+    'ING Bank',
+    'Şekerbank',
+    'HSBC',
+    'Kuveyt Türk',
+    'Albaraka Türk',
+    'Türkiye Finans',
+    'Ziraat Katılım',
+    'Vakıf Katılım',
+    'Emlak Katılım',
+    'Fibabanka',
+    'Odeabank',
+    'Alternatifbank',
+    'Burgan Bank',
+    'ICBC Turkey',
+    'Anadolubank',
+    'Turkish Bank',
+    'Aktif Yatırım Bankası',
+    'Nurol Yatırım Bankası',
+    'Türk Ekonomi Bankası',
+    'Bank Mellat',
+    'Habib Bank Limited',
+    'Rabobank',
+    'Citibank'
+  ].sort();
 
   useEffect(() => {
     // Load customers
@@ -41,6 +81,9 @@ const ChequeForm = ({ cheque, onSubmit, onCancel }) => {
         due_date: cheque.due_date ? cheque.due_date.split('T')[0] : '',
         amount: cheque.amount || '',
         currency: cheque.currency || 'TRY',
+        status: cheque.status || 'pending',
+        collateral_bank: cheque.collateral_bank || '',
+        given_to_customer_id: cheque.given_to_customer_id || '',
         notes: cheque.notes || ''
       });
     }
@@ -91,6 +134,16 @@ const ChequeForm = ({ cheque, onSubmit, onCancel }) => {
 
     if (!formData.amount || parseFloat(formData.amount) <= 0) {
       newErrors.amount = 'Geçerli bir tutar girin';
+    }
+
+    // Teminat için banka adı gerekli
+    if (formData.status === 'teminat' && !formData.collateral_bank.trim()) {
+      newErrors.collateral_bank = 'Teminat verildiği banka gerekli';
+    }
+
+    // Müşteriye verildi için müşteri seçimi gerekli
+    if (formData.status === 'musteriye_verildi' && !formData.given_to_customer_id) {
+      newErrors.given_to_customer_id = 'Verilen müşteri seçimi gerekli';
     }
 
     setErrors(newErrors);
@@ -202,14 +255,19 @@ const ChequeForm = ({ cheque, onSubmit, onCancel }) => {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Banka Adı <span className="text-red-500">*</span>
               </label>
-              <input
-                type="text"
+              <select
                 name="bank_name"
                 value={formData.bank_name}
                 onChange={handleChange}
                 className={`w-full px-3 py-2 border ${errors.bank_name ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
-                placeholder="Garanti Bankası"
-              />
+              >
+                <option value="">Banka Seçin</option>
+                {turkishBanks.map((bank) => (
+                  <option key={bank} value={bank}>
+                    {bank}
+                  </option>
+                ))}
+              </select>
               {errors.bank_name && (
                 <p className="text-red-500 text-xs mt-1">{errors.bank_name}</p>
               )}
@@ -285,6 +343,75 @@ const ChequeForm = ({ cheque, onSubmit, onCancel }) => {
                 </select>
               </div>
             </div>
+
+            {/* Çek Durumu */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Çek Durumu <span className="text-red-500">*</span>
+              </label>
+              <select
+                name="status"
+                value={formData.status}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="pending">Beklemede</option>
+                <option value="paid">Ödendi</option>
+                <option value="cancelled">İptal</option>
+                <option value="teminat">Teminat</option>
+                <option value="musteriye_verildi">Müşteriye Verildi</option>
+              </select>
+            </div>
+
+            {/* Teminat Durumu - Sadece status='teminat' ise göster */}
+            {formData.status === 'teminat' && (
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Teminat Verildiği Banka <span className="text-red-500">*</span>
+                </label>
+                <select
+                  name="collateral_bank"
+                  value={formData.collateral_bank}
+                  onChange={handleChange}
+                  className={`w-full px-3 py-2 border ${errors.collateral_bank ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
+                >
+                  <option value="">Banka Seçin</option>
+                  {turkishBanks.map((bank) => (
+                    <option key={bank} value={bank}>
+                      {bank}
+                    </option>
+                  ))}
+                </select>
+                {errors.collateral_bank && (
+                  <p className="text-red-500 text-xs mt-1">{errors.collateral_bank}</p>
+                )}
+              </div>
+            )}
+
+            {/* Müşteriye Verildi - Sadece status='musteriye_verildi' ise göster */}
+            {formData.status === 'musteriye_verildi' && (
+              <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Verilen Müşteri <span className="text-red-500">*</span>
+                </label>
+                <select
+                  name="given_to_customer_id"
+                  value={formData.given_to_customer_id}
+                  onChange={handleChange}
+                  className={`w-full px-3 py-2 border ${errors.given_to_customer_id ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
+                >
+                  <option value="">Müşteri Seçiniz</option>
+                  {customers.map(customer => (
+                    <option key={customer.id} value={customer.id}>
+                      {customer.customer_name} - {customer.company_name || 'Şahıs'}
+                    </option>
+                  ))}
+                </select>
+                {errors.given_to_customer_id && (
+                  <p className="text-red-500 text-xs mt-1">{errors.given_to_customer_id}</p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Notlar */}

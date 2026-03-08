@@ -7,13 +7,18 @@ import RegisterPage from './pages/RegisterPage';
 import ProductsPage from './pages/ProductsPage';
 import OrdersPage from './pages/OrdersPage';
 import CustomersPage from './pages/CustomersPage';
+import SuppliersPage from './pages/SuppliersPage';
+import WarehousesPage from './pages/WarehousesPage';
 import ChequesPage from './pages/ChequesPage';
 import SettingsPage from './pages/SettingsPage';
 import ProfilePage from './pages/ProfilePage';
 import ChatPage from './pages/ChatPage';
 import ReportsPage from './pages/ReportsPage';
 import UserManagementPage from './pages/UserManagementPage';
+import EmployeeApprovalsPage from './pages/EmployeeApprovalsPage';
 import ActivityLogsPage from './pages/ActivityLogsPage';
+import InvoicesPage from './pages/InvoicesPage';
+import CurrentAccountPage from './pages/CurrentAccountPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import ToastContainer from './components/UI/Toast';
@@ -146,6 +151,26 @@ function App() {
           }
         />
         <Route
+          path="/suppliers"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <SuppliersPage />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/warehouses"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <WarehousesPage />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/cheques"
           element={
             <ProtectedRoute>
@@ -206,11 +231,41 @@ function App() {
           }
         />
         <Route
+          path="/employee-approvals"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <EmployeeApprovalsPage />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/activity-logs"
           element={
             <ProtectedRoute>
               <Layout>
                 <ActivityLogsPage />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/invoices"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <InvoicesPage />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/current-accounts"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <CurrentAccountPage />
               </Layout>
             </ProtectedRoute>
           }

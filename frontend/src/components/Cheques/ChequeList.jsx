@@ -58,21 +58,35 @@ const ChequeList = ({ onChequeClick, onEditCheque, onDeleteCheque, onChangeStatu
   const getStatusBadge = (status) => {
     const badges = {
       pending: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-      cleared: 'bg-green-100 text-green-800 border-green-300',
-      bounced: 'bg-red-100 text-red-800 border-red-300',
-      cancelled: 'bg-gray-100 text-gray-800 border-gray-300'
+      paid: 'bg-green-100 text-green-800 border-green-300',
+      cancelled: 'bg-gray-100 text-gray-800 border-gray-300',
+      teminat: 'bg-blue-100 text-blue-800 border-blue-300',
+      musteriye_verildi: 'bg-purple-100 text-purple-800 border-purple-300'
     };
     const labels = {
       pending: 'Beklemede',
-      cleared: 'Ödendi',
-      bounced: 'Bozuldu',
-      cancelled: 'İptal'
+      paid: 'Ödendi',
+      cancelled: 'İptal',
+      teminat: 'Teminat',
+      musteriye_verildi: 'Müşteriye Verildi'
     };
     return (
-      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${badges[status]}`}>
-        {labels[status]}
+      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${badges[status] || badges.pending}`}>
+        {labels[status] || status}
       </span>
     );
+  };
+
+  // Çekin nerede olduğunu gösteren fonksiyon
+  const getChequeLocation = (cheque) => {
+    if (cheque.status === 'teminat' && cheque.collateral_bank) {
+      return <span className="text-blue-700 font-medium">{cheque.collateral_bank}</span>;
+    }
+    if (cheque.status === 'musteriye_verildi' && cheque.given_to_customer_id) {
+      const customer = customers.find(c => c.id === cheque.given_to_customer_id);
+      return <span className="text-purple-700 font-medium">{customer?.customer_name || customer?.company_name || 'Bilinmiyor'}</span>;
+    }
+    return <span className="text-gray-500">-</span>;
   };
 
   const getRowColor = (cheque) => {
@@ -205,6 +219,9 @@ const ChequeList = ({ onChequeClick, onEditCheque, onDeleteCheque, onChangeStatu
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Banka
               </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Çek Nerede
+              </th>
               <th
                 onClick={() => handleSort('received_date')}
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
@@ -237,7 +254,7 @@ const ChequeList = ({ onChequeClick, onEditCheque, onDeleteCheque, onChangeStatu
           <tbody className="bg-white divide-y divide-gray-200">
             {cheques.length === 0 ? (
               <tr>
-                <td colSpan="10" className="px-6 py-12 text-center text-gray-500">
+                <td colSpan="11" className="px-6 py-12 text-center text-gray-500">
                   <div className="text-4xl mb-2">📋</div>
                   <p>Çek bulunamadı</p>
                 </td>
@@ -260,6 +277,9 @@ const ChequeList = ({ onChequeClick, onEditCheque, onDeleteCheque, onChangeStatu
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                     {cheque.bank_name}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    {getChequeLocation(cheque)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                     {new Date(cheque.received_date).toLocaleDateString('tr-TR')}

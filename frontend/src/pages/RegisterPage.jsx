@@ -7,7 +7,12 @@ export default function RegisterPage() {
     username: '',
     email: '',
     password: '',
-    passwordConfirm: ''
+    passwordConfirm: '',
+    // Company fields
+    companyAction: 'join_default', // 'create', 'join', 'join_default'
+    companyName: '',
+    companyCode: '',
+    joinCompanyCode: ''
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -16,6 +21,7 @@ export default function RegisterPage() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    console.log('🔍 Form change:', { name, value });
     setFormData(prev => ({
       ...prev,
       [name]: value
@@ -47,12 +53,35 @@ export default function RegisterPage() {
       return;
     }
 
+    // Company validations
+    if (formData.companyAction === 'create') {
+      if (!formData.companyName || !formData.companyCode) {
+        setError('Şirket adı ve kodu giriniz');
+        setLoading(false);
+        return;
+      }
+    } else if (formData.companyAction === 'join') {
+      if (!formData.joinCompanyCode) {
+        setError('Katılmak istediğiniz şirket kodunu giriniz');
+        setLoading(false);
+        return;
+      }
+    }
+
     try {
-      const response = await authService.register(
-        formData.username,
-        formData.email,
-        formData.password
-      );
+      const registerData = {
+        username: formData.username,
+        email: formData.email,
+        password: formData.password,
+        companyAction: formData.companyAction,
+        companyName: formData.companyName,
+        companyCode: formData.companyCode,
+        joinCompanyCode: formData.joinCompanyCode
+      };
+
+      console.log('📤 Sending register data:', registerData);
+
+      const response = await authService.register(registerData);
 
       if (response.success) {
         setSuccess('Kayıt başarılı! Giriş sayfasına yönlendiriliyorsunuz...');
@@ -146,6 +175,114 @@ export default function RegisterPage() {
               placeholder="••••••••"
               required
             />
+          </div>
+
+          {/* Company Selection */}
+          <div className="border-t pt-4 mt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Şirket Seçimi
+            </label>
+            
+            <div className="space-y-3">
+              <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition">
+                <input
+                  type="radio"
+                  name="companyAction"
+                  value="join_default"
+                  checked={formData.companyAction === 'join_default'}
+                  onChange={handleChange}
+                  className="mr-3 w-4 h-4 text-blue-600"
+                />
+                <div>
+                  <div className="font-medium text-gray-800">Varsayılan Şirkete Katıl</div>
+                  <div className="text-xs text-gray-500">Demo şirket hesabıyla başla</div>
+                </div>
+              </label>
+
+              <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition">
+                <input
+                  type="radio"
+                  name="companyAction"
+                  value="create"
+                  checked={formData.companyAction === 'create'}
+                  onChange={handleChange}
+                  className="mr-3 w-4 h-4 text-blue-600"
+                />
+                <div>
+                  <div className="font-medium text-gray-800">Yeni Şirket Oluştur</div>
+                  <div className="text-xs text-gray-500">Kendi şirketini yönet (Admin olursun)</div>
+                </div>
+              </label>
+
+              <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition">
+                <input
+                  type="radio"
+                  name="companyAction"
+                  value="join"
+                  checked={formData.companyAction === 'join'}
+                  onChange={handleChange}
+                  className="mr-3 w-4 h-4 text-blue-600"
+                />
+                <div>
+                  <div className="font-medium text-gray-800">Mevcut Şirkete Katıl</div>
+                  <div className="text-xs text-gray-500">Şirket koduyla var olan bir şirkete katıl</div>
+                </div>
+              </label>
+            </div>
+
+            {/* Create Company Fields */}
+            {formData.companyAction === 'create' && (
+              <div className="mt-4 space-y-3 bg-blue-50 p-4 rounded-lg">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Şirket Adı
+                  </label>
+                  <input
+                    type="text"
+                    name="companyName"
+                    value={formData.companyName}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    placeholder="örn: ABC Teknoloji Ltd."
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Şirket Kodu (Benzersiz)
+                  </label>
+                  <input
+                    type="text"
+                    name="companyCode"
+                    value={formData.companyCode}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none uppercase"
+                    placeholder="örn: ABC_TECH"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Bu kod diğer kullanıcıların şirketinize katılması için kullanılacak</p>
+                </div>
+              </div>
+            )}
+
+            {/* Join Company Field */}
+            {formData.companyAction === 'join' && (
+              <div className="mt-4 bg-green-50 p-4 rounded-lg">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Şirket Kodu
+                </label>
+                <input
+                  type="text"
+                  name="joinCompanyCode"
+                  value={formData.joinCompanyCode}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none uppercase"
+                  placeholder="Şirket kodunu girin"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">Katılmak istediğiniz şirketin kodunu admin'den öğrenin</p>
+              </div>
+            )}
           </div>
 
           <button

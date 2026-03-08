@@ -22,6 +22,11 @@ frontend/.env.development
 frontend/.env.production
 frontend/.env.test
 
+# Keep example files only
+!*.env.example
+!backend/env.example
+!frontend/env.example
+
 # Uploads and logs (keep folder structure)
 backend/uploads/**
 backend/logs/**
@@ -40,6 +45,9 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+desktop.ini
+*.tmp
+*.temp
 
 # Build
 dist/
@@ -48,6 +56,11 @@ build/
 
 # Database
 *.sql.backup
+*.backup
+pg_hba.conf.backup
+*.dump
+*.tar
+*.gz
 
 # Coverage
 coverage/
@@ -62,3 +75,13 @@ tmp/
 temp/
 *.tmp
 
+# SSL certificates — NEVER commit these!
+ssl/
+*.pem
+*.key
+*.crt
+*.csr
+
+# Docker local override env
+.env
+.env.example.local

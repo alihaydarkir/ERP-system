@@ -7,6 +7,7 @@ const ActivityLogService = require('../services/activityLogService');
 exports.getAllUsers = async (req, res) => {
   try {
     const { role, search, limit = 50, offset = 0 } = req.query;
+    const { company_id } = req.user; // MULTI-TENANCY
     
     let query = `
       SELECT 
@@ -15,11 +16,11 @@ exports.getAllUsers = async (req, res) => {
         profile_image, two_factor_enabled,
         last_login, created_at, updated_at
       FROM users
-      WHERE 1=1
+      WHERE company_id = $1
     `;
     
-    const params = [];
-    let paramIndex = 1;
+    const params = [company_id]; // MULTI-TENANCY
+    let paramIndex = 2;
     
     if (role) {
       query += ` AND role = $${paramIndex}`;
@@ -312,6 +313,8 @@ exports.changeUserPassword = async (req, res) => {
 // Get user statistics
 exports.getUserStatistics = async (req, res) => {
   try {
+    const { company_id } = req.user; // MULTI-TENANCY
+    
     const stats = await pool.query(`
       SELECT 
         COUNT(*) as total_users,
@@ -321,7 +324,8 @@ exports.getUserStatistics = async (req, res) => {
         COUNT(CASE WHEN last_login >= NOW() - INTERVAL '7 days' THEN 1 END) as active_week,
         COUNT(CASE WHEN last_login >= NOW() - INTERVAL '30 days' THEN 1 END) as active_month
       FROM users
-    `);
+      WHERE company_id = $1
+    `, [company_id]); // MULTI-TENANCY
     
     res.json({
       success: true,

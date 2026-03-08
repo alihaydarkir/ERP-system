@@ -103,6 +103,9 @@ const createCheque = async (req, res) => {
       due_date,
       amount,
       currency,
+      status,
+      collateral_bank, // Teminat bankası
+      given_to_customer_id, // Verilen müşteri
       notes
     } = req.body;
 
@@ -122,6 +125,23 @@ const createCheque = async (req, res) => {
     const validCurrencies = ['TRY', 'USD', 'EUR', 'GBP'];
     if (currency && !validCurrencies.includes(currency)) {
       return res.status(400).json(formatError(`Currency must be one of: ${validCurrencies.join(', ')}`));
+    }
+
+    // Validate status
+    const validStatuses = ['pending', 'paid', 'cancelled', 'teminat', 'musteriye_verildi'];
+    const chequeStatus = status || 'pending';
+    if (!validStatuses.includes(chequeStatus)) {
+      return res.status(400).json(formatError(`Status must be one of: ${validStatuses.join(', ')}`));
+    }
+
+    // Teminat için banka adı gerekli
+    if (chequeStatus === 'teminat' && !collateral_bank) {
+      return res.status(400).json(formatError('Collateral bank name is required for teminat status'));
+    }
+
+    // Müşteriye verildi için müşteri ID gerekli
+    if (chequeStatus === 'musteriye_verildi' && !given_to_customer_id) {
+      return res.status(400).json(formatError('Customer ID is required for musteriye_verildi status'));
     }
 
     // Validate dates
@@ -154,12 +174,14 @@ const createCheque = async (req, res) => {
       check_serial_no,
       check_issuer,
       customer_id,
-      bank_name,
+      bank_name, // Çekin üzerindeki asıl banka
+      collateral_bank, // Teminat olarak verildiği banka (varsa)
       received_date,
       due_date,
       amount,
       currency: currency || 'TRY',
-      status: 'pending',
+      status: chequeStatus,
+      given_to_customer_id: given_to_customer_id || null,
       notes
     });
 
@@ -167,9 +189,9 @@ const createCheque = async (req, res) => {
     await ChequeTransaction.create({
       cheque_id: cheque.id,
       old_status: null,
-      new_status: 'pending',
+      new_status: chequeStatus,
       changed_by: userId,
-      notes: 'Cheque created',
+      notes: status === 'teminat' ? `Teminat: ${collateral_bank}` : (status === 'musteriye_verildi' ? `Müşteri ID: ${given_to_customer_id}` : 'Cheque created'),
       ip_address: getClientIP(req)
     });
 
@@ -180,7 +202,7 @@ const createCheque = async (req, res) => {
       entity_type: 'cheque',
       entity_id: cheque.id,
       ip_address: getClientIP(req),
-      changes: { check_serial_no, bank_name, amount, customer_id }
+      changes: { check_serial_no, bank_name, amount, customer_id, status: chequeStatus }
     });
 
     // Log to activity logs
@@ -188,7 +210,7 @@ const createCheque = async (req, res) => {
       userId,
       'create_cheque',
       'cheques',
-      { cheque_id: cheque.id, check_serial_no, bank_name, amount, currency: currency || 'TRY', customer_id },
+      { cheque_id: cheque.id, check_serial_no, bank_name, amount, currency: currency || 'TRY', customer_id, status: chequeStatus },
       req
     );
 

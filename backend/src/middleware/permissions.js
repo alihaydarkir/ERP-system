@@ -122,8 +122,43 @@ const logActivity = (action, module) => {
   };
 };
 
+// Middleware to check if user has required role
+const requireRole = (roles) => {
+  return (req, res, next) => {
+    try {
+      const userRole = req.user?.role;
+      
+      if (!userRole) {
+        return res.status(401).json({ 
+          success: false, 
+          message: 'Kimlik doğrulaması gerekli' 
+        });
+      }
+      
+      // Convert single role to array
+      const allowedRoles = Array.isArray(roles) ? roles : [roles];
+      
+      if (!allowedRoles.includes(userRole)) {
+        return res.status(403).json({ 
+          success: false, 
+          message: 'Bu işlem için yetkiniz yok' 
+        });
+      }
+      
+      next();
+    } catch (error) {
+      console.error('Role check middleware error:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Yetki kontrolü sırasında hata oluştu' 
+      });
+    }
+  };
+};
+
 module.exports = {
   requirePermission,
   requireAnyPermission,
+  requireRole,
   logActivity
 };

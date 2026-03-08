@@ -21,7 +21,12 @@ export default function LoginPage() {
       const response = await authService.login(email, password);
 
       if (response.success) {
-        login(response.data.token, response.data.user, response.data.refreshToken);
+        login(
+          response.data.token, 
+          response.data.user, 
+          response.data.refreshToken,
+          response.data.company
+        );
         toast.success(`Hoş geldiniz, ${response.data.user.username}! 🎉`);
         navigate('/dashboard');
       }

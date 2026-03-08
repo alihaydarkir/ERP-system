@@ -1,0 +1,38 @@
+# ── Stage 1: Install production dependencies ────────────────────────────
+FROM node:20-alpine AS deps
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci --only=production --ignore-scripts && npm cache clean --force
+
+# ── Stage 2: Production runner ───────────────────────────────────────────
+FROM node:20-alpine AS runner
+
+# Create non-root user for security
+RUN addgroup -g 1001 -S nodejs && adduser -S erp -u 1001
+
+WORKDIR /app
+
+# Copy production node_modules from deps stage
+COPY --from=deps /app/node_modules ./node_modules
+
+# Copy application source
+COPY --chown=erp:nodejs . .
+
+# Create uploads directory with proper permissions
+RUN mkdir -p uploads/avatars uploads/excel && chown -R erp:nodejs uploads
+
+USER erp
+
+EXPOSE 5000
+
+# Health check — waits for /api/health to return 200
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
+  CMD node -e "\
+    require('http').get('http://localhost:5000/api/health', (r) => { \
+      process.exit(r.statusCode === 200 ? 0 : 1); \
+    }).on('error', () => process.exit(1));"
+
+# Entrypoint: run migrations then start server
+ENTRYPOINT ["sh", "./docker-entrypoint.sh"]

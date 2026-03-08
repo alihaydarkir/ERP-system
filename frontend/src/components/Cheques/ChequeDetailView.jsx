@@ -1,26 +1,66 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import customerService from '../../services/customerService';
 
 const ChequeDetailView = ({ cheque, onClose, onChangeStatus }) => {
   const [selectedStatus, setSelectedStatus] = useState(cheque.status);
   const [notes, setNotes] = useState('');
   const [isChangingStatus, setIsChangingStatus] = useState(false);
+  const [collateralBank, setCollateralBank] = useState(cheque.collateral_bank || '');
+  const [givenToCustomerId, setGivenToCustomerId] = useState(cheque.given_to_customer_id || '');
+  const [customers, setCustomers] = useState([]);
+
+  const turkishBanks = [
+    'Akbank', 'Alternatif Bank', 'Anadolubank', 'Denizbank', 'Fibabanka',
+    'Garanti BBVA', 'Halkbank', 'HSBC', 'ING', 'İş Bankası',
+    'Kuveyt Türk', 'Odeabank', 'QNB Finansbank', 'Şekerbank', 'TEB',
+    'Türk Ekonomi Bankası', 'Türkiye Finans', 'Vakıfbank', 'Yapı Kredi',
+    'Ziraat Bankası', 'Albaraka Türk', 'Bank of America', 'Bank of Tokyo',
+    'Burgan Bank', 'Citibank', 'Deutsche Bank', 'JPMorgan Chase',
+    'Rabobank', 'Türkiye İş Bankası', 'Vakıf Katılım', 'Ziraat Katılım',
+    'Emlak Katılım', 'Türkiye Emlak Katılım Bankası'
+  ].sort();
+
+  useEffect(() => {
+    loadCustomers();
+  }, []);
+
+  const loadCustomers = async () => {
+    try {
+      const response = await customerService.getAll({ limit: 1000 });
+      if (response.success) {
+        setCustomers(response.data);
+      }
+    } catch (error) {
+      console.error('Failed to load customers:', error);
+    }
+  };
 
   if (!cheque) return null;
 
   const statusOptions = [
     { value: 'pending', label: 'Beklemede', color: 'yellow' },
-    { value: 'cleared', label: 'Ödendi', color: 'green' },
-    { value: 'bounced', label: 'Bozuldu', color: 'red' },
-    { value: 'cancelled', label: 'İptal', color: 'gray' }
+    { value: 'paid', label: 'Ödendi', color: 'green' },
+    { value: 'cancelled', label: 'İptal', color: 'gray' },
+    { value: 'teminat', label: 'Teminat', color: 'blue' },
+    { value: 'musteriye_verildi', label: 'Müşteriye Verildi', color: 'purple' }
   ];
 
   const getStatusBadge = (status) => {
     const statusConfig = statusOptions.find(s => s.value === status);
+    if (!statusConfig) {
+      return (
+        <span className="px-4 py-2 rounded-full text-sm font-medium border bg-gray-100 text-gray-800 border-gray-300">
+          {status}
+        </span>
+      );
+    }
     const colors = {
       yellow: 'bg-yellow-100 text-yellow-800 border-yellow-300',
       green: 'bg-green-100 text-green-800 border-green-300',
       red: 'bg-red-100 text-red-800 border-red-300',
-      gray: 'bg-gray-100 text-gray-800 border-gray-300'
+      gray: 'bg-gray-100 text-gray-800 border-gray-300',
+      blue: 'bg-blue-100 text-blue-800 border-blue-300',
+      purple: 'bg-purple-100 text-purple-800 border-purple-300'
     };
     return (
       <span className={`px-4 py-2 rounded-full text-sm font-medium border ${colors[statusConfig.color]}`}>
@@ -30,14 +70,31 @@ const ChequeDetailView = ({ cheque, onClose, onChangeStatus }) => {
   };
 
   const handleStatusChange = async () => {
-    if (newStatus === cheque.status) {
-      showWarning('Lütfen farklı bir durum seçin');
+    if (selectedStatus === cheque.status) {
+      alert('Lütfen farklı bir durum seçin');
+      return;
+    }
+
+    // Validate required fields
+    if (selectedStatus === 'teminat' && !collateralBank) {
+      alert('Teminat durumu için banka seçimi zorunludur');
+      return;
+    }
+
+    if (selectedStatus === 'musteriye_verildi' && !givenToCustomerId) {
+      alert('Müşteriye verildi durumu için müşteri seçimi zorunludur');
       return;
     }
 
     setIsChangingStatus(true);
     try {
-      await onChangeStatus(cheque.id, selectedStatus, notes);
+      const updateData = {
+        status: selectedStatus,
+        notes,
+        ...(selectedStatus === 'teminat' && { collateral_bank: collateralBank }),
+        ...(selectedStatus === 'musteriye_verildi' && { given_to_customer_id: givenToCustomerId })
+      };
+      await onChangeStatus(cheque.id, updateData);
       setNotes('');
     } catch (error) {
       console.error('Status change error:', error);
@@ -171,23 +228,62 @@ const ChequeDetailView = ({ cheque, onClose, onChangeStatus }) => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Yeni Durum
                 </label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <select
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
                   {statusOptions.map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => setSelectedStatus(option.value)}
-                      disabled={cheque.status === 'cleared' && option.value !== 'cleared'}
-                      className={`px-4 py-2 rounded-lg border-2 transition ${
-                        selectedStatus === option.value
-                          ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium'
-                          : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
-                      } disabled:opacity-50 disabled:cursor-not-allowed`}
-                    >
+                    <option key={option.value} value={option.value}>
                       {option.label}
-                    </button>
+                    </option>
                   ))}
-                </div>
+                </select>
               </div>
+
+              {/* Teminat Bankası */}
+              {selectedStatus === 'teminat' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Teminat Bankası <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={collateralBank}
+                    onChange={(e) => setCollateralBank(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  >
+                    <option value="">Banka Seçin</option>
+                    {turkishBanks.map((bank) => (
+                      <option key={bank} value={bank}>
+                        {bank}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Müşteri Seçimi */}
+              {selectedStatus === 'musteriye_verildi' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Müşteri <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={givenToCustomerId}
+                    onChange={(e) => setGivenToCustomerId(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  >
+                    <option value="">Müşteri Seçin</option>
+                    {customers.map((customer) => (
+                      <option key={customer.id} value={customer.id}>
+                        {customer.customer_name || customer.company_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">

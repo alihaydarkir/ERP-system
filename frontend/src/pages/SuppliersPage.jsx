@@ -2,11 +2,17 @@ import { useState, useEffect } from 'react';
 import SupplierForm from '../components/Suppliers/SupplierForm';
 import SupplierList from '../components/Suppliers/SupplierList';
 import useSupplierStore from '../store/supplierStore';
+import { exportSuppliersToPDF, exportSuppliersToExcel } from '../utils/exportUtils';
+import { FileDown, FileSpreadsheet, Upload } from 'lucide-react';
+import toast from 'react-hot-toast';
+import useUIStore from '../store/uiStore';
 
 export default function SuppliersPage() {
   const [showModal, setShowModal] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const { showConfirm } = useUIStore();
 
   const {
     suppliers,
@@ -30,12 +36,13 @@ export default function SuppliersPage() {
   const handleCreateSupplier = async (formData) => {
     try {
       await createSupplier(formData);
-      alert('Tedarikçi başarıyla eklendi!');
+      toast.success('Tedarikçi başarıyla eklendi!');
       setShowModal(false);
       fetchSuppliers({ limit: 100 });
     } catch (error) {
       console.error('Create supplier error:', error);
-      alert(error.response?.data?.message || 'Tedarikçi eklenirken bir hata oluştu');
+      console.error('Error response:', error.response?.data);
+      toast.error(error.response?.data?.message || 'Tedarikçi eklenirken bir hata oluştu');
       throw error;
     }
   };
@@ -43,13 +50,13 @@ export default function SuppliersPage() {
   const handleUpdateSupplier = async (formData) => {
     try {
       await updateSupplier(selectedSupplier.id, formData);
-      alert('Tedarikçi başarıyla güncellendi!');
+      toast.success('Tedarikçi başarıyla güncellendi!');
       setShowModal(false);
       setSelectedSupplier(null);
       fetchSuppliers({ limit: 100 });
     } catch (error) {
       console.error('Update supplier error:', error);
-      alert(error.response?.data?.message || 'Tedarikçi güncellenirken bir hata oluştu');
+      toast.error(error.response?.data?.message || 'Tedarikçi güncellenirken bir hata oluştu');
       throw error;
     }
   };
@@ -60,18 +67,22 @@ export default function SuppliersPage() {
   };
 
   const handleDelete = async (supplier) => {
-    if (!confirm(`${supplier.company_name} adlı tedarikçiyi silmek istediğinize emin misiniz?`)) {
-      return;
-    }
-
-    try {
-      await deleteSupplier(supplier.id);
-      alert('Tedarikçi başarıyla silindi');
-      fetchSuppliers({ limit: 100 });
-    } catch (error) {
-      console.error('Delete supplier error:', error);
-      alert(error.response?.data?.message || 'Tedarikçi silinirken bir hata oluştu');
-    }
+    showConfirm({
+      title: 'Tedarikçi Sil',
+      message: `${supplier.company_name} adlı tedarikçiyi silmek istediğinize emin misiniz?`,
+      confirmText: 'Sil',
+      cancelText: 'İptal',
+      onConfirm: async () => {
+        try {
+          await deleteSupplier(supplier.id);
+          toast.success('Tedarikçi başarıyla silindi');
+          fetchSuppliers({ limit: 100 });
+        } catch (error) {
+          console.error('Delete supplier error:', error);
+          toast.error(error.response?.data?.message || 'Tedarikçi silinirken bir hata oluştu');
+        }
+      }
+    });
   };
 
   const handleCloseModal = () => {
@@ -83,11 +94,11 @@ export default function SuppliersPage() {
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
     return (
-      supplier.company_name?.toLowerCase().includes(search) ||
-      supplier.contact_name?.toLowerCase().includes(search) ||
+      supplier.supplier_name?.toLowerCase().includes(search) ||
+      supplier.contact_person?.toLowerCase().includes(search) ||
       supplier.tax_number?.toLowerCase().includes(search) ||
-      supplier.phone_number?.toLowerCase().includes(search) ||
-      supplier.location?.toLowerCase().includes(search)
+      supplier.phone?.toLowerCase().includes(search) ||
+      supplier.address?.toLowerCase().includes(search)
     );
   });
 
@@ -139,26 +150,61 @@ export default function SuppliersPage() {
           </div>
         </div>
 
-        <button
-          onClick={() => setShowModal(true)}
-          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+        <div className="flex gap-3">
+          {/* Export Buttons */}
+          <button
+            onClick={() => {
+              exportSuppliersToPDF(suppliers);
+              toast.success('PDF olarak indirildi!');
+            }}
+            className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition flex items-center gap-2"
+            title="PDF olarak indir"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 4v16m8-8H4"
-            />
-          </svg>
-          Yeni Tedarikçi Ekle
-        </button>
+            <FileDown className="w-4 h-4" />
+            <span>PDF</span>
+          </button>
+          
+          <button
+            onClick={() => {
+              exportSuppliersToExcel(suppliers);
+              toast.success('Excel olarak indirildi!');
+            }}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-2"
+            title="Excel olarak indir"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>Excel</span>
+          </button>
+
+          <button
+            onClick={() => setShowImportDialog(true)}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition flex items-center gap-2"
+          >
+            <Upload className="w-4 h-4" />
+            <span>Excel'den Yükle</span>
+          </button>
+
+          <button
+            onClick={() => setShowModal(true)}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 4v16m8-8H4"
+              />
+            </svg>
+            Yeni Tedarikçi Ekle
+          </button>
+        </div>
       </div>
 
       {/* Supplier List */}

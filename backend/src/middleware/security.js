@@ -108,10 +108,12 @@ const sessionSecurity = async (req, res, next) => {
  * SQL Injection koruması (basic)
  */
 const sqlInjectionProtection = (req, res, next) => {
+  // Sadece gerçekten tehlikeli SQL injection pattern'lerini kontrol et
   const suspiciousPatterns = [
-    /(\s|^)(union|select|insert|update|delete|drop|create|alter|exec|execute)(\s|$)/gi,
-    /(--|;|\/\*|\*\/|xp_|sp_)/gi,
-    /(<script|javascript:|onerror=|onload=)/gi
+    /(\s|^)(union\s+select|drop\s+table|delete\s+from|truncate\s+table)(\s|$)/gi,
+    /(;.*--)|(\/\*.*\*\/)/gi,  // SQL comments
+    /(xp_cmdshell|sp_executesql)/gi,  // SQL Server commands
+    /(<script[\s\S]*?>|javascript:)/gi  // XSS
   ];
   
   const checkValue = (value) => {

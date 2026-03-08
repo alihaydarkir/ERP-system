@@ -4,10 +4,10 @@ class AuditLog {
   /**
    * Create a new audit log entry
    */
-  static async create({ user_id, action, entity_type, entity_id, changes = {}, ip_address = null }) {
+  static async create({ user_id, action, entity_type, entity_id, changes = {}, ip_address = null, company_id }) {
     const query = `
-      INSERT INTO audit_logs (user_id, action, entity_type, entity_id, changes, ip_address)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO audit_logs (user_id, action, entity_type, entity_id, changes, ip_address, company_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
     `;
 
@@ -17,7 +17,8 @@ class AuditLog {
       entity_type,
       entity_id,
       JSON.stringify(changes),
-      ip_address
+      ip_address,
+      company_id
     ];
 
     const result = await pool.query(query, values);
@@ -230,28 +231,30 @@ class AuditLog {
   /**
    * Log user login
    */
-  static async logLogin(user_id, ip_address) {
+  static async logLogin(user_id, ip_address, company_id) {
     return await this.create({
       user_id,
       action: 'LOGIN',
       entity_type: 'user',
       entity_id: user_id,
       changes: { event: 'user_login' },
-      ip_address
+      ip_address,
+      company_id
     });
   }
 
   /**
    * Log user logout
    */
-  static async logLogout(user_id, ip_address) {
+  static async logLogout(user_id, ip_address, company_id) {
     return await this.create({
       user_id,
       action: 'LOGOUT',
       entity_type: 'user',
       entity_id: user_id,
       changes: { event: 'user_logout' },
-      ip_address
+      ip_address,
+      company_id
     });
   }
 }

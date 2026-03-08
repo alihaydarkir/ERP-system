@@ -2,20 +2,19 @@ import { useState, useEffect } from 'react';
 
 export default function SupplierForm({ supplier, onSave, onCancel }) {
   const [formData, setFormData] = useState({
-    company_name: '',
-    contact_name: '',
+    supplier_name: '',
+    contact_person: '',
     email: '',
     tax_number: '',
-    phone_number: '',
-    location: '',
-    payment_terms: 'Net 30',
-    lead_time_days: 7,
-    min_order_quantity: 1,
-    risk_level: 'Medium',
-    website: '',
+    phone: '',
+    address: '',
+    tax_office: '',
+    iban: '',
+    payment_terms: '30 Gün Vade',
+    currency: 'TRY',
     notes: '',
     is_active: true,
-    rating: 5.0
+    rating: ''
   });
 
   const [errors, setErrors] = useState({});
@@ -24,20 +23,19 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
   useEffect(() => {
     if (supplier) {
       setFormData({
-        company_name: supplier.company_name || '',
-        contact_name: supplier.contact_name || '',
+        supplier_name: supplier.supplier_name || supplier.company_name || '',
+        contact_person: supplier.contact_person || supplier.contact_name || '',
         email: supplier.email || '',
         tax_number: supplier.tax_number || '',
-        phone_number: supplier.phone_number || '',
-        location: supplier.location || '',
-        payment_terms: supplier.payment_terms || 'Net 30',
-        lead_time_days: supplier.lead_time_days || 7,
-        min_order_quantity: supplier.min_order_quantity || 1,
-        risk_level: supplier.risk_level || 'Medium',
-        website: supplier.website || '',
+        phone: supplier.phone || supplier.phone_number || '',
+        address: supplier.address || supplier.location || '',
+        tax_office: supplier.tax_office || '',
+        iban: supplier.iban || '',
+        payment_terms: supplier.payment_terms || '30 Gün Vade',
+        currency: supplier.currency || 'TRY',
         notes: supplier.notes || '',
         is_active: supplier.is_active !== undefined ? supplier.is_active : true,
-        rating: supplier.rating || 5.0
+        rating: supplier.rating || ''
       });
     }
   }, [supplier]);
@@ -45,8 +43,8 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.company_name || formData.company_name.length < 3) {
-      newErrors.company_name = 'Şirket İsmi en az 3 karakter olmalıdır';
+    if (!formData.supplier_name || formData.supplier_name.length < 3) {
+      newErrors.supplier_name = 'Tedarikçi adı en az 3 karakter olmalıdır';
     }
 
     if (!formData.tax_number || formData.tax_number.length < 10) {
@@ -101,6 +99,8 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
 
     setIsSubmitting(true);
 
+    console.log('Submitting supplier data:', formData);
+
     try {
       await onSave(formData);
     } catch (error) {
@@ -116,37 +116,37 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
       <div className="space-y-4">
         <h3 className="text-lg font-semibold text-gray-800">Temel Bilgiler</h3>
 
-        {/* Company Name */}
+        {/* Supplier Name */}
         <div>
-          <label htmlFor="company_name" className="block text-sm font-medium text-gray-700 mb-1">
-            Şirket İsmi <span className="text-red-500">*</span>
+          <label htmlFor="supplier_name" className="block text-sm font-medium text-gray-700 mb-1">
+            Tedarikçi Adı <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
-            id="company_name"
-            name="company_name"
-            value={formData.company_name}
+            id="supplier_name"
+            name="supplier_name"
+            value={formData.supplier_name}
             onChange={handleChange}
             className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none ${
-              errors.company_name ? 'border-red-500' : 'border-gray-300'
+              errors.supplier_name ? 'border-red-500' : 'border-gray-300'
             }`}
             placeholder="XYZ Gıda Ltd."
           />
-          {errors.company_name && (
-            <p className="mt-1 text-sm text-red-500">{errors.company_name}</p>
+          {errors.supplier_name && (
+            <p className="mt-1 text-sm text-red-500">{errors.supplier_name}</p>
           )}
         </div>
 
-        {/* Contact Name */}
+        {/* Contact Person */}
         <div>
-          <label htmlFor="contact_name" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="contact_person" className="block text-sm font-medium text-gray-700 mb-1">
             İletişim Kişisi
           </label>
           <input
             type="text"
-            id="contact_name"
-            name="contact_name"
-            value={formData.contact_name}
+            id="contact_person"
+            name="contact_person"
+            value={formData.contact_person}
             onChange={handleChange}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
             placeholder="Mehmet Kaya"
@@ -176,22 +176,22 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
           </div>
 
           <div>
-            <label htmlFor="phone_number" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
               Telefon
             </label>
             <input
               type="text"
-              id="phone_number"
-              name="phone_number"
-              value={formData.phone_number}
+              id="phone"
+              name="phone"
+              value={formData.phone}
               onChange={handleChange}
               className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none ${
-                errors.phone_number ? 'border-red-500' : 'border-gray-300'
+                errors.phone ? 'border-red-500' : 'border-gray-300'
               }`}
               placeholder="0532 123 45 67"
             />
-            {errors.phone_number && (
-              <p className="mt-1 text-sm text-red-500">{errors.phone_number}</p>
+            {errors.phone && (
+              <p className="mt-1 text-sm text-red-500">{errors.phone}</p>
             )}
           </div>
         </div>
@@ -258,7 +258,7 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
           {/* Payment Terms */}
           <div>
             <label htmlFor="payment_terms" className="block text-sm font-medium text-gray-700 mb-1">
-              Ödeme Koşulları
+              Ödeme Vadesi
             </label>
             <select
               id="payment_terms"
@@ -268,10 +268,11 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
             >
               <option value="Peşin">Peşin</option>
-              <option value="Net 15">Net 15</option>
-              <option value="Net 30">Net 30</option>
-              <option value="Net 60">Net 60</option>
-              <option value="Net 90">Net 90</option>
+              <option value="15 Gün Vade">15 Gün Vade</option>
+              <option value="30 Gün Vade">30 Gün Vade</option>
+              <option value="45 Gün Vade">45 Gün Vade</option>
+              <option value="60 Gün Vade">60 Gün Vade</option>
+              <option value="90 Gün Vade">90 Gün Vade</option>
             </select>
           </div>
 

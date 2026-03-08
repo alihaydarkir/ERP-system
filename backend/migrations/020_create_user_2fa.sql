@@ -22,6 +22,6 @@ CREATE TABLE IF NOT EXISTS user_2fa_backup_codes (
 );
 
 -- Create indexes
-CREATE INDEX idx_user_2fa_user_id ON user_2fa(user_id);
-CREATE INDEX idx_user_2fa_backup_codes_user_id ON user_2fa_backup_codes(user_id);
-CREATE INDEX idx_user_2fa_backup_codes_code ON user_2fa_backup_codes(code);
+CREATE INDEX IF NOT EXISTS idx_user_2fa_user_id ON user_2fa(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_2fa_backup_codes_user_id ON user_2fa_backup_codes(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_2fa_backup_codes_code ON user_2fa_backup_codes(code);

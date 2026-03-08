@@ -1,8 +1,10 @@
 import axios from 'axios';
 
+// In production (Docker Compose): VITE_API_URL="" (empty) → relative URLs → nginx proxies /api
+// In development:                 VITE_API_URL=http://localhost:5000 (set in .env.development)
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000',
-  timeout: 30000,
+  baseURL: import.meta.env.VITE_API_URL ?? '',
+  timeout: parseInt(import.meta.env.VITE_API_TIMEOUT) || 30000,
   headers: {
     'Content-Type': 'application/json',
   },

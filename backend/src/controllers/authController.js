@@ -14,7 +14,22 @@ const { getClientIP } = require('../utils/helpers');
  */
 const register = async (req, res) => {
   try {
-    const { username, email, password, role = 'user' } = req.body;
+    console.log('🔍 req.body BEFORE destructuring:', req.body);
+    
+    const { 
+      username, 
+      email, 
+      password, 
+      role = 'user',
+      // Company options
+      companyAction = 'join_default', // 'create' or 'join' or 'join_default'
+      companyName,
+      companyCode,
+      joinCompanyCode
+    } = req.body;
+
+    // DEBUG: Log company action
+    console.log('🔍 Register request AFTER destructuring:', { username, email, companyAction, companyName, companyCode });
 
     // Check if user already exists
     const existingUser = await User.findByEmail(email);
@@ -27,8 +42,110 @@ const register = async (req, res) => {
       return res.status(400).json(formatError('Username already taken'));
     }
 
-    // Create user
-    const user = await User.create({ username, email, password, role });
+    let company_id = null;
+    let userRole = role;
+
+    // Handle company selection
+    if (companyAction === 'create') {
+      // Create new company
+      if (!companyName || !companyCode) {
+        return res.status(400).json(formatError('Şirket adı ve kodu gereklidir'));
+      }
+
+      // Check if company code already exists
+      const existingCompany = await pool.query(
+        'SELECT id FROM companies WHERE company_code = $1',
+        [companyCode]
+      );
+
+      if (existingCompany.rows.length > 0) {
+        return res.status(400).json(formatError('Bu şirket kodu zaten kullanılıyor'));
+      }
+
+      // Create new company
+      const newCompany = await pool.query(
+        `INSERT INTO companies (company_name, company_code, is_active)
+         VALUES ($1, $2, true)
+         RETURNING id, company_name, company_code`,
+        [companyName, companyCode]
+      );
+
+      company_id = newCompany.rows[0].id;
+      userRole = 'admin'; // First user of new company becomes admin
+
+      console.log(`New company created: ${companyName} (${companyCode})`);
+    } else if (companyAction === 'join') {
+      // Join existing company - requires admin approval
+      if (!joinCompanyCode) {
+        return res.status(400).json(formatError('Şirket kodu gereklidir'));
+      }
+
+      const existingCompany = await pool.query(
+        'SELECT id, company_name, company_code, is_active FROM companies WHERE company_code = $1',
+        [joinCompanyCode]
+      );
+
+      if (existingCompany.rows.length === 0) {
+        return res.status(404).json(formatError('Şirket bulunamadı'));
+      }
+
+      if (!existingCompany.rows[0].is_active) {
+        return res.status(400).json(formatError('Bu şirket aktif değil'));
+      }
+
+      company_id = existingCompany.rows[0].id;
+      console.log(`User requesting to join company: ${existingCompany.rows[0].company_name}`);
+    } else {
+      // Join default company
+      const defaultCompany = await pool.query(
+        "SELECT id FROM companies WHERE company_code = 'DEFAULT_COMPANY' LIMIT 1"
+      );
+      
+      if (defaultCompany.rows.length > 0) {
+        company_id = defaultCompany.rows[0].id;
+      }
+    }
+
+    // Create user with appropriate approval status
+    const approval_status = (companyAction === 'join') ? 'pending' : 'approved';
+    const user = await User.create({ 
+      username, 
+      email, 
+      password, 
+      role: userRole, 
+      company_id,
+      approval_status
+    });
+
+    // If user needs approval, don't generate tokens yet
+    if (approval_status === 'pending') {
+      // Log activity
+      await AuditLog.create({
+        user_id: user.id,
+        action: 'REGISTER_PENDING',
+        entity_type: 'user',
+        entity_id: user.id,
+        changes: { username, email, role: userRole, status: 'pending_approval' },
+        ip_address: getClientIP(req)
+      });
+
+      // Get company info
+      const companyInfo = await pool.query(
+        'SELECT id, company_name, company_code FROM companies WHERE id = $1',
+        [user.company_id]
+      );
+
+      console.log(`User registered (pending approval): ${username} (${user.id})`);
+
+      return res.status(201).json(formatSuccess({
+        message: 'Kayıt başarılı! Şirket yöneticisinin onayı bekleniyor.',
+        user: { username: user.username, email: user.email },
+        company: companyInfo.rows[0] || null,
+        requiresApproval: true
+      }, 'Registration pending approval'));
+    }
+
+    // For approved users, continue with normal flow
 
     // Log activity
     await AuditLog.create({
@@ -37,7 +154,8 @@ const register = async (req, res) => {
       entity_type: 'user',
       entity_id: user.id,
       changes: { username, email, role },
-      ip_address: getClientIP(req)
+      ip_address: getClientIP(req),
+      company_id: user.company_id // MULTI-TENANCY
     });
 
     // Log to activity logs
@@ -56,7 +174,7 @@ const register = async (req, res) => {
 
     // Generate JWT token
     const token = jwt.sign(
-      { userId: user.id, username: user.username, role: user.role },
+      { userId: user.id, username: user.username, role: user.role, company_id: user.company_id },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRY || '15m' }
     );
@@ -67,10 +185,17 @@ const register = async (req, res) => {
       { expiresIn: process.env.JWT_REFRESH_EXPIRY || '7d' }
     );
 
+    // Get company info
+    const companyInfo = await pool.query(
+      'SELECT id, company_name, company_code FROM companies WHERE id = $1',
+      [user.company_id]
+    );
+
     console.log(`User registered: ${username} (${user.id})`);
 
     res.status(201).json(formatSuccess({
       user: formatUser(user),
+      company: companyInfo.rows[0] || null,
       token,
       refreshToken
     }, 'Registration successful'));
@@ -119,6 +244,14 @@ const login = async (req, res) => {
       return res.status(401).json(formatError('Invalid credentials'));
     }
 
+    console.log('🔍 DEBUG - User object from DB:', { 
+      id: user.id, 
+      email: user.email, 
+      company_id: user.company_id,
+      has_company_id: 'company_id' in user,
+      all_keys: Object.keys(user)
+    });
+
     // Verify password
     const isValidPassword = await User.verifyPassword(password, user.password_hash);
     if (!isValidPassword) {
@@ -129,6 +262,16 @@ const login = async (req, res) => {
       `, [clientIp, email, userAgent]);
 
       return res.status(401).json(formatError('Invalid credentials'));
+    }
+
+    // Check approval status
+    if (user.approval_status === 'pending') {
+      return res.status(403).json(formatError('Hesabınız henüz onaylanmadı. Lütfen yönetici onayını bekleyin.'));
+    }
+
+    if (user.approval_status === 'rejected') {
+      const reason = user.rejection_reason || 'Yönetici tarafından reddedildi';
+      return res.status(403).json(formatError(`Hesabınız reddedildi. Sebep: ${reason}`));
     }
 
     // Check if user has 2FA enabled
@@ -153,7 +296,7 @@ const login = async (req, res) => {
 
     // Generate tokens
     const token = jwt.sign(
-      { userId: user.id, username: user.username, role: user.role },
+      { userId: user.id, username: user.username, role: user.role, company_id: user.company_id },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRY || '15m' }
     );
@@ -185,7 +328,7 @@ const login = async (req, res) => {
     `, [user.id, token, clientIp, userAgent]);
 
     // Log activity in audit_logs
-    await AuditLog.logLogin(user.id, getClientIP(req));
+    await AuditLog.logLogin(user.id, getClientIP(req), user.company_id);
 
     // Log to activity logs
     await ActivityLogService.log(
@@ -231,10 +374,17 @@ const login = async (req, res) => {
       WHERE id = $1
     `, [user.id]);
 
+    // Get company info
+    const companyInfo = await pool.query(
+      'SELECT id, company_name, company_code FROM companies WHERE id = $1',
+      [user.company_id]
+    );
+
     console.log(`User logged in: ${user.username} (${user.id})`);
 
     res.json(formatSuccess({
       user: formatUser(user),
+      company: companyInfo.rows[0] || null,
       token,
       refreshToken
     }, 'Login successful'));
@@ -300,7 +450,7 @@ const logout = async (req, res) => {
     }
 
     // Log activity
-    await AuditLog.logLogout(userId, getClientIP(req));
+    await AuditLog.logLogout(userId, getClientIP(req), req.user.company_id);
 
     // Log to activity logs
     await ActivityLogService.log(

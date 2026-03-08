@@ -11,9 +11,11 @@ const { getClientIP, calculateOffset } = require('../utils/helpers');
 const getAllProducts = async (req, res) => {
   try {
     const { category, search, minPrice, maxPrice, lowStock, page = 1, limit = 20 } = req.query;
+    const { company_id } = req.user; // MULTI-TENANCY
 
     // Build filters
     const filters = {
+      company_id, // MULTI-TENANCY: Only show products from user's company
       category,
       search,
       minPrice: minPrice ? parseFloat(minPrice) : undefined,
@@ -25,7 +27,7 @@ const getAllProducts = async (req, res) => {
 
     // Get products
     const products = await Product.findAll(filters);
-    const total = await Product.count({ category });
+    const total = await Product.count({ category, company_id });
 
     const result = formatPaginated(
       formatProducts(products),
@@ -48,14 +50,15 @@ const getAllProducts = async (req, res) => {
 const getProductById = async (req, res) => {
   try {
     const { id } = req.params;
+    const { company_id } = req.user; // MULTI-TENANCY
 
     // Try to get from cache
     const cached = await cacheService.getCachedProduct(id);
-    if (cached.success && cached.data) {
+    if (cached.success && cached.data && cached.data.company_id === company_id) {
       return res.json(formatSuccess(cached.data));
     }
 
-    const product = await Product.findById(id);
+    const product = await Product.findById(id, company_id); // MULTI-TENANCY
 
     if (!product) {
       return res.status(404).json(formatError('Product not found'));
@@ -79,10 +82,11 @@ const getProductById = async (req, res) => {
  */
 const createProduct = async (req, res) => {
   try {
-    const { name, description, price, stock, category, sku, low_stock_threshold } = req.body;
+    const { name, description, price, stock, category, sku, low_stock_threshold, supplier_id } = req.body;
+    const { company_id } = req.user; // MULTI-TENANCY
 
-    // Check if SKU already exists
-    const existing = await Product.findBySku(sku);
+    // Check if SKU already exists IN THIS COMPANY
+    const existing = await Product.findBySku(sku, company_id);
     if (existing) {
       return res.status(400).json(formatError('SKU already exists'));
     }
@@ -94,7 +98,9 @@ const createProduct = async (req, res) => {
       stock,
       category,
       sku,
-      low_stock_threshold: low_stock_threshold || 10
+      low_stock_threshold: low_stock_threshold || 10,
+      supplier_id: supplier_id || null,
+      company_id // MULTI-TENANCY
     });
 
     // Log activity
@@ -103,8 +109,9 @@ const createProduct = async (req, res) => {
       action: 'CREATE',
       entity_type: 'product',
       entity_id: product.id,
-      changes: { name, price, stock, category, sku },
-      ip_address: getClientIP(req)
+      changes: { name, price, stock, category, sku, supplier_id },
+      ip_address: getClientIP(req),
+      company_id // MULTI-TENANCY
     });
 
     // Log to activity logs
@@ -112,7 +119,7 @@ const createProduct = async (req, res) => {
       req.user.userId,
       'create_product',
       'products',
-      { product_id: product.id, name, price, stock, category, sku },
+      { product_id: product.id, name, price, stock, category, sku, supplier_id },
       req
     );
 
@@ -135,7 +142,14 @@ const createProduct = async (req, res) => {
 const updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
+    const { company_id } = req.user; // MULTI-TENANCY
     const updates = { ...req.body };
+
+    // First check if product belongs to this company
+    const existingProduct = await Product.findById(id, company_id);
+    if (!existingProduct) {
+      return res.status(404).json(formatError('Product not found'));
+    }
 
     // Map 'stock' to 'stock_quantity' for model compatibility
     if (updates.stock !== undefined) {
@@ -156,7 +170,8 @@ const updateProduct = async (req, res) => {
       entity_type: 'product',
       entity_id: id,
       changes: updates,
-      ip_address: getClientIP(req)
+      ip_address: getClientIP(req),
+      company_id // MULTI-TENANCY
     });
 
     // Log to activity logs
@@ -187,8 +202,9 @@ const updateProduct = async (req, res) => {
 const deleteProduct = async (req, res) => {
   try {
     const { id } = req.params;
+    const { company_id } = req.user; // MULTI-TENANCY
 
-    const product = await Product.findById(id);
+    const product = await Product.findById(id, company_id); // MULTI-TENANCY
     if (!product) {
       return res.status(404).json(formatError('Product not found'));
     }
@@ -202,7 +218,8 @@ const deleteProduct = async (req, res) => {
       entity_type: 'product',
       entity_id: id,
       changes: { deleted_product: product.name },
-      ip_address: getClientIP(req)
+      ip_address: getClientIP(req),
+      company_id // MULTI-TENANCY
     });
 
     // Log to activity logs
