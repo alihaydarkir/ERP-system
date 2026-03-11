@@ -1,15 +1,35 @@
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
 /**
  * PDF Export Utilities
  */
 
-// PDF'e Türkçe karakter desteği için font ekleme (opsiyonel)
-const addTurkishSupport = (doc) => {
-  // Not: Türkçe karakterler için custom font gerekebilir
-  // Şimdilik varsayılan font ile devam ediyoruz
+// Türkçe karakterleri Latin-1 uyumlu ASCII'ye dönüştürür (PDF için)
+const normalizeTR = (s) => {
+  if (typeof s !== 'string') return s;
+  return s
+    .replace(/ğ/g, 'g').replace(/Ğ/g, 'G')
+    .replace(/ü/g, 'u').replace(/Ü/g, 'U')
+    .replace(/ş/g, 's').replace(/Ş/g, 'S')
+    .replace(/ı/g, 'i').replace(/İ/g, 'I')
+    .replace(/ö/g, 'o').replace(/Ö/g, 'O')
+    .replace(/ç/g, 'c').replace(/Ç/g, 'C')
+    .replace(/₺/g, 'TL')
+    .replace(/€/g, 'EUR')
+    .replace(/£/g, 'GBP')
+    .replace(/\$/g, 'USD');
+};
+
+// jsPDF doc.text metodunu monkey-patch ederek Türkçe karakterleri otomatik normalize eder
+export const addTurkishSupport = (doc) => {
+  const origText = doc.text.bind(doc);
+  doc.text = function(text, x, y, options, transform) {
+    if (typeof text === 'string') text = normalizeTR(text);
+    else if (Array.isArray(text)) text = text.map(t => normalizeTR(t));
+    return origText(text, x, y, options, transform);
+  };
 };
 
 /**
@@ -17,6 +37,7 @@ const addTurkishSupport = (doc) => {
  */
 export const exportProductsToPDF = (products) => {
   const doc = new jsPDF();
+  addTurkishSupport(doc);
   
   // Başlık
   doc.setFontSize(18);
@@ -36,7 +57,7 @@ export const exportProductsToPDF = (products) => {
     `${p.price || 0} TL`
   ]);
   
-  doc.autoTable({
+  autoTable(doc, {
     head: [['ID', 'Ürün Adı', 'SKU', 'Kategori', 'Stok', 'Fiyat']],
     body: tableData,
     startY: 35,
@@ -66,6 +87,7 @@ export const exportProductsToPDF = (products) => {
  */
 export const exportOrdersToPDF = (orders) => {
   const doc = new jsPDF();
+  addTurkishSupport(doc);
   
   doc.setFontSize(18);
   doc.text('Sipariş Listesi', 14, 22);
@@ -76,12 +98,12 @@ export const exportOrdersToPDF = (orders) => {
   const tableData = orders.map(o => [
     o.id,
     o.customer_name || '-',
-    new Date(o.order_date).toLocaleDateString('tr-TR'),
-    o.status === 'pending' ? 'Bekleyen' : o.status === 'completed' ? 'Tamamlandı' : 'İptal',
+    o.created_at ? new Date(o.created_at).toLocaleDateString('tr-TR') : '-',
+    o.status === 'pending' ? 'Bekleyen' : o.status === 'completed' ? 'Tamamlandi' : 'Iptal',
     `${o.total_amount || 0} TL`
   ]);
   
-  doc.autoTable({
+  autoTable(doc, {
     head: [['Sipariş No', 'Müşteri', 'Tarih', 'Durum', 'Tutar']],
     body: tableData,
     startY: 35,
@@ -110,6 +132,7 @@ export const exportOrdersToPDF = (orders) => {
  */
 export const exportCustomersToPDF = (customers) => {
   const doc = new jsPDF();
+  addTurkishSupport(doc);
   
   doc.setFontSize(18);
   doc.text('Müşteri Listesi', 14, 22);
@@ -119,13 +142,13 @@ export const exportCustomersToPDF = (customers) => {
   
   const tableData = customers.map(c => [
     c.id,
-    c.name || '-',
+    c.full_name || c.name || '-',
     c.email || '-',
-    c.phone || '-',
-    c.company || '-'
+    c.phone_number || c.phone || '-',
+    c.company_name || c.company || '-'
   ]);
   
-  doc.autoTable({
+  autoTable(doc, {
     head: [['ID', 'Ad Soyad', 'E-posta', 'Telefon', 'Şirket']],
     body: tableData,
     startY: 35,
@@ -181,10 +204,10 @@ export const exportProductsToExcel = (products) => {
 export const exportOrdersToExcel = (orders) => {
   const worksheet = XLSX.utils.json_to_sheet(
     orders.map(o => ({
-      'Sipariş No': o.id,
-      'Müşteri': o.customer_name || '-',
-      'Sipariş Tarihi': new Date(o.order_date).toLocaleDateString('tr-TR'),
-      'Durum': o.status === 'pending' ? 'Bekleyen' : o.status === 'completed' ? 'Tamamlandı' : 'İptal',
+      'Siparis No': o.id,
+      'Musteri': o.customer_name || '-',
+      'Siparis Tarihi': o.created_at ? new Date(o.created_at).toLocaleDateString('tr-TR') : '-',
+      'Durum': o.status === 'pending' ? 'Bekleyen' : o.status === 'completed' ? 'Tamamlandi' : 'Iptal',
       'Toplam Tutar (TL)': o.total_amount || 0,
       'Notlar': o.notes || '-'
     }))
@@ -203,12 +226,12 @@ export const exportCustomersToExcel = (customers) => {
   const worksheet = XLSX.utils.json_to_sheet(
     customers.map(c => ({
       'ID': c.id,
-      'Ad Soyad': c.name || '-',
+      'Ad Soyad': c.full_name || c.name || '-',
       'E-posta': c.email || '-',
-      'Telefon': c.phone || '-',
-      'Şirket': c.company || '-',
+      'Telefon': c.phone_number || c.phone || '-',
+      'Sirket': c.company_name || c.company || '-',
       'Adres': c.address || '-',
-      'Kayıt Tarihi': new Date(c.created_at).toLocaleDateString('tr-TR')
+      'Kayit Tarihi': c.created_at ? new Date(c.created_at).toLocaleDateString('tr-TR') : '-'
     }))
   );
   
@@ -223,6 +246,7 @@ export const exportCustomersToExcel = (customers) => {
  */
 export const exportReportToPDF = (reportData, reportTitle) => {
   const doc = new jsPDF();
+  addTurkishSupport(doc);
   
   // Başlık
   doc.setFontSize(20);
@@ -251,7 +275,7 @@ export const exportReportToPDF = (reportData, reportTitle) => {
   
   // Detay tablosu (varsa)
   if (reportData.details && Array.isArray(reportData.details)) {
-    doc.autoTable({
+    autoTable(doc, {
       head: [Object.keys(reportData.details[0] || {})],
       body: reportData.details.map(item => Object.values(item)),
       startY: yPosition,
@@ -282,6 +306,7 @@ export const exportReportToPDF = (reportData, reportTitle) => {
  */
 export const exportSuppliersToPDF = (suppliers) => {
   const doc = new jsPDF();
+  addTurkishSupport(doc);
   
   doc.setFontSize(18);
   doc.text('Tedarikçi Listesi', 14, 22);
@@ -299,7 +324,7 @@ export const exportSuppliersToPDF = (suppliers) => {
     s.is_active ? 'Aktif' : 'Pasif'
   ]);
   
-  doc.autoTable({
+  autoTable(doc, {
     head: [['ID', 'Tedarikçi Adı', 'İletişim Kişisi', 'E-posta', 'Telefon', 'Ödeme Vadesi', 'Durum']],
     body: tableData,
     startY: 35,
@@ -358,4 +383,73 @@ export const exportSuppliersToExcel = (suppliers) => {
   ws['!cols'] = colWidths;
   
   XLSX.writeFile(wb, `tedarikciler_${new Date().getTime()}.xlsx`);
+};
+
+/**
+ * Çekleri PDF olarak export et
+ */
+export const exportChequesToPDF = (cheques) => {
+  const doc = new jsPDF({ orientation: 'landscape' });
+  addTurkishSupport(doc);
+
+  const getStatusLabel = (status) => {
+    const labels = {
+      pending: 'Beklemede', cleared: 'Tahsil Edildi',
+      bounced: 'Karsilıksız', cancelled: 'Iptal',
+      teminat: 'Teminat', musteriye_verildi: 'Musteriye Verildi',
+      paid: 'Odendi',
+    };
+    return labels[status] || status;
+  };
+
+  doc.setFillColor(37, 99, 235);
+  doc.rect(0, 0, 297, 20, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text('CEK LISTESI', 14, 13);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}  |  Toplam: ${cheques.length} cek`, 200, 13);
+
+  doc.setTextColor(0, 0, 0);
+
+  const tableData = cheques.map(c => [
+    c.check_serial_no || '-',
+    c.check_issuer || '-',
+    c.customer_company_name || c.customer_contact_name || '-',
+    c.bank_name || '-',
+    c.received_date ? new Date(c.received_date).toLocaleDateString('tr-TR') : '-',
+    c.due_date ? new Date(c.due_date).toLocaleDateString('tr-TR') : '-',
+    `${parseFloat(c.amount || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ${c.currency || 'TRY'}`,
+    getStatusLabel(c.status),
+  ]);
+
+  autoTable(doc, {
+    head: [['Seri No', 'Kesideci', 'Musteri', 'Banka', 'Alınma', 'Vade', 'Tutar', 'Durum']],
+    body: tableData,
+    startY: 25,
+    styles: { fontSize: 8, cellPadding: 2 },
+    headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [245, 247, 250] },
+    columnStyles: {
+      6: { halign: 'right' },
+      7: { halign: 'center' },
+    },
+  });
+
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(150);
+    doc.text(
+      `Sayfa ${i} / ${pageCount}`,
+      doc.internal.pageSize.width / 2,
+      doc.internal.pageSize.height - 8,
+      { align: 'center' }
+    );
+  }
+
+  doc.save(`cekler_${new Date().toISOString().split('T')[0]}.pdf`);
 };

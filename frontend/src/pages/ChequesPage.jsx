@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import useChequeStore from '../store/chequeStore';
 import chequeService from '../services/chequeService';
+import { exportChequesToPDF } from '../utils/exportUtils';
 import ChequeStatistics from '../components/Cheques/ChequeStatistics';
 import ChequeList from '../components/Cheques/ChequeList';
 import ChequeForm from '../components/Cheques/ChequeForm';
@@ -13,6 +14,7 @@ import useUIStore from '../store/uiStore';
 const ChequesPage = () => {
   const { showSuccess, showError, showConfirm } = useUIStore();
   const {
+    cheques,
     setCheques,
     addCheque,
     updateCheque,
@@ -236,6 +238,20 @@ const ChequesPage = () => {
     }
   };
 
+  const handleExportToPDF = () => {
+    try {
+      if (!cheques || cheques.length === 0) {
+        showError('PDF oluşturmak için önce çekleri yükleyin');
+        return;
+      }
+      exportChequesToPDF(cheques);
+      showSuccess('PDF başarıyla indirildi');
+    } catch (error) {
+      console.error('PDF export error:', error);
+      showError('PDF oluşturulurken hata oluştu');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-7xl mx-auto">
@@ -254,6 +270,14 @@ const ChequesPage = () => {
               >
                 <span>📊</span>
                 <span>Excel'e Aktar</span>
+              </button>
+
+              <button
+                onClick={handleExportToPDF}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center space-x-2"
+              >
+                <span>📄</span>
+                <span>PDF'e Aktar</span>
               </button>
 
               <button

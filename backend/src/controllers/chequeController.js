@@ -23,9 +23,11 @@ const getAllCheques = async (req, res) => {
     } = req.query;
 
     const userId = req.user.id;
+    const companyId = req.user.company_id;
 
     // Build filters
     const filters = {
+      company_id: companyId,
       user_id: userId,
       status,
       customer_id: customer_id ? parseInt(customer_id) : undefined,
@@ -39,7 +41,7 @@ const getAllCheques = async (req, res) => {
     };
 
     const cheques = await Cheque.findAll(filters);
-    const total = await Cheque.count({ user_id: userId, status, customer_id, bank_name, start_date, end_date });
+    const total = await Cheque.count({ company_id: companyId, user_id: userId, status, customer_id, bank_name, start_date, end_date });
 
     const result = formatPaginated(
       cheques,
@@ -110,6 +112,7 @@ const createCheque = async (req, res) => {
     } = req.body;
 
     const userId = req.user.id;
+    const companyId = req.user.company_id;
 
     // Validation
     if (!check_serial_no || !check_issuer || !customer_id || !bank_name || !received_date || !due_date || !amount) {
@@ -152,13 +155,17 @@ const createCheque = async (req, res) => {
       return res.status(400).json(formatError('Due date must be after received date'));
     }
 
-    // Check if customer exists and belongs to user
+    // Check if customer exists and belongs to user's company
     const customer = await Customer.findById(customer_id);
     if (!customer) {
       return res.status(404).json(formatError('Customer not found'));
     }
 
-    if (customer.user_id !== userId && req.user.role !== 'admin') {
+    // Check company ownership (multi-tenancy) - any user in same company can create cheques
+    const userCompanyId = req.user.company_id;
+    if (userCompanyId && customer.company_id &&
+        customer.company_id !== userCompanyId &&
+        req.user.role !== 'admin') {
       return res.status(403).json(formatError('Access denied to this customer'));
     }
 
@@ -171,6 +178,7 @@ const createCheque = async (req, res) => {
     // Create cheque
     const cheque = await Cheque.create({
       user_id: userId,
+      company_id: companyId,
       check_serial_no,
       check_issuer,
       customer_id,
@@ -188,6 +196,7 @@ const createCheque = async (req, res) => {
     // Create initial transaction record
     await ChequeTransaction.create({
       cheque_id: cheque.id,
+      company_id: companyId,
       old_status: null,
       new_status: chequeStatus,
       changed_by: userId,
@@ -198,6 +207,7 @@ const createCheque = async (req, res) => {
     // Log the action
     await AuditLog.create({
       user_id: userId,
+      company_id: companyId,
       action: 'CREATE_CHEQUE',
       entity_type: 'cheque',
       entity_id: cheque.id,
@@ -282,6 +292,7 @@ const updateCheque = async (req, res) => {
     // Log the action
     await AuditLog.create({
       user_id: userId,
+      company_id: req.user.company_id,
       action: 'UPDATE_CHEQUE',
       entity_type: 'cheque',
       entity_id: id,
@@ -347,6 +358,7 @@ const changeChequeStatus = async (req, res) => {
     // Create transaction record
     await ChequeTransaction.create({
       cheque_id: id,
+      company_id: req.user.company_id,
       old_status: oldStatus,
       new_status: status,
       changed_by: userId,
@@ -357,6 +369,7 @@ const changeChequeStatus = async (req, res) => {
     // Log the action
     await AuditLog.create({
       user_id: userId,
+      company_id: req.user.company_id,
       action: 'CHANGE_CHEQUE_STATUS',
       entity_type: 'cheque',
       entity_id: id,
@@ -410,6 +423,7 @@ const deleteCheque = async (req, res) => {
     // Log the action
     await AuditLog.create({
       user_id: userId,
+      company_id: req.user.company_id,
       action: 'DELETE_CHEQUE',
       entity_type: 'cheque',
       entity_id: id,

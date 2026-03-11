@@ -27,8 +27,6 @@ const CurrencyTicker = () => {
       
       const data = await response.json();
       
-      console.log('Döviz API yanıtı:', data); // Debug için
-      
       if (data && data.rates) {
         // USD/TRY
         const usdRate = data.rates.TRY || 34.50;
@@ -38,8 +36,6 @@ const CurrencyTicker = () => {
         // GBP kuru hesaplama
         const gbpToUsd = data.rates.GBP || 0.79;
         const gbpRate = usdRate / gbpToUsd;
-        
-        console.log('Hesaplanan kurlar:', { usdRate, eurRate, gbpRate }); // Debug için
         
         setRates({
           USD: {

@@ -1,6 +1,7 @@
 import { X, Printer, Download, CheckCircle } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { addTurkishSupport } from '../../utils/exportUtils';
 
 const STATUS_MAP = {
   draft:     { label: 'Taslak',      color: 'bg-gray-100 text-gray-700' },
@@ -18,6 +19,7 @@ export default function InvoiceDetail({ invoice, onClose, onMarkPaid }) {
   /* ─── PDF export ─── */
   const downloadPDF = () => {
     const doc = new jsPDF();
+    addTurkishSupport(doc);
 
     // Header background
     doc.setFillColor(37, 99, 235);

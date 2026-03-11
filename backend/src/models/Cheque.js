@@ -6,6 +6,7 @@ class Cheque {
    */
   static async create({
     user_id,
+    company_id,
     check_serial_no,
     check_issuer,
     customer_id,
@@ -21,15 +22,15 @@ class Cheque {
   }) {
     const query = `
       INSERT INTO cheques (
-        user_id, check_serial_no, check_issuer, customer_id, bank_name, collateral_bank,
+        user_id, company_id, check_serial_no, check_issuer, customer_id, bank_name, collateral_bank,
         received_date, due_date, amount, currency, status, given_to_customer_id, notes
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *
     `;
 
     const values = [
-      user_id, check_serial_no, check_issuer, customer_id, bank_name, collateral_bank,
+      user_id, company_id, check_serial_no, check_issuer, customer_id, bank_name, collateral_bank,
       received_date, due_date, amount, currency, status, given_to_customer_id, notes
     ];
 
@@ -66,6 +67,7 @@ class Cheque {
   static async findAll(filters = {}) {
     const {
       user_id,
+      company_id,
       status,
       customer_id,
       bank_name,
@@ -90,6 +92,13 @@ class Cheque {
 
     const values = [];
     let paramCount = 1;
+
+    // Filter by company_id (multi-tenancy)
+    if (company_id) {
+      query += ` AND ch.company_id = $${paramCount}`;
+      values.push(company_id);
+      paramCount++;
+    }
 
     // Filter by user_id
     if (user_id) {
@@ -148,11 +157,17 @@ class Cheque {
    * Count cheques with filters
    */
   static async count(filters = {}) {
-    const { user_id, status, customer_id, bank_name, start_date, end_date } = filters;
+    const { user_id, company_id, status, customer_id, bank_name, start_date, end_date } = filters;
 
     let query = 'SELECT COUNT(*) FROM cheques WHERE 1=1';
     const values = [];
     let paramCount = 1;
+
+    if (company_id) {
+      query += ` AND company_id = $${paramCount}`;
+      values.push(company_id);
+      paramCount++;
+    }
 
     if (user_id) {
       query += ` AND user_id = $${paramCount}`;
@@ -411,14 +426,14 @@ class ChequeTransaction {
   /**
    * Create a cheque transaction record
    */
-  static async create({ cheque_id, old_status, new_status, changed_by, notes, ip_address }) {
+  static async create({ cheque_id, company_id, old_status, new_status, changed_by, notes, ip_address }) {
     const query = `
-      INSERT INTO cheque_transactions (cheque_id, old_status, new_status, changed_by, notes, ip_address)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO cheque_transactions (cheque_id, company_id, old_status, new_status, changed_by, notes, ip_address)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
     `;
 
-    const values = [cheque_id, old_status, new_status, changed_by, notes, ip_address];
+    const values = [cheque_id, company_id, old_status, new_status, changed_by, notes, ip_address];
     const result = await pool.query(query, values);
     return result.rows[0];
   }

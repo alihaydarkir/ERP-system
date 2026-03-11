@@ -5,6 +5,9 @@ import OrderDetailModal from '../components/Orders/OrderDetailModal';
 import PendingOrdersSection from '../components/Orders/PendingOrdersSection';
 import CompletedOrdersSection from '../components/Orders/CompletedOrdersSection';
 import useUIStore from '../store/uiStore';
+import { exportOrdersToPDF, exportOrdersToExcel } from '../utils/exportUtils';
+import { FileDown, FileSpreadsheet } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function OrdersPage() {
   const { showSuccess, showError, showConfirm } = useUIStore();
@@ -113,12 +116,28 @@ export default function OrdersPage() {
           <h1 className="text-3xl font-bold text-gray-800">Siparişler</h1>
           <p className="text-gray-600 mt-2">Sipariş yönetimi ve takibi</p>
         </div>
-        <button
-          onClick={() => setShowOrderDrawer(true)}
-          className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
-        >
-          + Yeni Sipariş
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={() => { exportOrdersToPDF(filteredOrders); toast.success('PDF olarak indirildi!'); }}
+            className="bg-red-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-red-700 transition flex items-center gap-2"
+          >
+            <FileDown className="w-5 h-5" />
+            <span>PDF</span>
+          </button>
+          <button
+            onClick={() => { exportOrdersToExcel(filteredOrders); toast.success('Excel olarak indirildi!'); }}
+            className="bg-green-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-green-700 transition flex items-center gap-2"
+          >
+            <FileSpreadsheet className="w-5 h-5" />
+            <span>Excel</span>
+          </button>
+          <button
+            onClick={() => setShowOrderDrawer(true)}
+            className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
+          >
+            + Yeni Sipariş
+          </button>
+        </div>
       </div>
 
       {/* Search Bar */}

@@ -4,6 +4,9 @@ import CustomerList from '../components/Customers/CustomerList';
 import ImportCustomersDialog from '../components/Customers/ImportCustomersDialog';
 import { customerService } from '../services/customerService';
 import useUIStore from '../store/uiStore';
+import { exportCustomersToPDF, exportCustomersToExcel } from '../utils/exportUtils';
+import { FileDown, FileSpreadsheet } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function CustomersPage() {
   const { showSuccess, showError, showConfirm } = useUIStore();
@@ -157,8 +160,22 @@ export default function CustomersPage() {
 
         <div className="flex gap-3">
           <button
+            onClick={() => { exportCustomersToPDF(filteredCustomers); toast.success('PDF olarak indirildi!'); }}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center gap-2"
+          >
+            <FileDown className="w-4 h-4" />
+            <span>PDF</span>
+          </button>
+          <button
+            onClick={() => { exportCustomersToExcel(filteredCustomers); toast.success('Excel olarak indirildi!'); }}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>Excel</span>
+          </button>
+          <button
             onClick={() => setShowImportDialog(true)}
-            className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+            className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
           >
             📥 Excel'den Yükle
           </button>
