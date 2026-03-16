@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import customerService from '../../services/customerService';
 
 const ChequeStatusChangeModal = ({ cheque, onClose, onSubmit }) => {
-  const [status, setStatus] = useState(cheque?.status || 'beklemede');
+  const [status, setStatus] = useState(cheque?.status || 'pending');
   const [notes, setNotes] = useState('');
   const [collateralBank, setCollateralBank] = useState('');
   const [givenToCustomerId, setGivenToCustomerId] = useState('');
@@ -95,9 +95,9 @@ const ChequeStatusChangeModal = ({ cheque, onClose, onSubmit }) => {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
             >
-              <option value="beklemede">Beklemede</option>
-              <option value="odendi">Ödendi</option>
-              <option value="iptal">İptal</option>
+              <option value="pending">Beklemede</option>
+              <option value="paid">Ödendi</option>
+              <option value="cancelled">İptal</option>
               <option value="teminat">Teminata Verildi</option>
               <option value="musteriye_verildi">Müşteriye Verildi</option>
             </select>

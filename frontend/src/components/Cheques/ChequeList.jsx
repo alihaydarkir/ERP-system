@@ -84,7 +84,7 @@ const ChequeList = ({ onChequeClick, onEditCheque, onDeleteCheque, onChangeStatu
     }
     if (cheque.status === 'musteriye_verildi' && cheque.given_to_customer_id) {
       const customer = customers.find(c => c.id === cheque.given_to_customer_id);
-      return <span className="text-purple-700 font-medium">{customer?.customer_name || customer?.company_name || 'Bilinmiyor'}</span>;
+      return <span className="text-purple-700 font-medium">{customer?.full_name || customer?.company_name || 'Bilinmiyor'}</span>;
     }
     return <span className="text-gray-500">-</span>;
   };
@@ -129,8 +129,9 @@ const ChequeList = ({ onChequeClick, onEditCheque, onDeleteCheque, onChangeStatu
             >
               <option value="">Tümü</option>
               <option value="pending">Beklemede</option>
-              <option value="cleared">Ödendi</option>
-              <option value="bounced">Bozuldu</option>
+              <option value="paid">Ödendi</option>
+              <option value="teminat">Teminat</option>
+              <option value="musteriye_verildi">Müşteriye Verildi</option>
               <option value="cancelled">İptal</option>
             </select>
           </div>

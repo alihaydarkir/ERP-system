@@ -1,4 +1,5 @@
 export default function OrderCard({ order, onComplete, onCancel, onView, isPending }) {
+  const totalAmount = Number(order.total_amount || 0);
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('tr-TR', {
       year: 'numeric',
@@ -70,7 +71,7 @@ export default function OrderCard({ order, onComplete, onCancel, onView, isPendi
         <p className="text-sm text-gray-600">
           <span className="font-medium">Toplam:</span>{' '}
           <span className="text-lg font-bold text-blue-600">
-            ₺{order.total_amount?.toFixed(2) || '0.00'}
+            ₺{totalAmount.toFixed(2)}
           </span>
         </p>
       </div>
@@ -110,10 +111,10 @@ export default function OrderCard({ order, onComplete, onCancel, onView, isPendi
           </>
         ) : (
           <button
-            onClick={() => showInfo('PDF indirme özelliği yakında eklenecek')}
+            onClick={() => onView(order)}
             className="flex-1 py-2 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 transition font-medium text-sm"
           >
-            📄 İndir PDF
+            👁️ Detay
           </button>
         )}
       </div>

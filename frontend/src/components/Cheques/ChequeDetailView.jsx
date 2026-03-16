@@ -104,8 +104,8 @@ const ChequeDetailView = ({ cheque, onClose, onChangeStatus }) => {
   };
 
   const canChangeStatus = () => {
-    // Cleared status can only be changed by admin
-    if (cheque.status === 'cleared') {
+    // Paid status can only be changed by admin
+    if (cheque.status === 'paid') {
       return false; // This should check user role in real app
     }
     return selectedStatus !== cheque.status;
@@ -306,7 +306,7 @@ const ChequeDetailView = ({ cheque, onClose, onChangeStatus }) => {
                 {isChangingStatus ? 'Güncelleniyor...' : 'Durumu Güncelle'}
               </button>
 
-              {cheque.status === 'cleared' && (
+              {cheque.status === 'paid' && (
                 <p className="text-sm text-orange-600 text-center">
                   ⚠️ Ödenen çeklerin durumu sadece yöneticiler tarafından değiştirilebilir
                 </p>

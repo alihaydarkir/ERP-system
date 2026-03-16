@@ -19,15 +19,16 @@ class Customer {
   /**
    * Find customer by ID
    */
-  static async findById(id) {
+  static async findById(id, company_id = null) {
     const query = `
       SELECT c.*, u.username as user_name, u.email as user_email
       FROM customers c
       LEFT JOIN users u ON c.user_id = u.id
-      WHERE c.id = $1
+      WHERE c.id = $1 ${company_id ? 'AND c.company_id = $2' : ''}
     `;
 
-    const result = await pool.query(query, [id]);
+    const params = company_id ? [id, company_id] : [id];
+    const result = await pool.query(query, params);
     return result.rows[0];
   }
 
@@ -106,7 +107,7 @@ class Customer {
   /**
    * Update customer
    */
-  static async update(id, data) {
+  static async update(id, data, company_id = null) {
     const allowedFields = ['full_name', 'company_name', 'tax_office', 'tax_number', 'phone_number', 'company_location'];
     const fields = [];
     const values = [];
@@ -134,9 +135,13 @@ class Customer {
     const query = `
       UPDATE customers
       SET ${fields.join(', ')}
-      WHERE id = $${paramCount}
+      WHERE id = $${paramCount} ${company_id ? `AND company_id = $${paramCount + 1}` : ''}
       RETURNING *
     `;
+
+    if (company_id) {
+      values.push(company_id);
+    }
 
     const result = await pool.query(query, values);
     return result.rows[0];
@@ -145,9 +150,13 @@ class Customer {
   /**
    * Delete customer
    */
-  static async delete(id) {
-    const query = 'DELETE FROM customers WHERE id = $1 RETURNING *';
-    const result = await pool.query(query, [id]);
+  static async delete(id, company_id = null) {
+    const query = `
+      DELETE FROM customers
+      WHERE id = $1 ${company_id ? 'AND company_id = $2' : ''}
+      RETURNING *
+    `;
+    const result = await pool.query(query, company_id ? [id, company_id] : [id]);
     return result.rows[0];
   }
 

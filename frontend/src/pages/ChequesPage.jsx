@@ -156,7 +156,7 @@ const ChequesPage = () => {
 
   const handleChangeStatus = async (chequeId, updateData) => {
     try {
-      const response = await chequeService.update(chequeId, updateData);
+      const response = await chequeService.changeStatus(chequeId, updateData.status, updateData.notes || '');
       if (response.success) {
         updateCheque(chequeId, response.data);
         setShowDetail(false);
@@ -205,7 +205,7 @@ const ChequesPage = () => {
 
   const handleStatusUpdate = async (chequeId, updateData) => {
     try {
-      const response = await chequeService.update(chequeId, updateData);
+      const response = await chequeService.changeStatus(chequeId, updateData.status, updateData.notes || '');
       if (response.success) {
         updateCheque(chequeId, response.data);
         setShowStatusModal(false);

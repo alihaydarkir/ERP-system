@@ -204,7 +204,7 @@ class Order {
   /**
    * Update order status
    */
-  static async updateStatus(id, status) {
+  static async updateStatus(id, status, company_id = null) {
     // Set completed_at if status is completed or delivered
     const isCompletedStatus = ['completed', 'delivered'].includes(status);
 
@@ -212,17 +212,18 @@ class Order {
       ? `
         UPDATE orders
         SET status = $1, completed_at = NOW(), updated_at = NOW()
-        WHERE id = $2
+        WHERE id = $2 ${company_id ? 'AND company_id = $3' : ''}
         RETURNING *
       `
       : `
         UPDATE orders
         SET status = $1, updated_at = NOW()
-        WHERE id = $2
+        WHERE id = $2 ${company_id ? 'AND company_id = $3' : ''}
         RETURNING *
       `;
 
-    const result = await pool.query(query, [status, id]);
+    const values = company_id ? [status, id, company_id] : [status, id];
+    const result = await pool.query(query, values);
     return result.rows[0];
   }
 
@@ -263,15 +264,20 @@ class Order {
   /**
    * Cancel order (restore stock)
    */
-  static async cancel(id) {
+  static async cancel(id, company_id = null) {
     const client = await pool.connect();
 
     try {
       await client.query('BEGIN');
 
       // Get order items
-      const itemsQuery = 'SELECT * FROM order_items WHERE order_id = $1';
-      const itemsResult = await client.query(itemsQuery, [id]);
+      const itemsQuery = `
+        SELECT oi.*
+        FROM order_items oi
+        JOIN orders o ON o.id = oi.order_id
+        WHERE oi.order_id = $1 ${company_id ? 'AND o.company_id = $2' : ''}
+      `;
+      const itemsResult = await client.query(itemsQuery, company_id ? [id, company_id] : [id]);
 
       // Restore stock for each item
       for (const item of itemsResult.rows) {
@@ -287,10 +293,10 @@ class Order {
       const orderQuery = `
         UPDATE orders
         SET status = 'cancelled', updated_at = NOW()
-        WHERE id = $1
+        WHERE id = $1 ${company_id ? 'AND company_id = $2' : ''}
         RETURNING *
       `;
-      const orderResult = await client.query(orderQuery, [id]);
+      const orderResult = await client.query(orderQuery, company_id ? [id, company_id] : [id]);
 
       await client.query('COMMIT');
       return orderResult.rows[0];

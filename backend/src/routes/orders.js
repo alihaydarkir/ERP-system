@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth');
-const { requirePermission, logActivity } = require('../middleware/permissions');
+const { requirePermission, requireAnyPermission, logActivity } = require('../middleware/permissions');
 const { validate, orderSchemas, querySchemas } = require('../utils/validators');
 const {
   getAllOrders, getOrderById, createOrder, updateOrder,
@@ -132,12 +132,12 @@ router.post('/', authMiddleware, requirePermission('orders.create'),
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
-router.patch('/:id/status', authMiddleware, requirePermission('orders.complete'),
+router.patch('/:id/status', authMiddleware, requireAnyPermission(['orders.complete', 'orders.edit']),
   validate(orderSchemas.updateStatus), logActivity('update_order_status', 'orders'), updateOrderStatus);
 
 router.put('/:id', authMiddleware, requirePermission('orders.edit'),
   validate(orderSchemas.update), logActivity('update_order', 'orders'), updateOrder);
-router.post('/:id/cancel', authMiddleware, requirePermission('orders.cancel'),
+router.post('/:id/cancel', authMiddleware, requireAnyPermission(['orders.cancel', 'orders.edit']),
   validate(orderSchemas.cancel), logActivity('cancel_order', 'orders'), cancelOrder);
 router.delete('/:id', authMiddleware, requirePermission('orders.delete'),
   logActivity('delete_order', 'orders'), deleteOrder);

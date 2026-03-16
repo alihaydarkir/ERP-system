@@ -5,6 +5,24 @@ const ActivityLogService = require('../services/activityLogService');
 const { formatSuccess, formatError, formatPaginated } = require('../utils/formatters');
 const { getClientIP, calculateOffset } = require('../utils/helpers');
 
+const normalizeChequeStatus = (status) => {
+  const s = String(status || '').trim().toLowerCase();
+  const statusMap = {
+    beklemede: 'pending',
+    pending: 'pending',
+    odendi: 'paid',
+    paid: 'paid',
+    cleared: 'paid',
+    iptal: 'cancelled',
+    cancelled: 'cancelled',
+    teminat: 'teminat',
+    musteriye_verildi: 'musteriye_verildi'
+  };
+  return statusMap[s] || s;
+};
+
+const VALID_CHEQUE_STATUSES = ['pending', 'paid', 'cancelled', 'teminat', 'musteriye_verildi'];
+
 /**
  * Get all cheques with filtering and pagination
  */
@@ -22,13 +40,11 @@ const getAllCheques = async (req, res) => {
       sort_order = 'ASC'
     } = req.query;
 
-    const userId = req.user.id;
     const companyId = req.user.company_id;
 
     // Build filters
     const filters = {
       company_id: companyId,
-      user_id: userId,
       status,
       customer_id: customer_id ? parseInt(customer_id) : undefined,
       bank_name,
@@ -41,7 +57,7 @@ const getAllCheques = async (req, res) => {
     };
 
     const cheques = await Cheque.findAll(filters);
-    const total = await Cheque.count({ company_id: companyId, user_id: userId, status, customer_id, bank_name, start_date, end_date });
+    const total = await Cheque.count({ company_id: companyId, status, customer_id, bank_name, start_date, end_date });
 
     const result = formatPaginated(
       cheques,
@@ -64,19 +80,13 @@ const getAllCheques = async (req, res) => {
 const getChequeById = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.id;
+    const companyId = req.user.company_id;
 
-    const cheque = await Cheque.findById(id);
+    const cheque = await Cheque.findById(id, companyId);
 
     if (!cheque) {
       return res.status(404).json(formatError('Cheque not found'));
     }
-
-    // Check if cheque belongs to user
-    if (cheque.user_id !== userId && req.user.role !== 'admin') {
-      return res.status(403).json(formatError('Access denied'));
-    }
-
     // Get transaction history
     const transactions = await ChequeTransaction.findByChequeId(id);
 
@@ -131,10 +141,9 @@ const createCheque = async (req, res) => {
     }
 
     // Validate status
-    const validStatuses = ['pending', 'paid', 'cancelled', 'teminat', 'musteriye_verildi'];
-    const chequeStatus = status || 'pending';
-    if (!validStatuses.includes(chequeStatus)) {
-      return res.status(400).json(formatError(`Status must be one of: ${validStatuses.join(', ')}`));
+    const chequeStatus = normalizeChequeStatus(status || 'pending');
+    if (!VALID_CHEQUE_STATUSES.includes(chequeStatus)) {
+      return res.status(400).json(formatError(`Status must be one of: ${VALID_CHEQUE_STATUSES.join(', ')}`));
     }
 
     // Teminat için banka adı gerekli
@@ -170,7 +179,7 @@ const createCheque = async (req, res) => {
     }
 
     // Check for duplicate (same serial number + bank)
-    const existingCheque = await Cheque.findBySerialAndBank(check_serial_no, bank_name);
+    const existingCheque = await Cheque.findBySerialAndBank(check_serial_no, bank_name, companyId);
     if (existingCheque) {
       return res.status(400).json(formatError('A cheque with this serial number and bank already exists'));
     }
@@ -239,15 +248,21 @@ const updateCheque = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
+    const companyId = req.user.company_id;
 
     // Check if cheque exists and belongs to user
-    const existingCheque = await Cheque.findById(id);
+    const existingCheque = await Cheque.findById(id, companyId);
     if (!existingCheque) {
       return res.status(404).json(formatError('Cheque not found'));
     }
 
-    if (existingCheque.user_id !== userId && req.user.role !== 'admin') {
-      return res.status(403).json(formatError('Access denied'));
+    const oldStatus = existingCheque.status;
+
+    if (req.body.status !== undefined) {
+      req.body.status = normalizeChequeStatus(req.body.status);
+      if (!VALID_CHEQUE_STATUSES.includes(req.body.status)) {
+        return res.status(400).json(formatError(`Status must be one of: ${VALID_CHEQUE_STATUSES.join(', ')}`));
+      }
     }
 
     // Validate dates if provided
@@ -281,13 +296,25 @@ const updateCheque = async (req, res) => {
         return res.status(404).json(formatError('Customer not found'));
       }
 
-      if (customer.user_id !== userId && req.user.role !== 'admin') {
+      if (companyId && customer.company_id && customer.company_id !== companyId && req.user.role !== 'admin') {
         return res.status(403).json(formatError('Access denied to this customer'));
       }
     }
 
     // Update cheque
-    const updatedCheque = await Cheque.update(id, req.body);
+    const updatedCheque = await Cheque.update(id, req.body, companyId);
+
+    if (req.body.status && req.body.status !== oldStatus) {
+      await ChequeTransaction.create({
+        cheque_id: id,
+        company_id: req.user.company_id,
+        old_status: oldStatus,
+        new_status: req.body.status,
+        changed_by: userId,
+        notes: req.body.notes || `Status changed from ${oldStatus} to ${req.body.status}`,
+        ip_address: getClientIP(req)
+      });
+    }
 
     // Log the action
     await AuditLog.create({
@@ -325,44 +352,33 @@ const changeChequeStatus = async (req, res) => {
     const { id } = req.params;
     const { status, notes } = req.body;
     const userId = req.user.id;
+    const companyId = req.user.company_id;
 
     // Validate status
-    const validStatuses = ['pending', 'cleared', 'bounced', 'cancelled'];
-    if (!status || !validStatuses.includes(status)) {
-      return res.status(400).json(formatError(`Status must be one of: ${validStatuses.join(', ')}`));
+    const normalizedStatus = normalizeChequeStatus(status);
+    if (!normalizedStatus || !VALID_CHEQUE_STATUSES.includes(normalizedStatus)) {
+      return res.status(400).json(formatError(`Status must be one of: ${VALID_CHEQUE_STATUSES.join(', ')}`));
     }
 
     // Check if cheque exists and belongs to user
-    const existingCheque = await Cheque.findById(id);
+    const existingCheque = await Cheque.findById(id, companyId);
     if (!existingCheque) {
       return res.status(404).json(formatError('Cheque not found'));
     }
 
-    if (existingCheque.user_id !== userId && req.user.role !== 'admin') {
-      return res.status(403).json(formatError('Access denied'));
-    }
-
     const oldStatus = existingCheque.status;
 
-    // Prevent certain status changes (business logic)
-    if (oldStatus === 'cleared' && status !== 'cleared') {
-      // Only admin can change from cleared status
-      if (req.user.role !== 'admin') {
-        return res.status(403).json(formatError('Only admin can change cleared cheques'));
-      }
-    }
-
     // Update status
-    const updatedCheque = await Cheque.updateStatus(id, status);
+    const updatedCheque = await Cheque.updateStatus(id, normalizedStatus, companyId);
 
     // Create transaction record
     await ChequeTransaction.create({
       cheque_id: id,
       company_id: req.user.company_id,
       old_status: oldStatus,
-      new_status: status,
+      new_status: normalizedStatus,
       changed_by: userId,
-      notes: notes || `Status changed from ${oldStatus} to ${status}`,
+      notes: notes || `Status changed from ${oldStatus} to ${normalizedStatus}`,
       ip_address: getClientIP(req)
     });
 
@@ -374,7 +390,7 @@ const changeChequeStatus = async (req, res) => {
       entity_type: 'cheque',
       entity_id: id,
       ip_address: getClientIP(req),
-      changes: { old_status: oldStatus, new_status: status, notes }
+      changes: { old_status: oldStatus, new_status: normalizedStatus, notes }
     });
 
     // Log to activity logs
@@ -382,7 +398,7 @@ const changeChequeStatus = async (req, res) => {
       userId,
       'change_cheque_status',
       'cheques',
-      { cheque_id: id, old_status: oldStatus, new_status: status, notes },
+      { cheque_id: id, old_status: oldStatus, new_status: normalizedStatus, notes },
       req
     );
 
@@ -401,24 +417,21 @@ const deleteCheque = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
+    const companyId = req.user.company_id;
 
     // Check if cheque exists and belongs to user
-    const existingCheque = await Cheque.findById(id);
+    const existingCheque = await Cheque.findById(id, companyId);
     if (!existingCheque) {
       return res.status(404).json(formatError('Cheque not found'));
     }
 
-    if (existingCheque.user_id !== userId && req.user.role !== 'admin') {
-      return res.status(403).json(formatError('Access denied'));
-    }
-
     // Only allow deletion of pending or cancelled cheques
-    if (existingCheque.status === 'cleared' && req.user.role !== 'admin') {
-      return res.status(403).json(formatError('Cannot delete cleared cheques'));
+    if (['paid', 'odendi', 'cleared'].includes(existingCheque.status) && req.user.role !== 'admin') {
+      return res.status(403).json(formatError('Cannot delete paid cheques'));
     }
 
     // Delete cheque
-    await Cheque.delete(id);
+    await Cheque.delete(id, companyId);
 
     // Log the action
     await AuditLog.create({
@@ -453,11 +466,11 @@ const deleteCheque = async (req, res) => {
  */
 const getDueSoonCheques = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const companyId = req.user.company_id;
     const days = req.query.days ? parseInt(req.query.days) : 7;
 
-    const dueSoonCheques = await Cheque.getDueSoon(userId, days);
-    const overdueCheques = await Cheque.getOverdue(userId);
+    const dueSoonCheques = await Cheque.getDueSoon(companyId, days);
+    const overdueCheques = await Cheque.getOverdue(companyId);
 
     const totalDueSoonAmount = dueSoonCheques.reduce((sum, cheque) => sum + parseFloat(cheque.amount), 0);
     const totalOverdueAmount = overdueCheques.reduce((sum, cheque) => sum + parseFloat(cheque.amount), 0);
@@ -480,20 +493,22 @@ const getDueSoonCheques = async (req, res) => {
  */
 const getChequeStatistics = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const companyId = req.user.company_id;
 
-    const stats = await Cheque.getStatistics(userId);
+    const stats = await Cheque.getStatistics(companyId);
 
     // Convert string numbers to floats for amounts
     const formattedStats = {
       totalCheques: parseInt(stats.total_cheques) || 0,
       pendingCount: parseInt(stats.pending_count) || 0,
-      clearedCount: parseInt(stats.cleared_count) || 0,
-      bouncedCount: parseInt(stats.bounced_count) || 0,
+      paidCount: parseInt(stats.paid_count) || 0,
+      teminatCount: parseInt(stats.teminat_count) || 0,
+      musteriyeVerildiCount: parseInt(stats.musteriye_verildi_count) || 0,
       cancelledCount: parseInt(stats.cancelled_count) || 0,
       pendingAmount: parseFloat(stats.pending_amount) || 0,
-      clearedAmount: parseFloat(stats.cleared_amount) || 0,
-      bouncedAmount: parseFloat(stats.bounced_amount) || 0,
+      paidAmount: parseFloat(stats.paid_amount) || 0,
+      teminatAmount: parseFloat(stats.teminat_amount) || 0,
+      musteriyeVerildiAmount: parseFloat(stats.musteriye_verildi_amount) || 0,
       cancelledAmount: parseFloat(stats.cancelled_amount) || 0,
       dueSoonCount: parseInt(stats.due_soon_count) || 0,
       dueSoonAmount: parseFloat(stats.due_soon_amount) || 0,

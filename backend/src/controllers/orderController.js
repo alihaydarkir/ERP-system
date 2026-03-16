@@ -242,6 +242,7 @@ const updateOrderStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
+    const { company_id } = req.user;
 
     // Validate status
     if (!Object.values(ORDER_STATUS).includes(status)) {
@@ -249,7 +250,7 @@ const updateOrderStatus = async (req, res) => {
     }
 
     // Get current order
-    const order = await Order.findById(id);
+    const order = await Order.findById(id, company_id);
     if (!order) {
       return res.status(404).json(formatError('Order not found'));
     }
@@ -263,7 +264,7 @@ const updateOrderStatus = async (req, res) => {
     }
 
     // Update status
-    const updatedOrder = await Order.updateStatus(id, status);
+    const updatedOrder = await Order.updateStatus(id, status, company_id);
 
     // Log activity
     await AuditLog.create({
@@ -301,9 +302,10 @@ const cancelOrder = async (req, res) => {
   try {
     const { id } = req.params;
     const { reason } = req.body;
+    const { company_id } = req.user;
 
     // Get current order
-    const order = await Order.findById(id);
+    const order = await Order.findById(id, company_id);
     if (!order) {
       return res.status(404).json(formatError('Order not found'));
     }
@@ -316,7 +318,7 @@ const cancelOrder = async (req, res) => {
     }
 
     // Cancel order (will restore stock automatically)
-    const cancelledOrder = await Order.cancel(id);
+    const cancelledOrder = await Order.cancel(id, company_id);
 
     // Log activity
     await AuditLog.create({

@@ -44,17 +44,12 @@ const getAllCustomers = async (req, res) => {
 const getCustomerById = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.id;
+    const { company_id } = req.user;
 
-    const customer = await Customer.findById(id);
+    const customer = await Customer.findById(id, company_id);
 
     if (!customer) {
       return res.status(404).json(formatError('Customer not found'));
-    }
-
-    // Check if customer belongs to user
-    if (customer.user_id !== userId && req.user.role !== 'admin') {
-      return res.status(403).json(formatError('Access denied'));
     }
 
     res.json(formatSuccess(customer));
@@ -134,29 +129,25 @@ const updateCustomer = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
+    const { company_id } = req.user;
     const updateData = req.body;
 
     // Check if customer exists
-    const existingCustomer = await Customer.findById(id);
+    const existingCustomer = await Customer.findById(id, company_id);
     if (!existingCustomer) {
       return res.status(404).json(formatError('Customer not found'));
     }
 
-    // Check ownership
-    if (existingCustomer.user_id !== userId && req.user.role !== 'admin') {
-      return res.status(403).json(formatError('Access denied'));
-    }
-
     // If tax number is being updated, check uniqueness
     if (updateData.tax_number && updateData.tax_number !== existingCustomer.tax_number) {
-      const duplicateCustomer = await Customer.findByTaxNumber(updateData.tax_number, userId);
+      const duplicateCustomer = await Customer.findByTaxNumber(updateData.tax_number, company_id);
       if (duplicateCustomer) {
         return res.status(400).json(formatError('A customer with this tax number already exists'));
       }
     }
 
     // Update customer
-    const customer = await Customer.update(id, updateData);
+    const customer = await Customer.update(id, updateData, company_id);
 
     // Log the action
     await AuditLog.create({
@@ -166,7 +157,8 @@ const updateCustomer = async (req, res) => {
       entity_id: id,
       ip_address: getClientIP(req),
       user_agent: req.get('user-agent'),
-      details: { updated_fields: Object.keys(updateData) }
+      details: { updated_fields: Object.keys(updateData) },
+      company_id
     });
 
     // Log to activity logs
@@ -199,20 +191,16 @@ const deleteCustomer = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
+    const { company_id } = req.user;
 
     // Check if customer exists
-    const customer = await Customer.findById(id);
+    const customer = await Customer.findById(id, company_id);
     if (!customer) {
       return res.status(404).json(formatError('Customer not found'));
     }
 
-    // Check ownership
-    if (customer.user_id !== userId && req.user.role !== 'admin') {
-      return res.status(403).json(formatError('Access denied'));
-    }
-
     // Delete customer
-    await Customer.delete(id);
+    await Customer.delete(id, company_id);
 
     // Log the action
     await AuditLog.create({
@@ -222,7 +210,8 @@ const deleteCustomer = async (req, res) => {
       entity_id: id,
       ip_address: getClientIP(req),
       user_agent: req.get('user-agent'),
-      details: { company_name: customer.company_name, tax_number: customer.tax_number }
+      details: { company_name: customer.company_name, tax_number: customer.tax_number },
+      company_id
     });
 
     // Log to activity logs

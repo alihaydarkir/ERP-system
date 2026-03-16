@@ -41,7 +41,7 @@ class Cheque {
   /**
    * Find cheque by ID with customer and user information
    */
-  static async findById(id) {
+  static async findById(id, company_id = null) {
     const query = `
       SELECT
         ch.*,
@@ -54,10 +54,10 @@ class Cheque {
       FROM cheques ch
       LEFT JOIN customers c ON ch.customer_id = c.id
       LEFT JOIN users u ON ch.user_id = u.id
-      WHERE ch.id = $1
+      WHERE ch.id = $1 ${company_id ? 'AND ch.company_id = $2' : ''}
     `;
 
-    const result = await pool.query(query, [id]);
+    const result = await pool.query(query, company_id ? [id, company_id] : [id]);
     return result.rows[0];
   }
 
@@ -212,10 +212,11 @@ class Cheque {
   /**
    * Update cheque
    */
-  static async update(id, data) {
+  static async update(id, data, company_id = null) {
     const allowedFields = [
       'check_serial_no', 'check_issuer', 'customer_id', 'bank_name',
-      'received_date', 'due_date', 'amount', 'currency', 'notes'
+      'received_date', 'due_date', 'amount', 'currency', 'notes',
+      'status', 'collateral_bank', 'given_to_customer_id'
     ];
 
     const fields = [];
@@ -244,9 +245,13 @@ class Cheque {
     const query = `
       UPDATE cheques
       SET ${fields.join(', ')}
-      WHERE id = $${paramCount}
+      WHERE id = $${paramCount} ${company_id ? `AND company_id = $${paramCount + 1}` : ''}
       RETURNING *
     `;
+
+    if (company_id) {
+      values.push(company_id);
+    }
 
     const result = await pool.query(query, values);
     return result.rows[0];
@@ -255,44 +260,49 @@ class Cheque {
   /**
    * Update cheque status (separate method for audit trail)
    */
-  static async updateStatus(id, new_status) {
+  static async updateStatus(id, new_status, company_id = null) {
     const query = `
       UPDATE cheques
       SET status = $1, updated_at = NOW()
-      WHERE id = $2
+      WHERE id = $2 ${company_id ? 'AND company_id = $3' : ''}
       RETURNING *
     `;
 
-    const result = await pool.query(query, [new_status, id]);
+    const result = await pool.query(query, company_id ? [new_status, id, company_id] : [new_status, id]);
     return result.rows[0];
   }
 
   /**
    * Delete cheque
    */
-  static async delete(id) {
-    const query = 'DELETE FROM cheques WHERE id = $1 RETURNING *';
-    const result = await pool.query(query, [id]);
+  static async delete(id, company_id = null) {
+    const query = `
+      DELETE FROM cheques
+      WHERE id = $1 ${company_id ? 'AND company_id = $2' : ''}
+      RETURNING *
+    `;
+    const result = await pool.query(query, company_id ? [id, company_id] : [id]);
     return result.rows[0];
   }
 
   /**
    * Find cheque by serial number and bank
    */
-  static async findBySerialAndBank(check_serial_no, bank_name) {
+  static async findBySerialAndBank(check_serial_no, bank_name, company_id = null) {
     const query = `
       SELECT * FROM cheques
-      WHERE check_serial_no = $1 AND bank_name = $2
+      WHERE check_serial_no = $1 AND bank_name = $2 ${company_id ? 'AND company_id = $3' : ''}
     `;
 
-    const result = await pool.query(query, [check_serial_no, bank_name]);
+    const params = company_id ? [check_serial_no, bank_name, company_id] : [check_serial_no, bank_name];
+    const result = await pool.query(query, params);
     return result.rows[0];
   }
 
   /**
    * Get cheques due soon (within specified days)
    */
-  static async getDueSoon(user_id, days = 7) {
+  static async getDueSoon(company_id, days = 7) {
     const query = `
       SELECT
         ch.*,
@@ -301,21 +311,21 @@ class Cheque {
         (ch.due_date - CURRENT_DATE) as days_until_due
       FROM cheques ch
       LEFT JOIN customers c ON ch.customer_id = c.id
-      WHERE ch.user_id = $1
+      WHERE ch.company_id = $1
         AND ch.status = 'pending'
         AND ch.due_date <= CURRENT_DATE + INTERVAL '${days} days'
         AND ch.due_date >= CURRENT_DATE
       ORDER BY ch.due_date ASC
     `;
 
-    const result = await pool.query(query, [user_id]);
+    const result = await pool.query(query, [company_id]);
     return result.rows;
   }
 
   /**
    * Get overdue cheques (past due date and still pending)
    */
-  static async getOverdue(user_id) {
+  static async getOverdue(company_id) {
     const query = `
       SELECT
         ch.*,
@@ -324,40 +334,42 @@ class Cheque {
         (CURRENT_DATE - ch.due_date) as days_overdue
       FROM cheques ch
       LEFT JOIN customers c ON ch.customer_id = c.id
-      WHERE ch.user_id = $1
+      WHERE ch.company_id = $1
         AND ch.status = 'pending'
         AND ch.due_date < CURRENT_DATE
       ORDER BY ch.due_date ASC
     `;
 
-    const result = await pool.query(query, [user_id]);
+    const result = await pool.query(query, [company_id]);
     return result.rows;
   }
 
   /**
    * Get statistics for cheques
    */
-  static async getStatistics(user_id) {
+  static async getStatistics(company_id) {
     const query = `
       SELECT
         COUNT(*) as total_cheques,
         COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_count,
-        COUNT(CASE WHEN status = 'cleared' THEN 1 END) as cleared_count,
-        COUNT(CASE WHEN status = 'bounced' THEN 1 END) as bounced_count,
+        COUNT(CASE WHEN status = 'paid' THEN 1 END) as paid_count,
+        COUNT(CASE WHEN status = 'teminat' THEN 1 END) as teminat_count,
+        COUNT(CASE WHEN status = 'musteriye_verildi' THEN 1 END) as musteriye_verildi_count,
         COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_count,
         SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END) as pending_amount,
-        SUM(CASE WHEN status = 'cleared' THEN amount ELSE 0 END) as cleared_amount,
-        SUM(CASE WHEN status = 'bounced' THEN amount ELSE 0 END) as bounced_amount,
+        SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END) as paid_amount,
+        SUM(CASE WHEN status = 'teminat' THEN amount ELSE 0 END) as teminat_amount,
+        SUM(CASE WHEN status = 'musteriye_verildi' THEN amount ELSE 0 END) as musteriye_verildi_amount,
         SUM(CASE WHEN status = 'cancelled' THEN amount ELSE 0 END) as cancelled_amount,
         COUNT(CASE WHEN status = 'pending' AND due_date <= CURRENT_DATE + INTERVAL '7 days' AND due_date >= CURRENT_DATE THEN 1 END) as due_soon_count,
         SUM(CASE WHEN status = 'pending' AND due_date <= CURRENT_DATE + INTERVAL '7 days' AND due_date >= CURRENT_DATE THEN amount ELSE 0 END) as due_soon_amount,
         COUNT(CASE WHEN status = 'pending' AND due_date < CURRENT_DATE THEN 1 END) as overdue_count,
         SUM(CASE WHEN status = 'pending' AND due_date < CURRENT_DATE THEN amount ELSE 0 END) as overdue_amount
       FROM cheques
-      WHERE user_id = $1
+      WHERE company_id = $1
     `;
 
-    const result = await pool.query(query, [user_id]);
+    const result = await pool.query(query, [company_id]);
     return result.rows[0];
   }
 

@@ -403,7 +403,7 @@ const ChequeForm = ({ cheque, onSubmit, onCancel }) => {
                   <option value="">Müşteri Seçiniz</option>
                   {customers.map(customer => (
                     <option key={customer.id} value={customer.id}>
-                      {customer.customer_name} - {customer.company_name || 'Şahıs'}
+                      {customer.full_name || customer.company_name} - {customer.company_name || 'Şahıs'}
                     </option>
                   ))}
                 </select>
