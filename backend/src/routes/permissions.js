@@ -27,7 +27,7 @@ router.get('/role/:role',
 // Update permissions for a role
 router.put('/role/:role',
   authMiddleware,
-  requirePermission('settings.update'),
+  requirePermission('settings.edit'),
   permissionController.updateRolePermissions
 );
 

@@ -10,7 +10,7 @@ const getBlacklist = async (req, res) => {
       SELECT 
         ip_address,
         reason,
-        blocked_at,
+        created_at AS blocked_at,
         expires_at,
         blocked_by,
         CASE 
@@ -19,7 +19,7 @@ const getBlacklist = async (req, res) => {
           ELSE false
         END as is_active
       FROM ip_blacklist
-      ORDER BY blocked_at DESC
+      ORDER BY created_at DESC
       LIMIT 100
     `);
 
@@ -44,9 +44,10 @@ const blockIP = async (req, res) => {
       ON CONFLICT (ip_address) 
       DO UPDATE SET 
         reason = EXCLUDED.reason,
-        blocked_at = NOW(),
         expires_at = EXCLUDED.expires_at,
-        blocked_by = EXCLUDED.blocked_by
+        blocked_by = EXCLUDED.blocked_by,
+        is_active = true,
+        updated_at = NOW()
     `, [ip_address, reason, blocked_by, expires_at || null]);
 
     console.log(`✅ IP blocked: ${ip_address} by user ${blocked_by}`);
