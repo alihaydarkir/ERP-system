@@ -238,6 +238,8 @@ const invoiceRoutes = require('./src/routes/invoices');
 console.log('✓ Invoice routes loaded');
 const currentAccountRoutes = require('./src/routes/currentAccounts');
 console.log('✓ Current account routes loaded');
+const aiRoutes = require('./src/routes/ai');
+console.log('✓ AI routes loaded');
 
 console.log('✓ Employee approval routes loaded');
 
@@ -250,6 +252,8 @@ app.use('/api/orders', orderRoutes);
 console.log('✓ /api/orders registered');
 app.use('/api/chat', chatRoutes);
 console.log('✓ /api/chat registered');
+app.use('/api/ai', aiRoutes);
+console.log('✓ /api/ai registered');
 app.use('/api/reports', reportRoutes);
 console.log('✓ /api/reports registered');
 app.use('/api/admin', adminRoutes);

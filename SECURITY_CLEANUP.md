@@ -1,9 +1,155 @@
 # 🔒 Güvenlik ve Temizlik Raporu
 
-**Tarih**: 3 Ocak 2026  
-**Durum**: ✅ Tamamlandı
+**İlk Rapor Tarihi**: 3 Ocak 2026  
+**Son Güvenlik Değerlendirmesi**: 16 Mart 2026  
+**Durum**: 🟡 Çekirdek güvenlik aktif, production hardening devam ediyor
 
 ---
+
+## 🆕 2026-03-16 Güvenlik Re-Değerlendirme (Agent AI Dahil)
+
+Bu bölüm, mevcut kod tabanı üzerinden yapılan güncel incelemeyi içerir.
+
+### Genel Sonuç
+- Güvenlik katmanları **mevcut ve çalışır**.
+- Ancak production için kapatılması gereken bazı **kritik tutarsızlıklar** var.
+
+---
+
+## 🔴 Kritik Bulgular (Öncelik 0-1 gün)
+
+### 1) `ip_blacklist` şema/controller uyumsuzluğu
+**Tespit:**
+- Güvenlik controller’ı `blocked_at` alanına göre işlem yapıyor.
+- Migration şemasında `blocked_at` yerine `created_at/updated_at` var.
+
+**Risk:** Blacklist endpoint’lerinde runtime hata; güvenlik operasyonu etkilenir.
+
+**Aksiyon:**
+- Controller sorgularını şemaya hizala **veya** migration ile `blocked_at` ekle.
+
+### 2) Permission anahtarı tutarsızlığı (`settings.update` vs `settings.edit`)
+**Tespit:**
+- Bazı route’lar `settings.update` istiyor.
+- Permission seed tarafında `settings.edit` tanımlı.
+
+**Risk:** Yetki kontrolü beklenmedik sonuç verebilir.
+
+**Aksiyon:**
+- Tek bir permission adı standardına geçip route+seed’i eşitle.
+
+### 3) Security route permission anahtarı eksik seed
+**Tespit:**
+- Security route: `admin.security`
+- Seed permission listesinde bu anahtar yok.
+
+**Risk:** Rol bazlı delegation planı tutarsız olur.
+
+**Aksiyon:**
+- `admin.security` seed’e ekle veya route’u mevcut anahtarlara hizala.
+
+---
+
+## 🟠 Yüksek Öncelik (1-7 gün)
+
+### 4) CSRF katmanı pratikte etkisiz
+**Tespit:**
+- `csrfProtection` import var ama aktif kullanım net değil.
+- Mevcut implementasyon güvenlik enforcement üretmiyor.
+
+**Aksiyon:**
+- Auth modeline göre net karar:
+	- Bearer-only ise CSRF middleware kaldırılıp dokümante edilmeli,
+	- Cookie auth varsa gerçek CSRF token validasyonu zorunlu olmalı.
+
+### 5) `sessionSecurity` middleware tanımlı ama kullanılmıyor
+**Risk:** Cihaz/oturum anomalisi tespit edilse de kontrol zincirine girmiyor.
+
+**Aksiyon:**
+- Middleware’i aktif et veya tamamen kaldırıp merkezi risk kontrolü uygula.
+
+### 6) Refresh token lifecycle sertleştirme eksik
+**Tespit:**
+- Refresh token doğrulanıyor ama rotation/revocation modeli sınırlı.
+- Session tokenlar plaintext saklanıyor.
+
+**Aksiyon:**
+- Refresh token rotation + revoke list + token hashleme.
+
+---
+
+## 🟡 Orta Öncelik (7-30 gün)
+
+### 7) Agent AI yetkisi merkezi permission sisteminden bağımsız
+**Tespit:**
+- AI mutation izinleri servis içinde hardcoded matriste.
+
+**Risk:** UI/API yetkileri ile AI yetkileri ayrışabilir.
+
+**Aksiyon:**
+- AI mutation kararını `PermissionService` üstünden ver.
+
+### 8) Agent AI mutation input doğrulama standardı
+**Tespit:**
+- `key:value` parse var, fakat tüm yazma tool’larında schema enforcement yok.
+
+**Aksiyon:**
+- Tool bazlı Joi/Zod validation zorunlu hale getir.
+
+### 9) AI endpoint için ayrı rate-limit politikası
+**Aksiyon:**
+- `/api/ai/chat` için read/write ayrımlı limitler tanımla.
+
+---
+
+## 🤖 Agent AI Güvenlik Durumu
+
+### Şu an aktif korumalar
+- [x] 2 aşamalı mutation onayı (`onaylıyorum`)
+- [x] Mutation audit log (`AI_MUTATION_*`)
+- [x] Rol tabanlı başlangıç kısıtlama
+- [x] `company_id` izolasyonu ile tool execution
+
+### Hardening için sıradaki adımlar
+- [ ] Merkezi permission entegrasyonu (hardcoded yerine)
+- [ ] Tool input schema validation
+- [ ] Tool bazlı rate limit ve anomaly alert
+- [ ] Yüksek riskli işlem için opsiyonel ikinci onay
+
+---
+
+## 📅 30 Günlük Güvenlik Sprint Planı
+
+### Hafta 1
+- [ ] C1/C2/C3 kritik uyumsuzlukları kapat
+- [ ] Security regression testleri ekle
+
+### Hafta 2
+- [ ] Refresh token rotation + revoke
+- [ ] Session token hashleme migration
+
+### Hafta 3
+- [ ] Agent AI permission merkezileştirme
+- [ ] Agent AI input validation + rate limit
+
+### Hafta 4
+- [ ] Alerting/monitoring iyileştirmesi
+- [ ] Backup restore tatbikatı
+
+---
+
+## ✅ Production Go-Live Öncesi Minimum Kriterler
+
+- [ ] Kritik bulgular kapalı (C1/C2/C3)
+- [ ] Token/session hardening aktif
+- [ ] Agent AI permission + validation tamam
+- [ ] Güvenlik smoke/regression testleri geçti
+- [ ] Secrets/access policy gözden geçirildi
+
+---
+
+**Son Güncelleme (Revizyon)**: 16 Mart 2026  
+**Güncel Durum**: 🟡 Hardening adımları planlandı, uygulama sürüyor
 
 ## 📊 Yapılan İyileştirmeler
 
@@ -134,8 +280,8 @@ Güvenlik sorunları için:
 
 ---
 
-**Son Güncelleme**: 3 Ocak 2026  
-**Temizlik Durumu**: ✅ Sistem temiz ve güvenli
+**Not (Arşiv/Kıyas Bilgisi)**: Aşağıdaki satır 3 Ocak 2026 anlık temizlik snapshot'ıdır.  
+**Temizlik Snapshot Durumu (03.01.2026)**: ✅ Sistem temiz ve güvenli
 
 ---
 
