@@ -227,7 +227,7 @@ exports.verifyLogin = async (req, res) => {
 
     // Generate actual access tokens
     const accessToken = jwt.sign(
-      { userId: user.id, username: user.username, role: user.role },
+      { userId: user.id, username: user.username, role: user.role, company_id: user.company_id },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRY || '15m' }
     );
@@ -237,6 +237,12 @@ exports.verifyLogin = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_REFRESH_EXPIRY || '7d' }
     );
+
+    // Persist active session (refresh token keyed)
+    await pool.query(`
+      INSERT INTO user_sessions (user_id, session_token, ip_address, user_agent, last_activity, expires_at, is_active)
+      VALUES ($1, $2, $3, $4, NOW(), NOW() + INTERVAL '7 days', true)
+    `, [user.id, refreshToken, getClientIP(req), req.get('user-agent') || 'Unknown']);
 
     // Cache user session
     await cacheService.cacheSession(user.id, {

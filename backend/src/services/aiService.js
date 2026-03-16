@@ -1,6 +1,7 @@
 const axios = require('axios');
 const agentTools = require('./agentTools');
 const AuditLog = require('../models/AuditLog');
+const PermissionService = require('./permissionService');
 
 class AIService {
   constructor() {
@@ -9,19 +10,22 @@ class AIService {
     this.maxTokens = parseInt(process.env.AI_MAX_CONTEXT) || 2000;
     this.timeout = 180000; // 3 dakika — büyük modeller için
     this.pendingMutations = new Map();
-    this.roleMutationPermissions = {
-      super_admin: '*',
-      admin: '*',
-      manager: [
-        'set_product_stock', 'deactivate_product', 'cancel_order', 'set_cheque_status',
-        'create_customer', 'update_customer',
-        'create_product', 'update_product',
-        'create_supplier', 'update_supplier',
-        'create_warehouse', 'update_warehouse',
-        'create_cheque',
-        'set_order_status', 'set_invoice_status'
-      ],
-      user: ['set_order_status']
+    this.mutationPermissionMap = {
+      set_product_stock: 'products.edit',
+      deactivate_product: 'products.delete',
+      cancel_order: 'orders.cancel',
+      set_cheque_status: 'cheques.change_status',
+      create_customer: 'customers.create',
+      update_customer: 'customers.edit',
+      create_product: 'products.create',
+      update_product: 'products.edit',
+      create_supplier: 'suppliers.create',
+      update_supplier: 'suppliers.edit',
+      create_warehouse: 'warehouses.create',
+      update_warehouse: 'warehouses.edit',
+      create_cheque: 'cheques.create',
+      set_order_status: 'orders.edit',
+      set_invoice_status: 'invoices.edit'
     };
   }
 
@@ -265,10 +269,22 @@ class AIService {
     return undefined;
   }
 
-  hasMutationPermission(role, toolName) {
-    const matrix = this.roleMutationPermissions[role] || [];
-    if (matrix === '*') return true;
-    return matrix.includes(toolName);
+  async hasMutationPermission({ user_id, role, toolName }) {
+    if (role === 'super_admin' || role === 'admin') {
+      return { allowed: true, requiredPermission: null };
+    }
+
+    const requiredPermission = this.mutationPermissionMap[toolName];
+    if (!requiredPermission) {
+      return { allowed: false, requiredPermission: null };
+    }
+
+    if (!user_id) {
+      return { allowed: false, requiredPermission };
+    }
+
+    const allowed = await PermissionService.hasPermission(user_id, requiredPermission);
+    return { allowed, requiredPermission };
   }
 
   async logAgentMutation({ user_id, company_id, tool, args, result, error, status }) {
@@ -685,7 +701,8 @@ class AIService {
         return { success: true, answer: 'Onay süresi doldu. Lütfen işlemi tekrar başlatın.', steps, meta: { confirmation_expired: true } };
       }
 
-      if (!this.hasMutationPermission(role, pending.tool)) {
+      const pendingPermission = await this.hasMutationPermission({ user_id, role, toolName: pending.tool });
+      if (!pendingPermission.allowed) {
         this.pendingMutations.delete(mutationKey);
         await this.logAgentMutation({
           user_id,
@@ -693,20 +710,43 @@ class AIService {
           tool: pending.tool,
           args: pending.args,
           result: null,
-          error: `Role ${role} yetkisiz`,
+          error: `Permission denied: ${pendingPermission.requiredPermission || 'unknown'}`,
           status: 'denied'
         });
         return {
           success: true,
           answer: 'Bu işlem için yetkiniz yok.',
           steps,
-          meta: { permission_denied: true, required_role: 'manager/admin' }
+          meta: {
+            permission_denied: true,
+            required_permission: pendingPermission.requiredPermission
+          }
+        };
+      }
+
+      const confirmValidation = agentTools.validateToolArgs(pending.tool, pending.args || {});
+      if (!confirmValidation.valid) {
+        this.pendingMutations.delete(mutationKey);
+        await this.logAgentMutation({
+          user_id,
+          company_id,
+          tool: pending.tool,
+          args: pending.args,
+          result: null,
+          error: `Validation failed: ${confirmValidation.error}`,
+          status: 'failed'
+        });
+        return {
+          success: true,
+          answer: `İşlem doğrulama hatası: ${confirmValidation.error}`,
+          steps,
+          meta: { mutation_validation_failed: true, mutation_tool: pending.tool }
         };
       }
 
       steps.push({ type: 'tool_call', tool: pending.tool, args: pending.args });
       try {
-        const result = await agentTools.execute(pending.tool, pending.args, context);
+        const result = await agentTools.execute(pending.tool, confirmValidation.sanitizedArgs, context);
         const normalizedResult = this.normalizeToolResult(pending.tool, result);
         steps.push({ type: 'tool_result', tool: pending.tool, result: normalizedResult });
         await this.logAgentMutation({
@@ -757,21 +797,38 @@ class AIService {
         };
       }
 
-      if (!this.hasMutationPermission(role, action.tool)) {
+      const validation = agentTools.validateToolArgs(action.tool, action.args || {});
+      if (!validation.valid) {
+        return {
+          success: true,
+          answer: `Yazma işlemi doğrulama hatası: ${validation.error}`,
+          steps,
+          meta: { mutation_validation_failed: true, mutation_tool: action.tool }
+        };
+      }
+
+      action.args = validation.sanitizedArgs;
+
+      const actionPermission = await this.hasMutationPermission({ user_id, role, toolName: action.tool });
+      if (!actionPermission.allowed) {
         await this.logAgentMutation({
           user_id,
           company_id,
           tool: action.tool,
           args: action.args,
           result: null,
-          error: `Role ${role} yetkisiz`,
+          error: `Permission denied: ${actionPermission.requiredPermission || 'unknown'}`,
           status: 'denied'
         });
         return {
           success: true,
           answer: 'Bu işlemi yapmak için yetkiniz yok.',
           steps,
-          meta: { permission_denied: true, mutation_tool: action.tool }
+          meta: {
+            permission_denied: true,
+            mutation_tool: action.tool,
+            required_permission: actionPermission.requiredPermission
+          }
         };
       }
 

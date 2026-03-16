@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const User = require('../models/User');
 const User2FA = require('../models/User2FA');
 const AuditLog = require('../models/AuditLog');
@@ -8,6 +9,15 @@ const emailService = require('../services/emailService');
 const cacheService = require('../services/cacheService');
 const { formatUser, formatSuccess, formatError } = require('../utils/formatters');
 const { getClientIP } = require('../utils/helpers');
+
+const hashToken = (token) => crypto.createHash('sha256').update(String(token || '')).digest('hex');
+
+const createUserSession = async ({ userId, sessionToken, ipAddress, userAgent }) => {
+  await pool.query(`
+    INSERT INTO user_sessions (user_id, session_token, ip_address, user_agent, last_activity, expires_at, is_active)
+    VALUES ($1, $2, $3, $4, NOW(), NOW() + INTERVAL '7 days', true)
+  `, [userId, sessionToken, ipAddress, userAgent]);
+};
 
 /**
  * Register new user
@@ -185,6 +195,13 @@ const register = async (req, res) => {
       { expiresIn: process.env.JWT_REFRESH_EXPIRY || '7d' }
     );
 
+    await createUserSession({
+      userId: user.id,
+      sessionToken: refreshToken,
+      ipAddress: getClientIP(req),
+      userAgent: req.get('user-agent') || 'Unknown'
+    });
+
     // Get company info
     const companyInfo = await pool.query(
       'SELECT id, company_name, company_code FROM companies WHERE id = $1',
@@ -322,10 +339,12 @@ const login = async (req, res) => {
     `, [user.id, clientIp, email, userAgent]);
 
     // Kullanıcının aktif oturumunu kaydet
-    await pool.query(`
-      INSERT INTO user_sessions (user_id, session_token, ip_address, user_agent, last_activity, expires_at)
-      VALUES ($1, $2, $3, $4, NOW(), NOW() + INTERVAL '7 days')
-    `, [user.id, token, clientIp, userAgent]);
+    await createUserSession({
+      userId: user.id,
+      sessionToken: refreshToken,
+      ipAddress: clientIp,
+      userAgent
+    });
 
     // Log activity in audit_logs
     await AuditLog.logLogin(user.id, getClientIP(req), user.company_id);
@@ -415,12 +434,33 @@ const refreshToken = async (req, res) => {
       return res.status(401).json(formatError('User not found'));
     }
 
+    // Refresh token'ın aktif bir session'a bağlı olduğunu doğrula
+    const session = await pool.query(`
+      SELECT id
+      FROM user_sessions
+      WHERE user_id = $1
+        AND session_token = $2
+        AND is_active = true
+        AND expires_at > NOW()
+      LIMIT 1
+    `, [user.id, refreshToken]);
+
+    if (session.rows.length === 0) {
+      return res.status(401).json(formatError('Session not found or expired'));
+    }
+
     // Generate new access token
     const newToken = jwt.sign(
-      { userId: user.id, username: user.username, role: user.role },
+      { userId: user.id, username: user.username, role: user.role, company_id: user.company_id },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRY || '15m' }
     );
+
+    await pool.query(`
+      UPDATE user_sessions
+      SET last_activity = NOW()
+      WHERE id = $1
+    `, [session.rows[0].id]);
 
     res.json(formatSuccess({ token: newToken }, 'Token refreshed'));
 
@@ -441,12 +481,31 @@ const logout = async (req, res) => {
     // Delete cached session
     await cacheService.deleteSession(userId);
 
-    // Kullanıcının oturumunu sonlandır
+    // Kullanıcının aktif oturumlarını sonlandır
+    await pool.query(`
+      UPDATE user_sessions
+      SET is_active = false,
+          last_activity = NOW()
+      WHERE user_id = $1
+        AND is_active = true
+    `, [userId]);
+
+    // Access token'ı kalan ömrü boyunca blacklist'e al (tablo yoksa akışı bozma)
     if (token) {
-      await pool.query(`
-        DELETE FROM user_sessions
-        WHERE user_id = $1 AND session_token = $2
-      `, [userId, token]);
+      try {
+        const decoded = jwt.decode(token);
+        if (decoded?.exp) {
+          await pool.query(`
+            INSERT INTO revoked_access_tokens (token_hash, user_id, expires_at)
+            VALUES ($1, $2, TO_TIMESTAMP($3))
+            ON CONFLICT (token_hash) DO NOTHING
+          `, [hashToken(token), userId, decoded.exp]);
+        }
+      } catch (revokeErr) {
+        if (revokeErr.code !== '42P01') {
+          console.error('Logout revoke token error:', revokeErr);
+        }
+      }
     }
 
     // Log activity
