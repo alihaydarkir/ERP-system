@@ -8,6 +8,8 @@ const envSchema = Joi.object({
   NODE_ENV: Joi.string().valid('development', 'test', 'production').default('development'),
   PORT: Joi.number().integer().min(1).max(65535).default(5000),
   CORS_ORIGINS: Joi.string().allow('', null),
+  ALLOWED_HOSTS: Joi.string().allow('', null),
+  STRICT_ORIGIN_CHECK: Joi.alternatives().try(Joi.boolean(), Joi.string().valid('true', 'false')).default('true'),
 
   DATABASE_URL: Joi.string().uri().allow('', null),
   DB_HOST: Joi.string().default('localhost'),
@@ -45,6 +47,19 @@ const parseCorsOrigins = (origins) => {
   return origins.split(',').map(origin => origin.trim()).filter(Boolean);
 };
 
+const parseAllowedHosts = (hosts) => {
+  if (!hosts) {
+    return ['localhost:5000', 'localhost:3000', 'localhost:5173'];
+  }
+  return hosts.split(',').map((host) => host.trim().toLowerCase()).filter(Boolean);
+};
+
+const toBoolean = (value, fallback = true) => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') return value.toLowerCase() === 'true';
+  return fallback;
+};
+
 const config = {
   nodeEnv: env.NODE_ENV,
   port: env.PORT,
@@ -62,6 +77,10 @@ const config = {
     secret: env.JWT_SECRET,
     expiresIn: env.JWT_EXPIRY,
     refreshExpiresIn: env.JWT_REFRESH_EXPIRY || env.REFRESH_TOKEN_EXPIRY,
+  },
+  security: {
+    allowedHosts: parseAllowedHosts(env.ALLOWED_HOSTS),
+    strictOriginCheck: toBoolean(env.STRICT_ORIGIN_CHECK, env.NODE_ENV === 'production'),
   },
   redisUrl: env.REDIS_URL || 'redis://localhost:6379',
   frontendUrl: env.FRONTEND_URL,

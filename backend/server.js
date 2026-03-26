@@ -32,6 +32,7 @@ const {
   ipAccessControl, 
   detectSuspiciousActivity, 
   sqlInjectionProtection,
+  csrfProtection,
   originCheck,
   hostHeaderCheck,
   hppSanitize
@@ -71,6 +72,7 @@ app.use(sqlInjectionProtection);
 app.use(detectSuspiciousActivity);
 app.use(hostHeaderCheck);
 app.use(originCheck);
+app.use(csrfProtection);
 
 // Rate limiting — production: 100 req/15min, development: 1000
 const limiter = rateLimit({

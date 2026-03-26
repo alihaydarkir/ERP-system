@@ -1,4 +1,21 @@
 const pool = require('../config/database');
+const { config } = require('../config/env');
+
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+const hasBearerAuth = (req) => {
+  const auth = String(req.headers.authorization || '');
+  return auth.toLowerCase().startsWith('bearer ');
+};
+
+const getCookieValue = (req, cookieName) => {
+  const cookieHeader = String(req.headers.cookie || '');
+  if (!cookieHeader) return null;
+  const cookies = cookieHeader.split(';').map((part) => part.trim());
+  const match = cookies.find((item) => item.startsWith(`${cookieName}=`));
+  if (!match) return null;
+  return decodeURIComponent(match.slice(cookieName.length + 1));
+};
 
 // Normalize IP to avoid IPv6 localhost variants leaking through
 const getClientIp = (req) => {
@@ -161,34 +178,40 @@ const sqlInjectionProtection = (req, res, next) => {
  * CSRF Token doğrulama (state-changing işlemler için)
  */
 const csrfProtection = (req, res, next) => {
-  // GET, HEAD, OPTIONS istekleri için CSRF kontrolü yapma
-  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+  // Safe methods için CSRF kontrolü yapma
+  if (SAFE_METHODS.has(req.method)) {
     return next();
   }
-  
-  // CSRF token kontrolü (basit versiyon)
-  const csrfToken = req.headers['x-csrf-token'];
-  const sessionToken = req.headers.authorization;
-  
-  if (!csrfToken && sessionToken) {
-    // Token varsa devam et (JWT zaten güvenli)
+
+  // Authorization: Bearer kullanılan API çağrıları CSRF riski taşımaz
+  if (hasBearerAuth(req)) {
     return next();
   }
-  
-  next();
+
+  // Cookie tabanlı akışlar için CSRF zorunlu
+  const headerToken = String(req.headers['x-csrf-token'] || '').trim();
+  const cookieToken = getCookieValue(req, 'csrf_token') || getCookieValue(req, '__Host-csrf_token');
+
+  if (!headerToken || !cookieToken || headerToken !== cookieToken) {
+    return res.status(403).json({
+      success: false,
+      message: 'CSRF doğrulaması başarısız'
+    });
+  }
+
+  return next();
 };
 
 /**
  * Origin kontrolü (state-changing istekler için)
  */
 const originCheck = (req, res, next) => {
-  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+  if (SAFE_METHODS.has(req.method)) {
     return next();
   }
 
-  const allowedOrigins = (process.env.CORS_ORIGINS
-    ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
-    : ['http://localhost:3000', 'http://localhost:5173']);
+  const allowedOrigins = Array.isArray(config.corsOrigins) ? config.corsOrigins : ['http://localhost:3000', 'http://localhost:5173'];
+  const strictOriginCheck = config.security?.strictOriginCheck ?? (config.nodeEnv === 'production');
 
   const origin = req.headers.origin || '';
   const referer = req.headers.referer || '';
@@ -196,7 +219,12 @@ const originCheck = (req, res, next) => {
 
   if (origin && matchesAllowed(origin)) return next();
   if (!origin && referer && matchesAllowed(referer)) return next();
-  if (!origin && !referer) return next(); // Native clients / curl
+  if (!origin && !referer) {
+    // Native clients / curl için bearer auth varlığında izin ver
+    if (hasBearerAuth(req)) return next();
+    // Geliştirmede esnek, production'da sıkı davran
+    if (!strictOriginCheck) return next();
+  }
 
   return res.status(403).json({ success: false, message: 'Origin not allowed' });
 };
@@ -205,9 +233,9 @@ const originCheck = (req, res, next) => {
  * Host header kontrolü — DNS rebinding/Host header injection'a karşı
  */
 const hostHeaderCheck = (req, res, next) => {
-  const allowedHosts = (process.env.ALLOWED_HOSTS
-    ? process.env.ALLOWED_HOSTS.split(',').map(h => h.trim().toLowerCase())
-    : ['localhost:5000', 'localhost:3000', 'localhost:5173']);
+  const allowedHosts = Array.isArray(config.security?.allowedHosts)
+    ? config.security.allowedHosts
+    : ['localhost:5000', 'localhost:3000', 'localhost:5173'];
 
   const host = (req.headers.host || '').toLowerCase();
   if (!host || allowedHosts.includes(host)) return next();
