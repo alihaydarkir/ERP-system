@@ -21,12 +21,49 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   REGISTRY: docker.io
   BACKEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/erp-backend
   FRONTEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/erp-frontend
 
 jobs:
+
+  # ── 0. Preflight Secrets Check (push only) ───────────────────────────────
+  preflight-secrets:
+    name: 🔐 Validate Required Secrets
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - name: ✅ Check required deployment secrets
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          set -e
+          missing=0
+          for secret_name in DOCKERHUB_USERNAME DOCKERHUB_TOKEN SSH_HOST SSH_USER SSH_PRIVATE_KEY; do
+            if [ -z "$(eval echo \$$secret_name)" ]; then
+              echo "❌ Missing required secret: $secret_name"
+              missing=1
+            fi
+          done
+
+          if [ "$missing" -eq 1 ]; then
+            echo "Deployment preflight failed: required secrets are missing."
+            exit 1
+          fi
+
+          echo "✅ All required deployment secrets are present."
 
   # ── 1. Test ────────────────────────────────────────────────────────────────
   test:
@@ -92,7 +129,7 @@ jobs:
   build-and-push:
     name: 🐳 Build & Push Images
     runs-on: ubuntu-latest
-    needs: test
+    needs: [test, preflight-secrets]
     if: github.event_name == 'push'
 
     steps:
@@ -141,7 +178,7 @@ jobs:
     name: 🌍 Deploy to Production
     runs-on: ubuntu-latest
     needs: build-and-push
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && github.ref_protected == true
     environment:
       name: production
       url: https://${{ secrets.SSH_HOST }}
