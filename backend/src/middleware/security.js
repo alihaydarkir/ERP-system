@@ -188,6 +188,13 @@ const csrfProtection = (req, res, next) => {
     return next();
   }
 
+  // Cookie taşımayan (stateless) isteklerde CSRF kontrolü zorunlu değil
+  // Bu sayede login/register gibi token üreten endpoint'ler bloklanmaz.
+  const hasCookieHeader = String(req.headers.cookie || '').trim().length > 0;
+  if (!hasCookieHeader) {
+    return next();
+  }
+
   // Cookie tabanlı akışlar için CSRF zorunlu
   const headerToken = String(req.headers['x-csrf-token'] || '').trim();
   const cookieToken = getCookieValue(req, 'csrf_token') || getCookieValue(req, '__Host-csrf_token');
