@@ -87,7 +87,7 @@ const PersonalInfoTab = ({ profile }) => {
               onChange={handleChange}
               disabled={!isEditing || isLoading}
               required
-            />
+             className="dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
           </div>
 
           <div className="form-group">
@@ -97,7 +97,7 @@ const PersonalInfoTab = ({ profile }) => {
               id="email"
               value={profile?.email || ''}
               disabled
-              className="input-disabled"
+              className="input-disabled dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             />
             <small>E-posta değiştirilemez</small>
           </div>
@@ -112,7 +112,7 @@ const PersonalInfoTab = ({ profile }) => {
               onChange={handleChange}
               disabled={!isEditing || isLoading}
               placeholder="+90 555 123 4567"
-            />
+             className="dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
           </div>
 
           <div className="form-group">
@@ -125,7 +125,7 @@ const PersonalInfoTab = ({ profile }) => {
               onChange={handleChange}
               disabled={!isEditing || isLoading}
               placeholder="Örn: IT, Muhasebe, Satış"
-            />
+             className="dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
           </div>
 
           <div className="form-group full-width">
@@ -138,7 +138,7 @@ const PersonalInfoTab = ({ profile }) => {
               onChange={handleChange}
               disabled={!isEditing || isLoading}
               placeholder="Örn: Yazılım Geliştirici, Muhasebe Müdürü"
-            />
+             className="dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
           </div>
 
           <div className="form-group">
@@ -150,7 +150,7 @@ const PersonalInfoTab = ({ profile }) => {
                 profile?.role === 'manager' ? 'Müdür' : 'Kullanıcı'
               }
               disabled
-              className="input-disabled"
+              className="input-disabled dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             />
             <small>Rol değiştirilemez</small>
           </div>
@@ -161,7 +161,7 @@ const PersonalInfoTab = ({ profile }) => {
               type="text"
               value={profile?.created_at ? new Date(profile.created_at).toLocaleDateString('tr-TR') : ''}
               disabled
-              className="input-disabled"
+              className="input-disabled dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             />
           </div>
         </div>

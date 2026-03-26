@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import OrderCard from './OrderCard';
 
 export default function CompletedOrdersSection({ orders, onView, loading }) {
@@ -10,8 +10,8 @@ export default function CompletedOrdersSection({ orders, onView, loading }) {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-xl shadow-sm border p-6">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">✅ TAMAMLANAN SİPARİŞLER</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 transition-colors duration-200">
+        <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4">✅ TAMAMLANAN SİPARİŞLER</h2>
         <div className="flex justify-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500"></div>
         </div>
@@ -23,17 +23,17 @@ export default function CompletedOrdersSection({ orders, onView, loading }) {
   const hasMore = displayCount < orders.length;
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border p-6">
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 transition-colors duration-200 mt-6">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold text-gray-800">
+        <h2 className="text-xl font-bold text-gray-800 dark:text-white">
           ✅ TAMAMLANAN SİPARİŞLER
-          <span className="ml-2 text-green-600">({orders.length})</span>
+          <span className="ml-2 text-green-600 dark:text-green-400">({orders.length})</span>
         </h2>
       </div>
 
       {orders.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-gray-500">Tamamlanan sipariş bulunmamaktadır.</p>
+          <p className="text-gray-500 dark:text-gray-400">Tamamlanan sipariş bulunmamaktadır.</p>
         </div>
       ) : (
         <>
@@ -53,7 +53,7 @@ export default function CompletedOrdersSection({ orders, onView, loading }) {
             <div className="mt-6 text-center">
               <button
                 onClick={handleLoadMore}
-                className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition font-semibold"
+                className="px-6 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition font-semibold"
               >
                 Daha Fazla Yükle ({orders.length - displayCount} kaldı)
               </button>

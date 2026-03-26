@@ -3,7 +3,7 @@ import { X, CheckCircle, XCircle, AlertCircle, Info } from 'lucide-react';
 import useUIStore from '../../store/uiStore';
 
 const Toast = ({ notification }) => {
-  const { removeNotification } = useUIStore();
+  const removeNotification = useUIStore((state) => state.removeNotification);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -24,39 +24,23 @@ const Toast = ({ notification }) => {
       case 'info':
         return <Info className="w-5 h-5 text-blue-500" />;
       default:
-        return <Info className="w-5 h-5 text-gray-500" />;
+        return <Info className="w-5 h-5 text-gray-500 dark:text-gray-400" />;
     }
   };
 
   const getStyles = () => {
+    const base = 'bg-white dark:bg-gray-800 shadow-lg border-l-4 transition-colors duration-200';
     switch (notification.type) {
       case 'success':
-        return 'bg-white border-l-4 border-green-500 shadow-lg';
+        return `${base} border-green-500`;
       case 'error':
-        return 'bg-white border-l-4 border-red-500 shadow-lg';
+        return `${base} border-red-500`;
       case 'warning':
-        return 'bg-white border-l-4 border-yellow-500 shadow-lg';
+        return `${base} border-yellow-500`;
       case 'info':
-        return 'bg-white border-l-4 border-blue-500 shadow-lg';
+        return `${base} border-blue-500`;
       default:
-        return 'bg-white border-l-4 border-gray-500 shadow-lg';
-    }
-  };
-
-  const getTitle = () => {
-    if (notification.title) return notification.title;
-    
-    switch (notification.type) {
-      case 'success':
-        return 'Başarılı';
-      case 'error':
-        return 'Hata';
-      case 'warning':
-        return 'Uyarı';
-      case 'info':
-        return 'Bilgi';
-      default:
-        return '';
+        return `${base} border-gray-500 dark:border-gray-600`;
     }
   };
 
@@ -69,19 +53,19 @@ const Toast = ({ notification }) => {
       </div>
       
       <div className="flex-1 min-w-0">
-        {getTitle() && (
-          <h4 className="font-semibold text-gray-900 mb-1">
-            {getTitle()}
+        {notification.title && (
+          <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">
+            {notification.title}
           </h4>
         )}
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-gray-600 dark:text-gray-400">
           {notification.message}
         </p>
       </div>
 
       <button
         onClick={() => removeNotification(notification.id)}
-        className="flex-shrink-0 text-gray-400 hover:text-gray-600 transition-colors"
+        className="flex-shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
       >
         <X className="w-4 h-4" />
       </button>
@@ -89,16 +73,16 @@ const Toast = ({ notification }) => {
   );
 };
 
-const ToastContainer = () => {
-  const { notifications } = useUIStore();
+export default function ToastContainer() {
+  const notifications = useUIStore((state) => state.notifications);
 
   return (
-    <div className="fixed top-4 right-4 z-50 flex flex-col items-end">
-      {notifications.map((notification) => (
-        <Toast key={notification.id} notification={notification} />
-      ))}
+    <div className="fixed top-4 right-4 z-[9999] flex flex-col items-end pointer-events-none">
+        <div className="pointer-events-auto">
+            {notifications.map((notification) => (
+                <Toast key={notification.id} notification={notification} />
+            ))}
+        </div>
     </div>
   );
-};
-
-export default ToastContainer;
+}

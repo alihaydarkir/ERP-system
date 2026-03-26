@@ -90,9 +90,9 @@ const ProfilePage = () => {
         <ProfileHeader profile={profile} />
 
         <div className="profile-2fa-section">
-          <div className="2fa-info">
-            <div className="2fa-icon">🔐</div>
-            <div className="2fa-content">
+          <div className="twofa-info">
+            <div className="twofa-icon">🔐</div>
+            <div className="twofa-content">
               <h4>İki Faktörlü Kimlik Doğrulama (2FA)</h4>
               <p>
                 {profile.two_factor_enabled

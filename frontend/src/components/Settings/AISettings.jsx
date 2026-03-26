@@ -41,12 +41,12 @@ export default function AISettings() {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">AI/Chatbot Ayarları</h2>
-        <p className="text-gray-600 mb-6">Yapay zeka ve chatbot ayarlarını yapın</p>
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-4">AI/Chatbot Ayarları</h2>
+        <p className="text-gray-600 dark:text-gray-300 mb-6">Yapay zeka ve chatbot ayarlarını yapın</p>
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
           Ollama URL
         </label>
         <input
@@ -54,20 +54,20 @@ export default function AISettings() {
           name="aiOllamaUrl"
           value={formData.aiOllamaUrl}
           onChange={handleChange}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
           placeholder="http://localhost:11434"
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
           AI Model
         </label>
         <select
           name="aiModel"
           value={formData.aiModel}
           onChange={handleChange}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
         >
           <option value="llama2">Llama 2</option>
           <option value="mistral">Mistral</option>
@@ -77,7 +77,7 @@ export default function AISettings() {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
           RAG Top K
         </label>
         <input
@@ -87,13 +87,13 @@ export default function AISettings() {
           onChange={handleChange}
           min="1"
           max="20"
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
         />
-        <p className="text-xs text-gray-500 mt-1">RAG sonuçlarından kaç tanesinin döndürüleceği</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">RAG sonuçlarından kaç tanesinin döndürüleceği</p>
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
           Temperature: {formData.aiTemperature}
         </label>
         <input
@@ -104,9 +104,9 @@ export default function AISettings() {
           min="0"
           max="1"
           step="0.1"
-          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 dark:border-gray-600 dark:text-white"
         />
-        <div className="flex justify-between text-xs text-gray-500 mt-1">
+        <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
           <span>Daha Tutarlı (0.0)</span>
           <span>Daha Yaratıcı (1.0)</span>
         </div>

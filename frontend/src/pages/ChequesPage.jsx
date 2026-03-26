@@ -10,6 +10,7 @@ import ChequeExcelImport from '../components/Cheques/ChequeExcelImport';
 import ChequeStatusChangeModal from '../components/Cheques/ChequeStatusChangeModal';
 import DueSoonAlert from '../components/Cheques/DueSoonAlert';
 import useUIStore from '../store/uiStore';
+import { FileSpreadsheet, FileText, Upload, Plus } from 'lucide-react';
 
 const ChequesPage = () => {
   const { showSuccess, showError, showConfirm } = useUIStore();
@@ -253,38 +254,38 @@ const ChequesPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Page Header */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Çek Yönetimi</h1>
-              <p className="text-gray-600 mt-1">Müşterilerden alınan çekleri yönetin</p>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Çek Yönetimi</h1>
+              <p className="text-gray-600 dark:text-gray-400 mt-1">Müşterilerden alınan çekleri yönetin</p>
             </div>
 
-            <div className="flex space-x-3">
+            <div className="flex flex-wrap gap-3">
               <button
                 onClick={handleExportToExcel}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center space-x-2"
+                className="group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-lg shadow-md hover:from-emerald-600 hover:to-emerald-700 hover:shadow-emerald-500/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
               >
-                <span>📊</span>
+                <FileSpreadsheet className="w-4 h-4 mr-2" />
                 <span>Excel'e Aktar</span>
               </button>
 
               <button
                 onClick={handleExportToPDF}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center space-x-2"
+                className="group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-gradient-to-r from-rose-500 to-rose-600 rounded-lg shadow-md hover:from-rose-600 hover:to-rose-700 hover:shadow-rose-500/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rose-500"
               >
-                <span>📄</span>
+                <FileText className="w-4 h-4 mr-2" />
                 <span>PDF'e Aktar</span>
               </button>
 
               <button
                 onClick={() => setShowImport(true)}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition flex items-center space-x-2"
+                className="group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-gradient-to-r from-violet-500 to-violet-600 rounded-lg shadow-md hover:from-violet-600 hover:to-violet-700 hover:shadow-violet-500/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500"
               >
-                <span>📥</span>
+                <Upload className="w-4 h-4 mr-2" />
                 <span>Excel'den Yükle</span>
               </button>
 
@@ -293,9 +294,9 @@ const ChequesPage = () => {
                   setEditingCheque(null);
                   setShowForm(true);
                 }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center space-x-2"
+                className="group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow-md hover:from-blue-700 hover:to-blue-800 hover:shadow-blue-500/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
-                <span>➕</span>
+                <Plus className="w-4 h-4 mr-2" />
                 <span>Yeni Çek</span>
               </button>
             </div>

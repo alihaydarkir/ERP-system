@@ -169,10 +169,10 @@ const ChequeForm = ({ cheque, onSubmit, onCancel }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-2xl font-bold text-gray-800">
+    <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-900/20 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
             {cheque ? 'Çek Düzenle' : 'Yeni Çek Ekle'}
           </h2>
         </div>
@@ -180,11 +180,11 @@ const ChequeForm = ({ cheque, onSubmit, onCancel }) => {
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {/* Çek Bilgileri */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Çek Bilgileri</h3>
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 border-b pb-2">Çek Bilgileri</h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   Çek Seri Numarası <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -192,7 +192,7 @@ const ChequeForm = ({ cheque, onSubmit, onCancel }) => {
                   name="check_serial_no"
                   value={formData.check_serial_no}
                   onChange={handleChange}
-                  className={`w-full px-3 py-2 border ${errors.check_serial_no ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
+                  className={`w-full px-3 py-2 border ${errors.check_serial_no ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white`}
                   placeholder="1234567"
                 />
                 {errors.check_serial_no && (
@@ -201,7 +201,7 @@ const ChequeForm = ({ cheque, onSubmit, onCancel }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   Keşideci <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -209,7 +209,7 @@ const ChequeForm = ({ cheque, onSubmit, onCancel }) => {
                   name="check_issuer"
                   value={formData.check_issuer}
                   onChange={handleChange}
-                  className={`w-full px-3 py-2 border ${errors.check_issuer ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
+                  className={`w-full px-3 py-2 border ${errors.check_issuer ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white`}
                   placeholder="ABC Ltd. Şti."
                 />
                 {errors.check_issuer && (
@@ -221,17 +221,17 @@ const ChequeForm = ({ cheque, onSubmit, onCancel }) => {
 
           {/* Müşteri Seçimi */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Müşteri Bilgileri</h3>
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 border-b pb-2">Müşteri Bilgileri</h3>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                 Müşteri <span className="text-red-500">*</span>
               </label>
               <select
                 name="customer_id"
                 value={formData.customer_id}
                 onChange={handleChange}
-                className={`w-full px-3 py-2 border ${errors.customer_id ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
+                className={`w-full px-3 py-2 border ${errors.customer_id ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white`}
               >
                 <option value="">Müşteri Seçin</option>
                 {customers.map((customer) => (
@@ -249,17 +249,17 @@ const ChequeForm = ({ cheque, onSubmit, onCancel }) => {
 
           {/* Finansal Bilgiler */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Finansal Bilgiler</h3>
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 border-b pb-2">Finansal Bilgiler</h3>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                 Banka Adı <span className="text-red-500">*</span>
               </label>
               <select
                 name="bank_name"
                 value={formData.bank_name}
                 onChange={handleChange}
-                className={`w-full px-3 py-2 border ${errors.bank_name ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
+                className={`w-full px-3 py-2 border ${errors.bank_name ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white`}
               >
                 <option value="">Banka Seçin</option>
                 {turkishBanks.map((bank) => (
@@ -275,7 +275,7 @@ const ChequeForm = ({ cheque, onSubmit, onCancel }) => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   Alınma Tarihi <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -283,7 +283,7 @@ const ChequeForm = ({ cheque, onSubmit, onCancel }) => {
                   name="received_date"
                   value={formData.received_date}
                   onChange={handleChange}
-                  className={`w-full px-3 py-2 border ${errors.received_date ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
+                  className={`w-full px-3 py-2 border ${errors.received_date ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white`}
                 />
                 {errors.received_date && (
                   <p className="text-red-500 text-xs mt-1">{errors.received_date}</p>
@@ -291,7 +291,7 @@ const ChequeForm = ({ cheque, onSubmit, onCancel }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   Vade Tarihi <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -299,7 +299,7 @@ const ChequeForm = ({ cheque, onSubmit, onCancel }) => {
                   name="due_date"
                   value={formData.due_date}
                   onChange={handleChange}
-                  className={`w-full px-3 py-2 border ${errors.due_date ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
+                  className={`w-full px-3 py-2 border ${errors.due_date ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white`}
                 />
                 {errors.due_date && (
                   <p className="text-red-500 text-xs mt-1">{errors.due_date}</p>
@@ -309,7 +309,7 @@ const ChequeForm = ({ cheque, onSubmit, onCancel }) => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   Tutar <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -318,7 +318,7 @@ const ChequeForm = ({ cheque, onSubmit, onCancel }) => {
                   name="amount"
                   value={formData.amount}
                   onChange={handleChange}
-                  className={`w-full px-3 py-2 border ${errors.amount ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
+                  className={`w-full px-3 py-2 border ${errors.amount ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white`}
                   placeholder="50000.00"
                 />
                 {errors.amount && (
@@ -327,14 +327,14 @@ const ChequeForm = ({ cheque, onSubmit, onCancel }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   Para Birimi
                 </label>
                 <select
                   name="currency"
                   value={formData.currency}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                 >
                   <option value="TRY">TRY (₺)</option>
                   <option value="USD">USD ($)</option>
@@ -346,14 +346,14 @@ const ChequeForm = ({ cheque, onSubmit, onCancel }) => {
 
             {/* Çek Durumu */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                 Çek Durumu <span className="text-red-500">*</span>
               </label>
               <select
                 name="status"
                 value={formData.status}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               >
                 <option value="pending">Beklemede</option>
                 <option value="paid">Ödendi</option>
@@ -365,15 +365,15 @@ const ChequeForm = ({ cheque, onSubmit, onCancel }) => {
 
             {/* Teminat Durumu - Sadece status='teminat' ise göster */}
             {formData.status === 'teminat' && (
-              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   Teminat Verildiği Banka <span className="text-red-500">*</span>
                 </label>
                 <select
                   name="collateral_bank"
                   value={formData.collateral_bank}
                   onChange={handleChange}
-                  className={`w-full px-3 py-2 border ${errors.collateral_bank ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
+                  className={`w-full px-3 py-2 border ${errors.collateral_bank ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white`}
                 >
                   <option value="">Banka Seçin</option>
                   {turkishBanks.map((bank) => (
@@ -390,15 +390,15 @@ const ChequeForm = ({ cheque, onSubmit, onCancel }) => {
 
             {/* Müşteriye Verildi - Sadece status='musteriye_verildi' ise göster */}
             {formData.status === 'musteriye_verildi' && (
-              <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+              <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-200">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   Verilen Müşteri <span className="text-red-500">*</span>
                 </label>
                 <select
                   name="given_to_customer_id"
                   value={formData.given_to_customer_id}
                   onChange={handleChange}
-                  className={`w-full px-3 py-2 border ${errors.given_to_customer_id ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
+                  className={`w-full px-3 py-2 border ${errors.given_to_customer_id ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white`}
                 >
                   <option value="">Müşteri Seçiniz</option>
                   {customers.map(customer => (
@@ -416,7 +416,7 @@ const ChequeForm = ({ cheque, onSubmit, onCancel }) => {
 
           {/* Notlar */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
               Notlar
             </label>
             <textarea
@@ -424,17 +424,17 @@ const ChequeForm = ({ cheque, onSubmit, onCancel }) => {
               value={formData.notes}
               onChange={handleChange}
               rows="3"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               placeholder="Ek açıklamalar..."
             />
           </div>
 
           {/* Buttons */}
-          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200">
+          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
             <button
               type="button"
               onClick={onCancel}
-              className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
+              className="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:bg-gray-800/50 transition"
               disabled={isSubmitting}
             >
               İptal

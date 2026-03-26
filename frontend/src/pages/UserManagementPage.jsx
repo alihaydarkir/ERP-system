@@ -135,8 +135,8 @@ const UserManagementPage = () => {
     switch (role) {
       case 'admin': return 'bg-red-100 text-red-800';
       case 'manager': return 'bg-blue-100 text-blue-800';
-      case 'user': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'user': return 'bg-gray-100 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100';
+      default: return 'bg-gray-100 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100';
     }
   };
 
@@ -152,47 +152,47 @@ const UserManagementPage = () => {
     <div className="p-6">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800 mb-2">Kullanıcı Yönetimi</h1>
-        <p className="text-gray-600">Sistem kullanıcılarını yönetin</p>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">Kullanıcı Yönetimi</h1>
+        <p className="text-gray-600 dark:text-gray-300">Sistem kullanıcılarını yönetin</p>
       </div>
 
       {/* Statistics Cards */}
       {statistics && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white p-4 rounded-lg shadow">
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Toplam Kullanıcı</p>
-                <p className="text-2xl font-bold text-gray-800">{statistics.total_users}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-300">Toplam Kullanıcı</p>
+                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">{statistics.total_users}</p>
               </div>
               <Users className="w-8 h-8 text-blue-500" />
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-lg shadow">
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Admin</p>
+                <p className="text-sm text-gray-600 dark:text-gray-300">Admin</p>
                 <p className="text-2xl font-bold text-red-800">{statistics.admin_count}</p>
               </div>
               <Shield className="w-8 h-8 text-red-500" />
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-lg shadow">
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Manager</p>
+                <p className="text-sm text-gray-600 dark:text-gray-300">Manager</p>
                 <p className="text-2xl font-bold text-blue-800">{statistics.manager_count}</p>
               </div>
               <UserCheck className="w-8 h-8 text-blue-500" />
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-lg shadow">
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Aktif (7 Gün)</p>
+                <p className="text-sm text-gray-600 dark:text-gray-300">Aktif (7 Gün)</p>
                 <p className="text-2xl font-bold text-green-800">{statistics.active_week}</p>
               </div>
               <Activity className="w-8 h-8 text-green-500" />
@@ -203,7 +203,7 @@ const UserManagementPage = () => {
 
       {/* Pending Approvals Box */}
       {pendingApprovals.length > 0 && (
-        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded-lg shadow">
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-400 p-4 mb-6 rounded-lg shadow">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3 flex-1">
               <UserPlus className="w-6 h-6 text-yellow-600" />
@@ -218,12 +218,12 @@ const UserManagementPage = () => {
                 {showPendingBox && (
                   <div className="space-y-2 mt-3">
                     {pendingApprovals.map((user) => (
-                      <div key={user.id} className="bg-white p-3 rounded-lg border border-yellow-200">
+                      <div key={user.id} className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-yellow-200">
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="font-medium text-gray-800">{user.username}</p>
-                            <p className="text-sm text-gray-600">{user.email}</p>
-                            <p className="text-xs text-gray-500 mt-1">
+                            <p className="font-medium text-gray-800 dark:text-gray-100">{user.username}</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-300">{user.email}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                               Talep: {new Date(user.created_at).toLocaleString('tr-TR')}
                             </p>
                           </div>
@@ -263,35 +263,35 @@ const UserManagementPage = () => {
       )}
 
       {/* Filters and Actions */}
-      <div className="bg-white p-4 rounded-lg shadow mb-6">
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-6">
         <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
           <div className="flex flex-1 gap-4 w-full md:w-auto">
             {/* Search */}
             <div className="relative flex-1 md:w-64">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-400 w-5 h-5" />
               <input
                 type="text"
                 placeholder="Kullanıcı ara..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg w-full focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg w-full bg-gray-100 dark:bg-gray-700/70 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
 
             {/* Role Filter */}
             <div className="relative">
-              <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-400 w-5 h-5" />
               <select
                 value={roleFilter}
                 onChange={(e) => setRoleFilter(e.target.value)}
-                className="pl-10 pr-8 py-2 border border-gray-300 rounded-lg appearance-none bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="pl-10 pr-8 py-2 border border-gray-300 dark:border-gray-600 rounded-lg appearance-none bg-gray-100 dark:bg-gray-700/70 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="all">Tüm Roller</option>
                 <option value="admin">Admin</option>
                 <option value="manager">Manager</option>
                 <option value="user">User</option>
               </select>
-              <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+              <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-400 w-4 h-4 pointer-events-none" />
             </div>
           </div>
 
@@ -309,64 +309,64 @@ const UserManagementPage = () => {
       </div>
 
       {/* Users Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
         <table className="w-full">
-          <thead className="bg-gray-50">
+          <thead className="bg-gray-50 dark:bg-gray-800/50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                 Kullanıcı
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                 Email
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                 Rol
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                 Departman
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                 Son Giriş
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                 İşlemler
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
             {users.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                <td colSpan={6} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
                   Kullanıcı bulunamadı
                 </td>
               </tr>
             ) : (
               users.map((user) => (
-                <tr key={user.id} className="hover:bg-gray-50">
+                <tr key={user.id} className="hover:bg-gray-50 dark:bg-gray-800/50">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold">
                         {user.username.charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        <div className="font-medium text-gray-900">{user.username}</div>
+                        <div className="font-medium text-gray-900 dark:text-gray-100">{user.username}</div>
                         {user.job_title && (
-                          <div className="text-sm text-gray-500">{user.job_title}</div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">{user.job_title}</div>
                         )}
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{user.email}</td>
+                  <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">{user.email}</td>
                   <td className="px-6 py-4">
                     <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getRoleBadgeColor(user.role)}`}>
                       {getRoleIcon(user.role)}
                       {user.role}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
+                  <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
                     {user.department || '-'}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
+                  <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
                     {user.last_login 
                       ? new Date(user.last_login).toLocaleDateString('tr-TR')
                       : 'Hiç giriş yapmadı'
@@ -377,7 +377,7 @@ const UserManagementPage = () => {
                       {canEdit && (
                         <button
                           onClick={() => handleEditUser(user)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          className="p-2 text-blue-600 hover:bg-blue-50 dark:bg-blue-900/20 rounded-lg transition-colors"
                           title="Düzenle"
                         >
                           <Edit className="w-4 h-4" />
@@ -386,7 +386,7 @@ const UserManagementPage = () => {
                       {canDelete && (
                         <button
                           onClick={() => handleDeleteUser(user.id)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          className="p-2 text-red-600 hover:bg-red-50 dark:bg-red-900/20 rounded-lg transition-colors"
                           title="Sil"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -459,16 +459,16 @@ const UserModal = ({ user, onClose, onSuccess }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-900/20 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">
+          <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-4">
             {user ? 'Kullanıcı Düzenle' : 'Yeni Kullanıcı'}
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                 Kullanıcı Adı *
               </label>
               <input
@@ -476,12 +476,12 @@ const UserModal = ({ user, onClose, onSuccess }) => {
                 required
                 value={formData.username}
                 onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                 Email *
               </label>
               <input
@@ -489,13 +489,13 @@ const UserModal = ({ user, onClose, onSuccess }) => {
                 required
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
 
             {!user && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   Şifre *
                 </label>
                 <input
@@ -503,20 +503,20 @@ const UserModal = ({ user, onClose, onSuccess }) => {
                   required={!user}
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                 Rol *
               </label>
               <select
                 required
                 value={formData.role}
                 onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="user">User</option>
                 <option value="manager">Manager</option>
@@ -525,38 +525,38 @@ const UserModal = ({ user, onClose, onSuccess }) => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                 Telefon
               </label>
               <input
                 type="tel"
                 value={formData.phone_number}
                 onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                 Departman
               </label>
               <input
                 type="text"
                 value={formData.department}
                 onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                 Ünvan
               </label>
               <input
                 type="text"
                 value={formData.job_title}
                 onChange={(e) => setFormData({ ...formData, job_title: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
 
@@ -564,7 +564,7 @@ const UserModal = ({ user, onClose, onSuccess }) => {
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:bg-gray-800/50"
                 disabled={loading}
               >
                 İptal

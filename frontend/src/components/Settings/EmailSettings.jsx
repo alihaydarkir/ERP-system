@@ -55,13 +55,13 @@ export default function EmailSettings() {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">Email Ayarları</h2>
-        <p className="text-gray-600 mb-6">SMTP email ayarlarını yapın</p>
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-4">Email Ayarları</h2>
+        <p className="text-gray-600 dark:text-gray-300 mb-6">SMTP email ayarlarını yapın</p>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
             SMTP Host
           </label>
           <input
@@ -69,13 +69,13 @@ export default function EmailSettings() {
             name="emailSmtpHost"
             value={formData.emailSmtpHost}
             onChange={handleChange}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             placeholder="smtp.gmail.com"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
             SMTP Port
           </label>
           <input
@@ -83,14 +83,14 @@ export default function EmailSettings() {
             name="emailSmtpPort"
             value={formData.emailSmtpPort}
             onChange={handleChange}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             placeholder="587"
           />
         </div>
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
           SMTP Username
         </label>
         <input
@@ -98,13 +98,13 @@ export default function EmailSettings() {
           name="emailSmtpUsername"
           value={formData.emailSmtpUsername}
           onChange={handleChange}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
           placeholder="username@example.com"
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
           SMTP Password
         </label>
         <input
@@ -112,13 +112,13 @@ export default function EmailSettings() {
           name="emailSmtpPassword"
           value={formData.emailSmtpPassword}
           onChange={handleChange}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
           placeholder="••••••••"
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
           From Email Address
         </label>
         <input
@@ -126,13 +126,13 @@ export default function EmailSettings() {
           name="emailFromAddress"
           value={formData.emailFromAddress}
           onChange={handleChange}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
           placeholder="noreply@example.com"
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
           From Name
         </label>
         <input
@@ -140,19 +140,19 @@ export default function EmailSettings() {
           name="emailFromName"
           value={formData.emailFromName}
           onChange={handleChange}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
           placeholder="ERP System"
         />
       </div>
 
       <div className="border-t pt-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Test Email Gönder</h3>
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">Test Email Gönder</h3>
         <div className="flex gap-2">
           <input
             type="email"
             value={testEmailAddress}
             onChange={(e) => setTestEmailAddress(e.target.value)}
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
             placeholder="test@example.com"
           />
           <button

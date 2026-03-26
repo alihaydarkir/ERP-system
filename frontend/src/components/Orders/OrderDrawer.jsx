@@ -60,19 +60,19 @@ export default function OrderDrawer({ isOpen, onClose, onSuccess }) {
     try {
       // Prepare order items
       const items = cartItems.map(item => ({
-        product_id: item.id,
-        quantity: item.quantity,
-        price: item.price
+        product_id: Number(item.id),
+        quantity: Number(item.quantity),
+        price: Number(item.price)
       }));
 
-      const totalAmount = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const totalAmount = cartItems.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity)), 0);
 
       // Create order
       await orderService.create({
-        customer_id: selectedCustomer.id,
-        items: items,
-        total_amount: totalAmount,
-        status: 'pending'
+        customer_id: Number(selectedCustomer.id || selectedCustomer.customer_id),
+        items,
+        total_amount: Number(totalAmount.toFixed(2)),
+        order_date: orderDate
       });
 
       showSuccess('Sipariş başarıyla oluşturuldu!');
@@ -80,7 +80,12 @@ export default function OrderDrawer({ isOpen, onClose, onSuccess }) {
       if (onSuccess) onSuccess();
     } catch (error) {
       console.error('Create order error:', error);
-      showError(error.response?.data?.message || 'Sipariş oluşturulamadı');
+      const validationErrors = error?.response?.data?.errors;
+      if (Array.isArray(validationErrors) && validationErrors.length > 0) {
+        showError(validationErrors.map((e) => `${e.field}: ${e.message}`).join(' | '));
+      } else {
+        showError(error.response?.data?.message || 'Sipariş oluşturulamadı');
+      }
     } finally {
       setLoading(false);
     }
@@ -96,14 +101,14 @@ export default function OrderDrawer({ isOpen, onClose, onSuccess }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-end z-50">
-      <div className="bg-white w-full max-w-2xl h-full overflow-y-auto">
+    <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-900/20 flex justify-end z-50">
+      <div className="bg-white dark:bg-gray-800 w-full max-w-2xl h-full overflow-y-auto">
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b p-6 flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-gray-800">✨ Yeni Sipariş Oluştur</h2>
+        <div className="sticky top-0 bg-white dark:bg-gray-800 border-b p-6 flex justify-between items-center">
+          <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">✨ Yeni Sipariş Oluştur</h2>
           <button
             onClick={handleClose}
-            className="text-gray-500 hover:text-gray-700 text-2xl"
+            className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-2xl"
           >
             ✕
           </button>
@@ -119,14 +124,14 @@ export default function OrderDrawer({ isOpen, onClose, onSuccess }) {
 
           {/* Date */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
+            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
               Tarih
             </label>
             <input
               type="date"
               value={orderDate}
               onChange={(e) => setOrderDate(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700/70 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
 
@@ -146,10 +151,10 @@ export default function OrderDrawer({ isOpen, onClose, onSuccess }) {
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 bg-white border-t p-6 flex space-x-3">
+        <div className="sticky bottom-0 bg-white dark:bg-gray-800 border-t p-6 flex space-x-3">
           <button
             onClick={handleClose}
-            className="flex-1 py-3 border rounded-lg hover:bg-gray-50 font-semibold"
+            className="flex-1 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700/60 text-gray-700 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-700 font-semibold"
           >
             İptal
           </button>
@@ -158,7 +163,7 @@ export default function OrderDrawer({ isOpen, onClose, onSuccess }) {
             disabled={loading || cartItems.length === 0}
             className={`flex-1 py-3 rounded-lg font-semibold transition ${
               loading || cartItems.length === 0
-                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                ? 'bg-gray-300 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                 : 'bg-blue-600 text-white hover:bg-blue-700'
             }`}
           >

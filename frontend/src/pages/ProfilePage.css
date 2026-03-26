@@ -49,25 +49,25 @@
   gap: 2rem;
 }
 
-.2fa-info {
+.twofa-info {
   display: flex;
   align-items: center;
   gap: 1.5rem;
   flex: 1;
 }
 
-.2fa-icon {
+.twofa-icon {
   font-size: 3rem;
   flex-shrink: 0;
 }
 
-.2fa-content h4 {
+.twofa-content h4 {
   margin: 0 0 0.5rem 0;
   font-size: 1.1rem;
   color: #333;
 }
 
-.2fa-content p {
+.twofa-content p {
   margin: 0;
   color: #666;
   font-size: 0.95rem;
@@ -180,7 +180,7 @@
     text-align: center;
   }
 
-  .2fa-info {
+  .twofa-info {
     flex-direction: column;
     text-align: center;
   }
@@ -232,11 +232,11 @@ body[data-theme="dark"] .profile-2fa-section {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
 }
 
-body[data-theme="dark"] .2fa-content h4 {
+body[data-theme="dark"] .twofa-content h4 {
   color: #f1f5f9;
 }
 
-body[data-theme="dark"] .2fa-content p {
+body[data-theme="dark"] .twofa-content p {
   color: #cbd5e1;
 }
 

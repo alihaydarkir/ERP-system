@@ -57,12 +57,12 @@ export default function SettingsPage() {
     <div className="container mx-auto px-6 py-8">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-800">Sistem Ayarları</h1>
-        <p className="text-gray-600 mt-2">Sistem genelindeki ayarları yönetin</p>
+        <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100">Sistem Ayarları</h1>
+        <p className="text-gray-600 dark:text-gray-300 mt-2">Sistem genelindeki ayarları yönetin</p>
       </div>
 
       {error && (
-        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative">
+        <div className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 text-red-700 px-4 py-3 rounded relative">
           <span className="block sm:inline">{error}</span>
           <button
             onClick={clearError}
@@ -75,7 +75,7 @@ export default function SettingsPage() {
 
       <div className="flex gap-6">
         {/* Sidebar */}
-        <div className="w-64 bg-white rounded-lg shadow-md p-4">
+        <div className="w-64 bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
           <nav className="space-y-2">
             {categories.map((category) => (
               <button
@@ -83,8 +83,8 @@ export default function SettingsPage() {
                 onClick={() => setSelectedCategory(category.id)}
                 className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition text-left ${
                   selectedCategory === category.id
-                    ? 'bg-blue-50 text-blue-600 font-medium'
-                    : 'text-gray-600 hover:bg-gray-50'
+                    ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 font-medium'
+                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:bg-gray-800/50'
                 }`}
               >
                 <span className="text-xl">{category.icon}</span>
@@ -95,7 +95,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 bg-white rounded-lg shadow-md p-6">
+        <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
           {renderSettings()}
         </div>
       </div>

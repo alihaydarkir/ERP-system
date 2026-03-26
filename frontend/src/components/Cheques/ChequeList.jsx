@@ -59,7 +59,7 @@ const ChequeList = ({ onChequeClick, onEditCheque, onDeleteCheque, onChangeStatu
     const badges = {
       pending: 'bg-yellow-100 text-yellow-800 border-yellow-300',
       paid: 'bg-green-100 text-green-800 border-green-300',
-      cancelled: 'bg-gray-100 text-gray-800 border-gray-300',
+      cancelled: 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white border-gray-300 dark:border-gray-600',
       teminat: 'bg-blue-100 text-blue-800 border-blue-300',
       musteriye_verildi: 'bg-purple-100 text-purple-800 border-purple-300'
     };
@@ -86,16 +86,16 @@ const ChequeList = ({ onChequeClick, onEditCheque, onDeleteCheque, onChangeStatu
       const customer = customers.find(c => c.id === cheque.given_to_customer_id);
       return <span className="text-purple-700 font-medium">{customer?.full_name || customer?.company_name || 'Bilinmiyor'}</span>;
     }
-    return <span className="text-gray-500">-</span>;
+    return <span className="text-gray-500 dark:text-gray-400">-</span>;
   };
 
   const getRowColor = (cheque) => {
     if (cheque.status !== 'pending') return '';
 
     const daysUntilDue = cheque.days_until_due;
-    if (daysUntilDue < 0) return 'bg-red-50 border-l-4 border-red-500'; // Overdue
-    if (daysUntilDue <= 3) return 'bg-orange-50 border-l-4 border-orange-500'; // 3 days or less
-    if (daysUntilDue <= 7) return 'bg-yellow-50 border-l-4 border-yellow-500'; // 7 days or less
+    if (daysUntilDue < 0) return 'bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500'; // Overdue
+    if (daysUntilDue <= 3) return 'bg-orange-50 dark:bg-orange-900/20 border-l-4 border-orange-500'; // 3 days or less
+    if (daysUntilDue <= 7) return 'bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-500'; // 7 days or less
 
     return '';
   };
@@ -111,21 +111,21 @@ const ChequeList = ({ onChequeClick, onEditCheque, onDeleteCheque, onChangeStatu
     if (daysUntilDue === 0) return <span className="text-orange-600 font-semibold">Bugün</span>;
     if (daysUntilDue === 1) return <span className="text-orange-600 font-semibold">Yarın</span>;
     if (daysUntilDue <= 7) return <span className="text-yellow-600 font-semibold">{daysUntilDue} gün</span>;
-    return <span className="text-gray-600">{daysUntilDue} gün</span>;
+    return <span className="text-gray-600 dark:text-gray-300">{daysUntilDue} gün</span>;
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 transition-colors duration-200">
       {/* Filters */}
-      <div className="p-6 border-b border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Filtreler</h3>
+      <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">Filtreler</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Durum</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Durum</label>
             <select
               value={localFilters.status}
               onChange={(e) => handleFilterChange('status', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">Tümü</option>
               <option value="pending">Beklemede</option>
@@ -137,11 +137,11 @@ const ChequeList = ({ onChequeClick, onEditCheque, onDeleteCheque, onChangeStatu
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Müşteri</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Müşteri</label>
             <select
               value={localFilters.customer_id}
               onChange={(e) => handleFilterChange('customer_id', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">Tümü</option>
               {customers.map((customer) => (
@@ -153,33 +153,33 @@ const ChequeList = ({ onChequeClick, onEditCheque, onDeleteCheque, onChangeStatu
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Banka</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Banka</label>
             <input
               type="text"
               value={localFilters.bank_name}
               onChange={(e) => handleFilterChange('bank_name', e.target.value)}
               placeholder="Banka adı"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Başlangıç</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Başlangıç</label>
             <input
               type="date"
               value={localFilters.start_date}
               onChange={(e) => handleFilterChange('start_date', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Bitiş</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Bitiş</label>
             <input
               type="date"
               value={localFilters.end_date}
               onChange={(e) => handleFilterChange('end_date', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
         </div>
@@ -193,7 +193,7 @@ const ChequeList = ({ onChequeClick, onEditCheque, onDeleteCheque, onChangeStatu
           </button>
           <button
             onClick={resetFilters}
-            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
+            className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition"
           >
             Temizle
           </button>
@@ -203,59 +203,59 @@ const ChequeList = ({ onChequeClick, onEditCheque, onDeleteCheque, onChangeStatu
       {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead className="bg-gray-50 border-b border-gray-200">
+          <thead className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
             <tr>
               <th
                 onClick={() => handleSort('check_serial_no')}
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:bg-gray-700 dark:hover:bg-gray-700"
               >
                 Seri No {sorting.sort_by === 'check_serial_no' && (sorting.sort_order === 'ASC' ? '↑' : '↓')}
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Keşideci
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Müşteri
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Banka
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Çek Nerede
               </th>
               <th
                 onClick={() => handleSort('received_date')}
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:bg-gray-700 dark:hover:bg-gray-700"
               >
                 Alınma {sorting.sort_by === 'received_date' && (sorting.sort_order === 'ASC' ? '↑' : '↓')}
               </th>
               <th
                 onClick={() => handleSort('due_date')}
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:bg-gray-700 dark:hover:bg-gray-700"
               >
                 Vade {sorting.sort_by === 'due_date' && (sorting.sort_order === 'ASC' ? '↑' : '↓')}
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Kalan Gün
               </th>
               <th
                 onClick={() => handleSort('amount')}
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:bg-gray-700 dark:hover:bg-gray-700"
               >
                 Tutar {sorting.sort_by === 'amount' && (sorting.sort_order === 'ASC' ? '↑' : '↓')}
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Durum
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 İşlemler
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {cheques.length === 0 ? (
               <tr>
-                <td colSpan="11" className="px-6 py-12 text-center text-gray-500">
+                <td colSpan="11" className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                   <div className="text-4xl mb-2">📋</div>
                   <p>Çek bulunamadı</p>
                 </td>
@@ -264,36 +264,36 @@ const ChequeList = ({ onChequeClick, onEditCheque, onDeleteCheque, onChangeStatu
               cheques.map((cheque) => (
                 <tr
                   key={cheque.id}
-                  className={`hover:bg-gray-50 transition cursor-pointer ${getRowColor(cheque)}`}
+                  className={`hover:bg-gray-50 dark:bg-gray-800/50 dark:hover:bg-gray-700/50 dark:bg-gray-700/50 transition cursor-pointer ${getRowColor(cheque)}`}
                   onClick={() => onChequeClick && onChequeClick(cheque)}
                 >
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">
                     {cheque.check_serial_no}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
                     {cheque.check_issuer}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
                     {cheque.customer_company_name || cheque.customer_contact_name}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
                     {cheque.bank_name}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     {getChequeLocation(cheque)}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
                     {new Date(cheque.received_date).toLocaleDateString('tr-TR')}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
                     {new Date(cheque.due_date).toLocaleDateString('tr-TR')}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     {getDaysText(cheque.days_until_due)}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-gray-100">
                     ₺{parseFloat(cheque.amount).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
-                    <div className="text-xs text-gray-500">{cheque.currency}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">{cheque.currency}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     {getStatusBadge(cheque.status)}
@@ -327,8 +327,8 @@ const ChequeList = ({ onChequeClick, onEditCheque, onDeleteCheque, onChangeStatu
 
       {/* Pagination */}
       {pagination.total > 0 && (
-        <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-          <div className="text-sm text-gray-700">
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+          <div className="text-sm text-gray-700 dark:text-gray-300">
             Toplam <span className="font-medium">{pagination.total}</span> çek
             {' • '}
             Sayfa <span className="font-medium">{pagination.page}</span> / {Math.ceil(pagination.total / pagination.limit)}
@@ -338,30 +338,30 @@ const ChequeList = ({ onChequeClick, onEditCheque, onDeleteCheque, onChangeStatu
             <button
               onClick={() => setPage(pagination.page - 1)}
               disabled={pagination.page === 1}
-              className="px-3 py-1 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-gray-800/50 dark:hover:bg-gray-700/50 dark:bg-gray-700/50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Önceki
             </button>
 
-            <span className="px-3 py-1 text-sm text-gray-700">
+            <span className="px-3 py-1 text-sm text-gray-700 dark:text-gray-300">
               {pagination.page} / {Math.ceil(pagination.total / pagination.limit)}
             </span>
 
             <button
               onClick={() => setPage(pagination.page + 1)}
               disabled={pagination.page >= Math.ceil(pagination.total / pagination.limit)}
-              className="px-3 py-1 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-gray-800/50 dark:hover:bg-gray-700/50 dark:bg-gray-700/50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Sonraki
             </button>
           </div>
 
           <div className="flex items-center space-x-2">
-            <label className="text-sm text-gray-700">Sayfa başına:</label>
+            <label className="text-sm text-gray-700 dark:text-gray-300">Sayfa başına:</label>
             <select
               value={pagination.limit}
               onChange={(e) => setPagination({ limit: parseInt(e.target.value), page: 1 })}
-              className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
             >
               <option value="10">10</option>
               <option value="25">25</option>

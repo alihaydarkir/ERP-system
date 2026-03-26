@@ -114,11 +114,11 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Basic Information */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-gray-800">Temel Bilgiler</h3>
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Temel Bilgiler</h3>
 
         {/* Supplier Name */}
         <div>
-          <label htmlFor="supplier_name" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="supplier_name" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
             Tedarikçi Adı <span className="text-red-500">*</span>
           </label>
           <input
@@ -128,8 +128,8 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
             value={formData.supplier_name}
             onChange={handleChange}
             className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none ${
-              errors.supplier_name ? 'border-red-500' : 'border-gray-300'
-            }`}
+              errors.supplier_name ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+            } dark:bg-gray-700 dark:border-gray-600 dark:text-white`}
             placeholder="XYZ Gıda Ltd."
           />
           {errors.supplier_name && (
@@ -139,7 +139,7 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
 
         {/* Contact Person */}
         <div>
-          <label htmlFor="contact_person" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="contact_person" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
             İletişim Kişisi
           </label>
           <input
@@ -148,7 +148,7 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
             name="contact_person"
             value={formData.contact_person}
             onChange={handleChange}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             placeholder="Mehmet Kaya"
           />
         </div>
@@ -156,7 +156,7 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
         {/* Email and Phone */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
               E-posta
             </label>
             <input
@@ -166,8 +166,8 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
               value={formData.email}
               onChange={handleChange}
               className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none ${
-                errors.email ? 'border-red-500' : 'border-gray-300'
-              }`}
+                errors.email ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+              } dark:bg-gray-700 dark:border-gray-600 dark:text-white`}
               placeholder="info@xyz.com"
             />
             {errors.email && (
@@ -176,7 +176,7 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
           </div>
 
           <div>
-            <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="phone" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
               Telefon
             </label>
             <input
@@ -186,8 +186,8 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
               value={formData.phone}
               onChange={handleChange}
               className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none ${
-                errors.phone ? 'border-red-500' : 'border-gray-300'
-              }`}
+                errors.phone ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+              } dark:bg-gray-700 dark:border-gray-600 dark:text-white`}
               placeholder="0532 123 45 67"
             />
             {errors.phone && (
@@ -198,7 +198,7 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
 
         {/* Tax Number */}
         <div>
-          <label htmlFor="tax_number" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="tax_number" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
             Vergi Numarası <span className="text-red-500">*</span>
           </label>
           <input
@@ -208,8 +208,8 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
             value={formData.tax_number}
             onChange={handleChange}
             className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none ${
-              errors.tax_number ? 'border-red-500' : 'border-gray-300'
-            }`}
+              errors.tax_number ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+            } dark:bg-gray-700 dark:border-gray-600 dark:text-white`}
             placeholder="1234567890"
           />
           {errors.tax_number && (
@@ -219,7 +219,7 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
 
         {/* Location */}
         <div>
-          <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="location" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
             Lokasyon
           </label>
           <input
@@ -228,14 +228,14 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
             name="location"
             value={formData.location}
             onChange={handleChange}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             placeholder="Ankara/Çankaya"
           />
         </div>
 
         {/* Website */}
         <div>
-          <label htmlFor="website" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="website" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
             Website
           </label>
           <input
@@ -244,7 +244,7 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
             name="website"
             value={formData.website}
             onChange={handleChange}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             placeholder="https://www.example.com"
           />
         </div>
@@ -252,12 +252,12 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
 
       {/* Business Terms */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-gray-800">İş Koşulları</h3>
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">İş Koşulları</h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Payment Terms */}
           <div>
-            <label htmlFor="payment_terms" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="payment_terms" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
               Ödeme Vadesi
             </label>
             <select
@@ -265,7 +265,7 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
               name="payment_terms"
               value={formData.payment_terms}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             >
               <option value="Peşin">Peşin</option>
               <option value="15 Gün Vade">15 Gün Vade</option>
@@ -278,7 +278,7 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
 
           {/* Lead Time Days */}
           <div>
-            <label htmlFor="lead_time_days" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="lead_time_days" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
               Tedarik Süresi (Gün)
             </label>
             <input
@@ -289,8 +289,8 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
               onChange={handleChange}
               min="0"
               className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none ${
-                errors.lead_time_days ? 'border-red-500' : 'border-gray-300'
-              }`}
+                errors.lead_time_days ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+              } dark:bg-gray-700 dark:border-gray-600 dark:text-white`}
             />
             {errors.lead_time_days && (
               <p className="mt-1 text-sm text-red-500">{errors.lead_time_days}</p>
@@ -299,7 +299,7 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
 
           {/* Min Order Quantity */}
           <div>
-            <label htmlFor="min_order_quantity" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="min_order_quantity" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
               Minimum Sipariş Miktarı
             </label>
             <input
@@ -310,8 +310,8 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
               onChange={handleChange}
               min="1"
               className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none ${
-                errors.min_order_quantity ? 'border-red-500' : 'border-gray-300'
-              }`}
+                errors.min_order_quantity ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+              } dark:bg-gray-700 dark:border-gray-600 dark:text-white`}
             />
             {errors.min_order_quantity && (
               <p className="mt-1 text-sm text-red-500">{errors.min_order_quantity}</p>
@@ -320,7 +320,7 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
 
           {/* Risk Level */}
           <div>
-            <label htmlFor="risk_level" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="risk_level" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
               Risk Seviyesi
             </label>
             <select
@@ -328,7 +328,7 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
               name="risk_level"
               value={formData.risk_level}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             >
               <option value="Low">Düşük</option>
               <option value="Medium">Orta</option>
@@ -338,7 +338,7 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
 
           {/* Rating */}
           <div>
-            <label htmlFor="rating" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="rating" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
               Değerlendirme (0-5)
             </label>
             <input
@@ -351,8 +351,8 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
               max="5"
               step="0.1"
               className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none ${
-                errors.rating ? 'border-red-500' : 'border-gray-300'
-              }`}
+                errors.rating ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+              } dark:bg-gray-700 dark:border-gray-600 dark:text-white`}
             />
             {errors.rating && (
               <p className="mt-1 text-sm text-red-500">{errors.rating}</p>
@@ -367,9 +367,9 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
               name="is_active"
               checked={formData.is_active}
               onChange={handleChange}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             />
-            <label htmlFor="is_active" className="ml-2 block text-sm text-gray-700">
+            <label htmlFor="is_active" className="ml-2 block text-sm text-gray-700 dark:text-gray-200">
               Aktif
             </label>
           </div>
@@ -378,7 +378,7 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
 
       {/* Notes */}
       <div>
-        <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="notes" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
           Notlar
         </label>
         <textarea
@@ -387,7 +387,7 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
           value={formData.notes}
           onChange={handleChange}
           rows="3"
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
           placeholder="Tedarikçi hakkında notlar..."
         />
       </div>
@@ -397,7 +397,7 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
         <button
           type="button"
           onClick={onCancel}
-          className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+          className="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:bg-gray-800/50 transition-colors"
           disabled={isSubmitting}
         >
           İptal

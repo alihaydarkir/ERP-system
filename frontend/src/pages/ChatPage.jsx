@@ -70,7 +70,7 @@ function ToolStep({ step }) {
   const label = TOOL_LABELS[step.tool] || TOOL_LABELS.default;
   if (step.type === 'tool_call') {
     return (
-      <div className="flex items-center gap-2 text-xs text-blue-600 bg-blue-50 rounded-lg px-3 py-1.5 w-fit">
+      <div className="flex items-center gap-2 text-xs text-blue-600 bg-blue-50 dark:bg-blue-900/20 rounded-lg px-3 py-1.5 w-fit">
         <span>{icon}</span>
         <span className="font-medium">{label}...</span>
         <span className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
@@ -79,7 +79,7 @@ function ToolStep({ step }) {
   }
   if (step.type === 'tool_result') {
     return (
-      <div className="flex items-center gap-2 text-xs text-green-600 bg-green-50 rounded-lg px-3 py-1.5 w-fit">
+      <div className="flex items-center gap-2 text-xs text-green-600 bg-green-50 dark:bg-green-900/20 rounded-lg px-3 py-1.5 w-fit">
         <span>{icon}</span>
         <span className="font-medium">{label.replace('...', '')} ✓</span>
       </div>
@@ -87,7 +87,7 @@ function ToolStep({ step }) {
   }
   if (step.type === 'tool_error') {
     return (
-      <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-1.5 w-fit">
+      <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-1.5 w-fit">
         <span>❌</span>
         <span className="font-medium">Hata: {step.error}</span>
       </div>
@@ -103,8 +103,8 @@ function ChatMessage({ message }) {
   if (isThinking) {
     return (
       <div className="flex justify-start">
-        <div className="bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-sm max-w-[85%]">
-          <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-4 py-3 shadow-sm max-w-[85%]">
+          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-2">
             <span className="text-base">🤖</span>
             <span className="font-medium">AI Düşünüyor</span>
           </div>
@@ -127,12 +127,12 @@ function ChatMessage({ message }) {
 
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-      <div className={`max-w-[85%] rounded-2xl px-4 py-3 shadow-sm ${isUser ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-800'}`}>
+      <div className={`max-w-[85%] rounded-2xl px-4 py-3 shadow-sm ${isUser ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100'}`}>
         {!isUser && (
           <div className="flex items-center gap-2 mb-2">
             <span className="text-base">🤖</span>
-            <span className="text-xs font-semibold text-gray-500">ERP Asistanı</span>
-            {message.model && <span className="text-xs bg-blue-50 text-blue-500 px-1.5 py-0.5 rounded-full">{message.model}</span>}
+            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">ERP Asistanı</span>
+            {message.model && <span className="text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-500 px-1.5 py-0.5 rounded-full">{message.model}</span>}
           </div>
         )}
         {message.steps && message.steps.filter(s => s.type === 'tool_result' || s.type === 'tool_error').length > 0 && (
@@ -141,7 +141,7 @@ function ChatMessage({ message }) {
           </div>
         )}
         <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.text}</p>
-        <p className={`text-xs mt-1.5 ${isUser ? 'text-blue-100' : 'text-gray-400'}`}>
+        <p className={`text-xs mt-1.5 ${isUser ? 'text-blue-100' : 'text-gray-400 dark:text-gray-400'}`}>
           {message.timestamp.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
         </p>
       </div>
@@ -257,18 +257,18 @@ export default function ChatPage() {
     <div className="flex flex-col h-full max-w-4xl mx-auto p-4 gap-4">
       {pendingConfirmation && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl border border-gray-200 p-5">
+          <div className="w-full max-w-lg bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-5">
             <div className="flex items-center gap-2 mb-3">
               <span className="text-xl">⚠️</span>
-              <h2 className="text-lg font-bold text-gray-800">İşlem Onayı</h2>
+              <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">İşlem Onayı</h2>
             </div>
-            <p className="text-sm text-gray-600 whitespace-pre-wrap">{pendingConfirmation.preview}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap">{pendingConfirmation.preview}</p>
             <div className="mt-5 flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={handleCancelMutation}
                 disabled={loading}
-                className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:bg-gray-800/50 disabled:opacity-50"
               >
                 Vazgeç
               </button>
@@ -288,18 +288,18 @@ export default function ChatPage() {
       {/* Başlık */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">🤖 ERP AI Asistanı</h1>
-          <p className="text-gray-500 text-sm mt-0.5">ERP verilerinizi anlayıp analiz eden akıllı asistan</p>
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">🤖 ERP AI Asistanı</h1>
+          <p className="text-gray-500 dark:text-gray-400 text-sm mt-0.5">ERP verilerinizi anlayıp analiz eden akıllı asistan</p>
         </div>
         <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${
-          aiStatus.available === null ? 'bg-gray-100 text-gray-500'
+          aiStatus.available === null ? 'bg-gray-100 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400'
           : aiStatus.available ? 'bg-green-100 text-green-700'
           : 'bg-red-100 text-red-600'
         }`}>
           <span className={`w-2 h-2 rounded-full ${
             aiStatus.available === null ? 'bg-gray-400 animate-pulse'
-            : aiStatus.available ? 'bg-green-500'
-            : 'bg-red-500'
+            : aiStatus.available ? 'bg-green-50 dark:bg-green-900/200'
+            : 'bg-red-50 dark:bg-red-900/200'
           }`} />
           {aiStatus.available === null ? 'Kontrol ediliyor...'
             : aiStatus.available ? `Çevrimiçi · ${aiStatus.model}`
@@ -311,21 +311,21 @@ export default function ChatPage() {
       <div className="grid grid-cols-3 gap-2">
         {QUICK_QUESTIONS.map((q, i) => (
           <button key={i} onClick={() => sendMessage(q.text)} disabled={loading || !aiStatus.available}
-            className="flex items-center gap-2 px-3 py-2 text-left text-sm bg-white border border-gray-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition disabled:opacity-40 disabled:cursor-not-allowed">
+            className="flex items-center gap-2 px-3 py-2 text-left text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-blue-400 hover:bg-blue-50 dark:bg-blue-900/20 transition disabled:opacity-40 disabled:cursor-not-allowed">
             <span>{q.icon}</span>
-            <span className="font-medium text-gray-700 truncate">{q.label}</span>
+            <span className="font-medium text-gray-700 dark:text-gray-200 truncate">{q.label}</span>
           </button>
         ))}
       </div>
 
       {/* Mesajlar */}
-      <div className="flex-1 bg-gray-50 rounded-2xl overflow-y-auto p-4 space-y-4" style={{ maxHeight: '50vh' }}>
+      <div className="flex-1 bg-gray-50 dark:bg-gray-800/50 rounded-2xl overflow-y-auto p-4 space-y-4" style={{ maxHeight: '50vh' }}>
         {messages.map(message => <ChatMessage key={message.id} message={message} />)}
         <div ref={messagesEndRef} />
       </div>
 
       {/* Giriş */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-3">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-3">
         <div className="flex gap-3 items-end">
           <textarea
             value={inputMessage}
@@ -334,7 +334,7 @@ export default function ChatPage() {
             placeholder={aiStatus.available === false ? 'Ollama çevrimdışı — "ollama serve" çalıştırın' : 'Sorunuzu yazın... (Ör: Vadesi geçmiş çeklerimi göster)'}
             rows={2}
             disabled={loading || !aiStatus.available}
-            className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none text-sm disabled:opacity-50"
+            className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none text-sm disabled:opacity-50"
           />
           <button
             onClick={() => sendMessage()}
@@ -346,7 +346,7 @@ export default function ChatPage() {
               : <span>Gönder</span>}
           </button>
         </div>
-        <p className="text-xs text-gray-400 mt-1.5 text-center">Enter ile gönder · Shift+Enter ile yeni satır</p>
+        <p className="text-xs text-gray-400 dark:text-gray-400 mt-1.5 text-center">Enter ile gönder · Shift+Enter ile yeni satır</p>
       </div>
     </div>
   );

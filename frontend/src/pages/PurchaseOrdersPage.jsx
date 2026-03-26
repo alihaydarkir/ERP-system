@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import PurchaseOrderList from '../components/Suppliers/PurchaseOrderList';
 import PODetailModal from '../components/Suppliers/PODetailModal';
 import useSupplierStore from '../store/supplierStore';
 import useUIStore from '../store/uiStore';
+import { Plus } from 'lucide-react';
 
 export default function PurchaseOrdersPage() {
   const [statusFilter, setStatusFilter] = useState('');
@@ -103,15 +104,27 @@ export default function PurchaseOrdersPage() {
   };
 
   return (
-    <div className="container mx-auto px-6 py-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200 p-6 space-y-6">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-800">Satın Alma Siparişleri</h1>
-        <p className="text-gray-600 mt-2">Tedarikçilerden yapılan satın alma siparişlerini yönetin</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Satın Alma Siparişleri</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-2">Tedarikçilerden yapılan satın alma siparişlerini yönetin</p>
+        </div>
+        
+        <div className="flex flex-wrap gap-3">
+          <a
+            href="/suppliers"
+            className="flex items-center justify-center gap-2 px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Yeni PO Oluştur</span>
+          </a>
+        </div>
       </div>
 
       {error && (
-        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative">
+        <div className="mb-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded relative">
           <span className="block sm:inline">{error}</span>
           <button
             onClick={clearError}
@@ -123,70 +136,30 @@ export default function PurchaseOrdersPage() {
       )}
 
       {/* Filters */}
-      <div className="mb-6 flex gap-4 items-center justify-between">
-        <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2 mb-6">
+        {[
+          { id: '', label: 'Tümü' },
+          { id: 'draft', label: 'Taslak' },
+          { id: 'sent', label: 'Gönderildi' },
+          { id: 'partial', label: 'Kısmi' },
+          { id: 'received', label: 'Teslim Alındı' },
+        ].map(filter => (
           <button
-            onClick={() => handleFilterChange('')}
-            className={`px-4 py-2 rounded-lg transition-colors ${
-              statusFilter === ''
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            key={filter.id}
+            onClick={() => handleFilterChange(filter.id)}
+            className={`px-4 py-2 rounded-lg transition-colors font-medium text-sm ${
+              statusFilter === filter.id
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:bg-gray-800/50 dark:hover:bg-gray-700'
             }`}
           >
-            Tümü
+            {filter.label}
           </button>
-          <button
-            onClick={() => handleFilterChange('draft')}
-            className={`px-4 py-2 rounded-lg transition-colors ${
-              statusFilter === 'draft'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Taslak
-          </button>
-          <button
-            onClick={() => handleFilterChange('sent')}
-            className={`px-4 py-2 rounded-lg transition-colors ${
-              statusFilter === 'sent'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Gönderildi
-          </button>
-          <button
-            onClick={() => handleFilterChange('partial')}
-            className={`px-4 py-2 rounded-lg transition-colors ${
-              statusFilter === 'partial'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Kısmi
-          </button>
-          <button
-            onClick={() => handleFilterChange('received')}
-            className={`px-4 py-2 rounded-lg transition-colors ${
-              statusFilter === 'received'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Teslim Alındı
-          </button>
-        </div>
-
-        <a
-          href="/suppliers"
-          className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
-        >
-          Yeni PO Oluştur
-        </a>
+        ))}
       </div>
 
       {/* Purchase Order List */}
-      <div className="bg-white rounded-lg shadow-md">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden transition-colors duration-200">
         <PurchaseOrderList
           purchaseOrders={purchaseOrders}
           onView={handleView}

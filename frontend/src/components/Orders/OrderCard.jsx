@@ -1,4 +1,4 @@
-export default function OrderCard({ order, onComplete, onCancel, onView, isPending }) {
+﻿export default function OrderCard({ order, onComplete, onCancel, onView, isPending }) {
   const totalAmount = Number(order.total_amount || 0);
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('tr-TR', {
@@ -12,12 +12,12 @@ export default function OrderCard({ order, onComplete, onCancel, onView, isPendi
 
   const getStatusBadge = (status) => {
     const statusConfig = {
-      pending: { text: '⏳ Beklemede', className: 'bg-orange-100 text-orange-700' },
-      completed: { text: '✅ Tamamlandı', className: 'bg-green-100 text-green-700' },
-      cancelled: { text: '❌ İptal Edildi', className: 'bg-red-100 text-red-700' },
+      pending: { text: '⏳ Beklemede', className: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' },
+      completed: { text: '✅ Tamamlandı', className: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
+      cancelled: { text: '❌ İptal Edildi', className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
     };
 
-    const config = statusConfig[status] || { text: status, className: 'bg-gray-100 text-gray-700' };
+    const config = statusConfig[status] || { text: status, className: 'bg-gray-100 dark:bg-gray-700/50 text-gray-700 dark:bg-gray-700 dark:text-gray-300' };
 
     return (
       <span className={`px-3 py-1 rounded-full text-sm font-semibold ${config.className}`}>
@@ -37,23 +37,23 @@ export default function OrderCard({ order, onComplete, onCancel, onView, isPendi
   };
 
   return (
-    <div className="bg-white rounded-lg border p-4 hover:shadow-md transition">
+    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition-colors duration-200">
       {/* Header */}
       <div className="flex justify-between items-start mb-3">
         <div>
-          <h3 className="font-semibold text-gray-800">Sipariş #{order.id}</h3>
-          <p className="text-sm text-gray-500">{formatDate(order.created_at)}</p>
+          <h3 className="font-semibold text-gray-800 dark:text-gray-100">Sipariş #{order.id}</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{formatDate(order.created_at)}</p>
         </div>
         {getStatusBadge(order.status)}
       </div>
 
       {/* Customer Info */}
       <div className="mb-3">
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-gray-600 dark:text-gray-300">
           <span className="font-medium">Müşteri:</span> {order.customer_name || order.user_name || 'Bilinmiyor'}
         </p>
         {order.customer_company && (
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
             <span className="font-medium">Şirket:</span> {order.customer_company}
           </p>
         )}
@@ -61,16 +61,16 @@ export default function OrderCard({ order, onComplete, onCancel, onView, isPendi
 
       {/* Products */}
       <div className="mb-3">
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-gray-600 dark:text-gray-300">
           <span className="font-medium">Ürünler:</span> {getProductNames()}
         </p>
       </div>
 
       {/* Total Amount */}
-      <div className="mb-4 pt-3 border-t">
-        <p className="text-sm text-gray-600">
+      <div className="mb-4 pt-3 border-t border-gray-100 dark:border-gray-700">
+        <p className="text-sm text-gray-600 dark:text-gray-300 flex items-center justify-between">
           <span className="font-medium">Toplam:</span>{' '}
-          <span className="text-lg font-bold text-blue-600">
+          <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
             ₺{totalAmount.toFixed(2)}
           </span>
         </p>
@@ -79,7 +79,7 @@ export default function OrderCard({ order, onComplete, onCancel, onView, isPendi
       {/* Completed Date (for completed orders) */}
       {!isPending && order.completed_at && (
         <div className="mb-3">
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
             <span className="font-medium">Tamamlanma:</span> {formatDate(order.completed_at)}
           </p>
         </div>
@@ -89,7 +89,7 @@ export default function OrderCard({ order, onComplete, onCancel, onView, isPendi
       <div className="flex space-x-2">
         <button
           onClick={() => onView(order)}
-          className="flex-1 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition font-medium text-sm"
+          className="flex-1 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors font-medium text-sm"
         >
           👁️ Göster
         </button>
@@ -97,26 +97,19 @@ export default function OrderCard({ order, onComplete, onCancel, onView, isPendi
         {isPending ? (
           <>
             <button
-              onClick={() => onComplete(order.id)}
-              className="flex-1 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition font-medium text-sm"
+              onClick={() => onComplete(order)}
+              className="flex-1 py-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors font-medium text-sm"
             >
               ✅ Tamamla
             </button>
             <button
-              onClick={() => onCancel(order.id)}
-              className="flex-1 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition font-medium text-sm"
+              onClick={() => onCancel(order)}
+              className="flex-1 py-2 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors font-medium text-sm"
             >
               ❌ İptal
             </button>
           </>
-        ) : (
-          <button
-            onClick={() => onView(order)}
-            className="flex-1 py-2 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 transition font-medium text-sm"
-          >
-            👁️ Detay
-          </button>
-        )}
+        ) : null}
       </div>
     </div>
   );

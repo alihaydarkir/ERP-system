@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -26,23 +26,34 @@ const STATUS_TR = {
 function KPICard({ title, value, sub, icon: Icon, color, change }) {
   const up = parseFloat(change) >= 0;
   return (
-    <div className={`bg-gradient-to-br ${color} p-5 rounded-xl text-white shadow-lg`}>
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs font-medium opacity-80 mb-1">{title}</p>
-          <p className="text-2xl font-bold">{value}</p>
-          {sub && <p className="text-xs opacity-70 mt-1">{sub}</p>}
+    <div className={`
+      relative overflow-hidden
+      bg-gradient-to-br ${color} 
+      p-5 rounded-xl text-white shadow-lg 
+      border border-white/10 dark:border-gray-700/50
+      transition-all duration-300 transform hover:-translate-y-1
+    `}>
+      <div className="flex items-start justify-between relative z-10">
+        <div className="flex-1 min-w-0 mr-2">
+          <p className="text-xs font-semibold opacity-90 mb-1 uppercase tracking-wide">{title}</p>
+          <p className="text-2xl font-bold truncate leading-tight" title={value}>{value}</p>
+          {sub && <p className="text-xs opacity-75 mt-1 font-medium truncate">{sub}</p>}
         </div>
-        <div className="bg-white/20 p-2 rounded-lg">
-          <Icon size={20} />
+        <div className="bg-white/20 border border-white/25 p-2.5 rounded-lg backdrop-blur-sm shadow-sm">
+          <Icon size={24} className="text-white" />
         </div>
       </div>
       {change !== undefined && (
-        <div className={`flex items-center gap-1 mt-2 text-xs font-medium ${up ? 'text-green-200' : 'text-red-200'}`}>
-          {up ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-          {Math.abs(parseFloat(change)).toFixed(1)}% geçen aya göre
+        <div className={`flex items-center gap-1 mt-3 text-xs font-bold ${up ? 'text-emerald-200' : 'text-rose-200'} bg-black/10 w-fit px-2 py-1 rounded md:bg-transparent md:p-0`}>
+          {up ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+          <span>{Math.abs(parseFloat(change)).toFixed(1)}% geçen aya göre</span>
         </div>
       )}
+      
+      {/* Decorative Icon */}
+      <div className="absolute -bottom-2 -right-2 opacity-10 rotate-12 pointer-events-none">
+         <Icon size={64} />
+      </div>
     </div>
   );
 }
@@ -50,8 +61,8 @@ function KPICard({ title, value, sub, icon: Icon, color, change }) {
 function CustomTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-sm">
-      <p className="font-semibold text-gray-700 mb-1">{label}</p>
+    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-3 text-sm text-gray-900 dark:text-gray-100">
+      <p className="font-semibold text-gray-700 dark:text-gray-300 mb-1">{label}</p>
       {payload.map((p) => (
         <p key={p.dataKey} style={{ color: p.color }}>
           {p.name}: {p.dataKey === 'revenue' ? fmt(p.value) : p.value}
@@ -114,7 +125,7 @@ export default function ReportsPage() {
 
   if (!summary) {
     return (
-      <div className="p-6 text-center text-gray-500">
+      <div className="p-6 text-center text-gray-500 dark:text-gray-400">
         Rapor verisi yüklenemedi.{' '}
         <button onClick={load} className="text-blue-600 underline">Tekrar dene</button>
       </div>
@@ -135,30 +146,32 @@ export default function ReportsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Raporlar & Analiz</h1>
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Raporlar & Analiz</h1>
           {lastUpdated && (
             <p className="text-xs text-gray-400 mt-1">
               Son güncelleme: {lastUpdated.toLocaleTimeString('tr-TR')}
             </p>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-3">
           <button
             onClick={handleExcelExport}
-            className="flex items-center gap-2 px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            className="group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-lg shadow-md hover:from-emerald-600 hover:to-emerald-700 hover:shadow-emerald-500/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
           >
-            <Download size={16} /> CSV İndir
+            <Download size={16} className="mr-2" /> 
+            <span>CSV İndir</span>
           </button>
           <button
             onClick={load}
-            className="flex items-center gap-2 px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+            className="group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 transition-all duration-200 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:bg-gray-50 dark:bg-gray-800/50 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-700"
           >
-            <RefreshCw size={16} /> Yenile
+            <RefreshCw size={16} className={`mr-2 ${loading ? 'animate-spin' : ''}`} /> 
+            <span>Yenile</span>
           </button>
         </div>
       </div>
 
-      {/* KPI KartlarÄ± */}
+      {/* KPI Kartları */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <KPICard
           title="Toplam Gelir"
@@ -194,8 +207,8 @@ export default function ReportsPage() {
       {/* Grafikler – Üst satır */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Haftalık Grafik */}
-        <div className="xl:col-span-2 bg-white rounded-xl border p-5 shadow-sm">
-          <h2 className="text-base font-semibold text-gray-700 mb-4">Son 7 Gün – Gelir & Sipariş</h2>
+        <div className="xl:col-span-2 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
+          <h2 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-4">Son 7 Gün – Gelir & Sipariş</h2>
           <ResponsiveContainer width="100%" height={240}>
             <AreaChart data={weeklyChart}>
               <defs>
@@ -217,8 +230,8 @@ export default function ReportsPage() {
         </div>
 
         {/* Sipariş Durumu Pasta */}
-        <div className="bg-white rounded-xl border p-5 shadow-sm">
-          <h2 className="text-base font-semibold text-gray-700 mb-4">Sipariş Dağılımı</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
+          <h2 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-4">Sipariş Dağılımı</h2>
           {pieData.length > 0 ? (
             <ResponsiveContainer width="100%" height={240}>
               <PieChart>
@@ -237,8 +250,8 @@ export default function ReportsPage() {
       </div>
 
       {/* Aylık Trend */}
-      <div className="bg-white rounded-xl border p-5 shadow-sm">
-        <h2 className="text-base font-semibold text-gray-700 mb-4">Aylık Gelir Trendi (Son 6 Ay)</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
+        <h2 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-4">Aylık Gelir Trendi (Son 6 Ay)</h2>
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={monthlyTrend}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -251,33 +264,33 @@ export default function ReportsPage() {
       </div>
 
       {/* En Çok Satan Ürünler */}
-      <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b flex items-center gap-2">
-          <FileText size={16} className="text-gray-500" />
-          <h2 className="text-base font-semibold text-gray-700">En Çok Satan Ürünler (Son 30 Gün)</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
+          <FileText size={16} className="text-gray-500 dark:text-gray-400" />
+          <h2 className="text-base font-semibold text-gray-700 dark:text-gray-300">En Çok Satan Ürünler (Son 30 Gün)</h2>
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-100">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-gray-100 dark:divide-gray-700">
+            <thead className="bg-gray-50 dark:bg-gray-800/50">
               <tr>
                 {['#', 'Ürün', 'Kategori', 'Satılan Adet', 'Gelir'].map(h => (
-                  <th key={h} className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">{h}</th>
+                  <th key={h} className="px-5 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
               {topProducts.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-5 py-8 text-center text-gray-400 text-sm">Son 30 günde satış verisi yok</td>
                 </tr>
               ) : topProducts.map((p, i) => (
-                <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                   <td className="px-5 py-3 text-sm font-medium text-gray-400">{i + 1}</td>
-                  <td className="px-5 py-3 text-sm font-semibold text-gray-800">{p.name}</td>
+                  <td className="px-5 py-3 text-sm font-semibold text-gray-800 dark:text-gray-100">{p.name}</td>
                   <td className="px-5 py-3">
-                    <span className="px-2 py-0.5 text-xs bg-blue-50 text-blue-700 rounded-full">{p.category || '—'}</span>
+                    <span className="px-2 py-0.5 text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200 rounded-full">{p.category || '—'}</span>
                   </td>
-                  <td className="px-5 py-3 text-sm text-gray-700 font-medium">{p.total_sold} adet</td>
+                  <td className="px-5 py-3 text-sm text-gray-700 dark:text-gray-300 font-medium">{p.total_sold} adet</td>
                   <td className="px-5 py-3 text-sm font-bold text-green-700">{fmt(p.total_revenue)}</td>
                 </tr>
               ))}

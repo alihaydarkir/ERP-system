@@ -9,9 +9,9 @@ const DueSoonAlert = ({ onChequeClick }) => {
   }
 
   const getUrgencyColor = (daysUntilDue) => {
-    if (daysUntilDue < 0) return 'bg-red-100 border-red-400 text-red-800';
-    if (daysUntilDue <= 3) return 'bg-orange-100 border-orange-400 text-orange-800';
-    return 'bg-yellow-100 border-yellow-400 text-yellow-800';
+    if (daysUntilDue < 0) return 'bg-red-100 dark:bg-red-900/30 border-red-400 dark:border-red-500/50 text-red-800 dark:text-red-400';
+    if (daysUntilDue <= 3) return 'bg-orange-100 dark:bg-orange-900/30 border-orange-400 dark:border-orange-500/50 text-orange-800 dark:text-orange-400';
+    return 'bg-yellow-100 dark:bg-yellow-900/30 border-yellow-400 dark:border-yellow-500/50 text-yellow-800 dark:text-yellow-400';
   };
 
   const getUrgencyText = (daysUntilDue) => {
@@ -28,13 +28,13 @@ const DueSoonAlert = ({ onChequeClick }) => {
 
   return (
     <div className="mb-6">
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 transition-colors duration-200">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-800 flex items-center">
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 dark:text-gray-100 flex items-center">
             <span className="text-2xl mr-2">⚠️</span>
             Vade Uyarıları
           </h3>
-          <span className="text-sm text-gray-500">
+          <span className="text-sm text-gray-500 dark:text-gray-400">
             {allAlerts.length} çek
           </span>
         </div>
@@ -56,7 +56,7 @@ const DueSoonAlert = ({ onChequeClick }) => {
                         Seri No: {cheque.check_serial_no}
                       </span>
                       {cheque.isOverdue && (
-                        <span className="px-2 py-0.5 bg-red-500 text-white text-xs rounded-full font-medium">
+                        <span className="px-2 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 border border-red-200 dark:border-red-700/50 text-xs rounded-full font-semibold">
                           VADESİ GEÇMİŞ
                         </span>
                       )}
@@ -85,7 +85,7 @@ const DueSoonAlert = ({ onChequeClick }) => {
             ))}
           </div>
         ) : (
-          <div className="text-center text-gray-500 py-8">
+          <div className="text-center text-gray-500 dark:text-gray-400 py-8">
             <div className="text-4xl mb-2">✨</div>
             <p>Vade uyarısı yok</p>
           </div>

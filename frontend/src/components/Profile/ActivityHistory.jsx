@@ -95,7 +95,7 @@ const ActivityHistory = () => {
       <div className="activity-controls">
         <input
           type="text"
-          className="filter-input"
+          className="filter-input dark:bg-gray-700 dark:border-gray-600 dark:text-white"
           placeholder="Aktivite ara..."
           value={filter}
           onChange={(e) => setFilter(e.target.value)}

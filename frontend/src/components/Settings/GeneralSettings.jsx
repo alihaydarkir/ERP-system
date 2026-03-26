@@ -45,12 +45,12 @@ export default function GeneralSettings() {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">Genel Ayarlar</h2>
-        <p className="text-gray-600 mb-6">Sistem genelindeki temel ayarları yapın</p>
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-4">Genel Ayarlar</h2>
+        <p className="text-gray-600 dark:text-gray-300 mb-6">Sistem genelindeki temel ayarları yapın</p>
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
           Şirket Adı
         </label>
         <input
@@ -58,13 +58,13 @@ export default function GeneralSettings() {
           name="companyName"
           value={formData.companyName}
           onChange={handleChange}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
           placeholder="Acme Corp"
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
           Şirket Logosu URL
         </label>
         <input
@@ -72,20 +72,20 @@ export default function GeneralSettings() {
           name="companyLogo"
           value={formData.companyLogo}
           onChange={handleChange}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
           placeholder="https://example.com/logo.png"
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
           Para Birimi
         </label>
         <select
           name="currency"
           value={formData.currency}
           onChange={handleChange}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
         >
           <option value="TRY">TRY - Türk Lirası</option>
           <option value="USD">USD - US Dollar</option>
@@ -95,14 +95,14 @@ export default function GeneralSettings() {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
           Dil
         </label>
         <select
           name="language"
           value={formData.language}
           onChange={handleChange}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
         >
           <option value="TR">Türkçe</option>
           <option value="EN">English</option>
@@ -110,14 +110,14 @@ export default function GeneralSettings() {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
           Saat Dilimi
         </label>
         <select
           name="timezone"
           value={formData.timezone}
           onChange={handleChange}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
         >
           <option value="Europe/Istanbul">Europe/Istanbul</option>
           <option value="Europe/London">Europe/London</option>
@@ -127,7 +127,7 @@ export default function GeneralSettings() {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
           Mali Yıl Başlangıcı (MM-DD)
         </label>
         <input
@@ -135,7 +135,7 @@ export default function GeneralSettings() {
           name="fiscalYearStart"
           value={formData.fiscalYearStart}
           onChange={handleChange}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
           placeholder="01-01"
         />
       </div>

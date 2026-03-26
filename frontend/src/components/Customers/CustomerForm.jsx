@@ -92,7 +92,7 @@ export default function CustomerForm({ customer, onSave, onCancel }) {
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Full Name */}
       <div>
-        <label htmlFor="full_name" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="full_name" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
           Ad Soyad <span className="text-red-500">*</span>
         </label>
         <input
@@ -102,8 +102,8 @@ export default function CustomerForm({ customer, onSave, onCancel }) {
           value={formData.full_name}
           onChange={handleChange}
           className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none ${
-            errors.full_name ? 'border-red-500' : 'border-gray-300'
-          }`}
+            errors.full_name ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+          } dark:bg-gray-700 dark:border-gray-600 dark:text-white`}
           placeholder="Ahmet Yılmaz"
         />
         {errors.full_name && (
@@ -113,7 +113,7 @@ export default function CustomerForm({ customer, onSave, onCancel }) {
 
       {/* Company Name */}
       <div>
-        <label htmlFor="company_name" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="company_name" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
           Şirket İsmi <span className="text-red-500">*</span>
         </label>
         <input
@@ -123,8 +123,8 @@ export default function CustomerForm({ customer, onSave, onCancel }) {
           value={formData.company_name}
           onChange={handleChange}
           className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none ${
-            errors.company_name ? 'border-red-500' : 'border-gray-300'
-          }`}
+            errors.company_name ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+          } dark:bg-gray-700 dark:border-gray-600 dark:text-white`}
           placeholder="ABC Ltd. Şti."
         />
         {errors.company_name && (
@@ -134,7 +134,7 @@ export default function CustomerForm({ customer, onSave, onCancel }) {
 
       {/* Tax Office */}
       <div>
-        <label htmlFor="tax_office" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="tax_office" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
           Vergi Dairesi <span className="text-red-500">*</span>
         </label>
         <input
@@ -144,8 +144,8 @@ export default function CustomerForm({ customer, onSave, onCancel }) {
           value={formData.tax_office}
           onChange={handleChange}
           className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none ${
-            errors.tax_office ? 'border-red-500' : 'border-gray-300'
-          }`}
+            errors.tax_office ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+          } dark:bg-gray-700 dark:border-gray-600 dark:text-white`}
           placeholder="Beyoğlu Vergi Dairesi"
         />
         {errors.tax_office && (
@@ -155,7 +155,7 @@ export default function CustomerForm({ customer, onSave, onCancel }) {
 
       {/* Tax Number */}
       <div>
-        <label htmlFor="tax_number" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="tax_number" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
           Vergi Numarası <span className="text-red-500">*</span>
         </label>
         <input
@@ -165,8 +165,8 @@ export default function CustomerForm({ customer, onSave, onCancel }) {
           value={formData.tax_number}
           onChange={handleChange}
           className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none ${
-            errors.tax_number ? 'border-red-500' : 'border-gray-300'
-          }`}
+            errors.tax_number ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+          } dark:bg-gray-700 dark:border-gray-600 dark:text-white`}
           placeholder="1234567890"
         />
         {errors.tax_number && (
@@ -176,7 +176,7 @@ export default function CustomerForm({ customer, onSave, onCancel }) {
 
       {/* Phone Number */}
       <div>
-        <label htmlFor="phone_number" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="phone_number" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
           Telefon Numarası
         </label>
         <input
@@ -186,8 +186,8 @@ export default function CustomerForm({ customer, onSave, onCancel }) {
           value={formData.phone_number}
           onChange={handleChange}
           className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none ${
-            errors.phone_number ? 'border-red-500' : 'border-gray-300'
-          }`}
+            errors.phone_number ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+          } dark:bg-gray-700 dark:border-gray-600 dark:text-white`}
           placeholder="0532 123 45 67"
         />
         {errors.phone_number && (
@@ -197,7 +197,7 @@ export default function CustomerForm({ customer, onSave, onCancel }) {
 
       {/* Company Location */}
       <div>
-        <label htmlFor="company_location" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="company_location" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
           Şirket Konumu
         </label>
         <input
@@ -206,7 +206,7 @@ export default function CustomerForm({ customer, onSave, onCancel }) {
           name="company_location"
           value={formData.company_location}
           onChange={handleChange}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
           placeholder="İstanbul/Beyoğlu"
         />
       </div>
@@ -216,7 +216,7 @@ export default function CustomerForm({ customer, onSave, onCancel }) {
         <button
           type="button"
           onClick={onCancel}
-          className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+          className="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:bg-gray-800/50 transition-colors"
           disabled={isSubmitting}
         >
           İptal

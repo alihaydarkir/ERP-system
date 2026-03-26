@@ -83,7 +83,7 @@ const ProfileHeader = ({ profile }) => {
           onChange={handleFileChange}
           style={{ display: 'none' }}
           disabled={isLoading}
-        />
+         className="dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
       </div>
 
       <div className="profile-info">

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, RefreshCw, Search, FileText } from 'lucide-react';
+import { Plus, RefreshCw, Search, FileText, CheckCircle2, Clock3, AlertTriangle } from 'lucide-react';
 import { invoiceService } from '../services/invoiceService';
 import InvoiceForm from '../components/Invoices/InvoiceForm';
 import InvoiceDetail from '../components/Invoices/InvoiceDetail';
@@ -150,57 +150,63 @@ export default function InvoicesPage() {
   const totalPages = Math.ceil(total / LIMIT);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200 p-6">
+      <div className="max-w-7xl mx-auto space-y-6">
 
       {/* Page Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <FileText className="text-blue-600" size={28} />
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <FileText className="text-blue-600 dark:text-blue-400" size={32} />
             Faturalar
           </h1>
-          <p className="text-gray-500 text-sm mt-0.5">Fatura oluştur, yönet ve PDF olarak indir</p>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">Fatura oluştur, yönet ve PDF olarak indir</p>
         </div>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold shadow-sm transition"
+          className="group relative inline-flex items-center justify-center px-5 py-2.5 text-sm font-medium text-white transition-all duration-200 bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow-lg hover:from-blue-700 hover:to-blue-800 hover:shadow-blue-500/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
         >
-          <Plus size={18} /> Yeni Fatura
+          <Plus size={18} className="mr-2" />
+          <span>Yeni Fatura</span>
         </button>
       </div>
 
       {/* Stats Cards */}
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <StatCard
             label="Toplam Tahsil Edilen"
             value={`₺${fmt(stats.total_paid)}`}
-            icon="✅"
+            icon={CheckCircle2}
             color="from-green-500 to-emerald-600"
+            shadow="hover:shadow-emerald-500/30"
           />
           <StatCard
             label="Bekleyen Tahsilat"
             value={`₺${fmt(stats.total_outstanding)}`}
-            icon="⏳"
+            icon={Clock3}
             color="from-blue-500 to-indigo-600"
+            shadow="hover:shadow-blue-500/30"
           />
           <StatCard
             label="Vadesi Geçmiş"
             value={`${stats.overdue_count} Fatura`}
-            icon="⚠️"
+            icon={AlertTriangle}
             color="from-red-500 to-rose-600"
+            shadow="hover:shadow-rose-500/30"
           />
           <StatCard
             label="Taslak"
             value={`${stats.draft_count} Fatura`}
-            icon="📝"
+            icon={FileText}
             color="from-gray-400 to-gray-500"
+            shadow="hover:shadow-gray-500/30"
           />
         </div>
       )}
 
       {/* Filter bar */}
-      <div className="bg-white rounded-xl shadow-sm border p-4 flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 flex flex-col sm:flex-row gap-3 items-start sm:items-center transition-colors duration-200">
         {/* Status tabs */}
         <div className="flex gap-1 flex-wrap">
           {STATUS_FILTERS.map(f => (
@@ -210,7 +216,7 @@ export default function InvoicesPage() {
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
                 statusFilter === f.value
                   ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
               }`}
             >
               {f.label}
@@ -219,31 +225,30 @@ export default function InvoicesPage() {
         </div>
 
         {/* Search */}
-        <form onSubmit={handleSearch} className="flex gap-2 ml-auto">
-          <div className="relative">
+        <form onSubmit={handleSearch} className="flex gap-2 w-full sm:w-auto sm:ml-auto">
+          <div className="relative flex-1 sm:flex-none">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Fatura no, müşteri adı..."
-              className="pl-8 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent w-56"
+              className="pl-8 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full sm:w-56 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
           </div>
-          <button type="submit" className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm transition">Ara</button>
           <button type="button" onClick={() => { setSearch(''); setPage(1); fetchInvoices(); }}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition" title="Yenile">
+            className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition" title="Yenile">
             <RefreshCw size={15} />
           </button>
         </form>
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden transition-colors duration-200">
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
             <div className="animate-spin text-4xl">⏳</div>
-            <span className="ml-3 text-gray-500">Faturalar yükleniyor...</span>
+            <span className="ml-3 text-gray-500 dark:text-gray-400">Faturalar yükleniyor...</span>
           </div>
         ) : (
           <InvoiceList
@@ -257,23 +262,23 @@ export default function InvoicesPage() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50 text-sm">
-            <span className="text-gray-500">
+          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 text-sm">
+            <span className="text-gray-500 dark:text-gray-400">
               Toplam <strong>{total}</strong> fatura
             </span>
             <div className="flex gap-2">
               <button
                 disabled={page <= 1}
                 onClick={() => setPage(p => p - 1)}
-                className="px-3 py-1 border rounded-lg disabled:opacity-40 hover:bg-gray-100 transition"
+                className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-lg disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition"
               >← Önceki</button>
-              <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-lg font-medium">
+              <span className="px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg font-medium">
                 {page} / {totalPages}
               </span>
               <button
                 disabled={page >= totalPages}
                 onClick={() => setPage(p => p + 1)}
-                className="px-3 py-1 border rounded-lg disabled:opacity-40 hover:bg-gray-100 transition"
+                className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-lg disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition"
               >Sonraki →</button>
             </div>
           </div>
@@ -296,16 +301,24 @@ export default function InvoicesPage() {
           onMarkPaid={handleMarkPaid}
         />
       )}
+      </div>
     </div>
   );
 }
 
-function StatCard({ label, value, icon, color }) {
+function StatCard({ label, value, icon: Icon, color, shadow }) {
   return (
-    <div className={`bg-gradient-to-br ${color} rounded-xl p-4 text-white shadow-sm`}>
-      <div className="text-2xl mb-1">{icon}</div>
-      <div className="text-lg font-bold leading-tight">{value}</div>
-      <div className="text-white/80 text-xs mt-0.5">{label}</div>
+    <div className={`relative overflow-hidden bg-gradient-to-br ${color} rounded-xl p-4 text-white shadow-sm ${shadow || ''} border border-white/10 transition-all duration-300 transform hover:-translate-y-1 hover:shadow-xl`}>
+      <div className="absolute -right-3 -bottom-3 opacity-10 rotate-12 pointer-events-none">
+        <Icon size={72} className="text-white" />
+      </div>
+      <div className="relative z-10">
+        <div className="mb-2 inline-flex p-2 bg-white/20 border border-white/25 rounded-lg backdrop-blur-sm">
+          <Icon size={20} className="text-white" />
+        </div>
+        <div className="text-lg font-bold leading-tight">{value}</div>
+        <div className="text-white/85 text-xs mt-0.5 uppercase tracking-wide">{label}</div>
+      </div>
     </div>
   );
 }
