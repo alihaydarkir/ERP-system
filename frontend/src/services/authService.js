@@ -6,12 +6,12 @@ export const authService = {
     return response.data;
   },
 
-  register: async (data) => {
+  register: async (data, emailArg, passwordArg, roleArg) => {
     // Support both old and new formats
     if (typeof data === 'string') {
       // Old format: register(username, email, password, role)
-      const [username, email, password, role] = arguments;
-      data = { username, email, password, role };
+      const username = data;
+      data = { username, email: emailArg, password: passwordArg, role: roleArg };
     }
     
     console.log('🚀 authService.register - About to send:', data);

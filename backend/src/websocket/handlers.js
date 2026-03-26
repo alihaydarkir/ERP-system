@@ -3,6 +3,7 @@ const events = require('./events');
 const ragService = require('../services/ragService');
 const cacheService = require('../services/cacheService');
 const AuditLog = require('../models/AuditLog');
+const { config } = require('../config/env');
 
 class WebSocketHandlers {
   constructor(io) {
@@ -52,7 +53,7 @@ class WebSocketHandlers {
       }
 
       // Verify JWT token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = jwt.verify(token, config.jwt.secret);
 
       // Store user information
       socket.userId = decoded.userId;

@@ -1,8 +1,5 @@
 import axios from 'axios';
 
-// TCMB API'den güncel kurları çek
-const TCMB_API = 'https://evds2.tcmb.gov.tr/service/evds/';
-
 // Alternatif olarak basit bir API kullanabiliriz
 const EXCHANGE_API = 'https://api.exchangerate-api.com/v4/latest/TRY';
 

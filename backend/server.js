@@ -3,20 +3,18 @@ const http = require('http');
 const socketIo = require('socket.io');
 const helmet = require('helmet');
 const cors = require('cors');
-const dotenv = require('dotenv');
 const rateLimit = require('express-rate-limit');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./src/config/swagger');
-
-dotenv.config();
+const aiService = require('./src/services/aiService');
+const { config } = require('./src/config/env');
+const { redisClient: getRedisClient, connectRedis, isRedisConnected } = require('./src/config/redis');
 
 const app = express();
 const server = http.createServer(app);
 
-// Parse allowed CORS origins from env (comma-separated) with sensible dev defaults
-const corsOrigins = process.env.CORS_ORIGINS
-  ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
-  : ['http://localhost:3000', 'http://localhost:5173'];
+// Parse allowed CORS origins (validated in config/env.js)
+const corsOrigins = config.corsOrigins;
 
 const io = socketIo(server, {
   cors: {
@@ -26,12 +24,17 @@ const io = socketIo(server, {
   }
 });
 
+// Initialize Redis connection (non-fatal if unavailable)
+connectRedis().catch((err) => console.error('Redis init error:', err));
+
 // Security Middleware
 const { 
   ipAccessControl, 
   detectSuspiciousActivity, 
   sqlInjectionProtection,
-  csrfProtection 
+  originCheck,
+  hostHeaderCheck,
+  hppSanitize
 } = require('./src/middleware/security');
 
 // Middleware
@@ -60,16 +63,19 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' })); // JSON boyut limiti
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(hppSanitize);
 
 // Güvenlik middleware'leri
 app.use(ipAccessControl);
 app.use(sqlInjectionProtection);
 app.use(detectSuspiciousActivity);
+app.use(hostHeaderCheck);
+app.use(originCheck);
 
 // Rate limiting — production: 100 req/15min, development: 1000
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: parseInt(process.env.RATE_LIMIT_MAX) || (process.env.NODE_ENV === 'production' ? 100 : 1000),
+  max: config.rateLimitMax,
   message: { success: false, message: 'Çok fazla istek gönderildi, lütfen daha sonra tekrar deneyin' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -116,17 +122,89 @@ app.get('/', (req, res) => {
 app.get('/api/health', async (req, res) => {
   const pool = require('./src/config/database');
   let dbOk = false;
-  try { await pool.query('SELECT 1'); dbOk = true; } catch (_) {}
+  let aiHealth = { available: false };
+  let redisHealth = { status: 'unavailable' };
+  try { await pool.query('SELECT 1'); dbOk = true; } catch (_) {
+    // Health check endpoint: DB failure reflected via dbOk flag
+  }
+  try {
+    const client = getRedisClient();
+    if (client && isRedisConnected()) {
+      await client.ping();
+      redisHealth = { status: 'ok' };
+    }
+  } catch (err) {
+    redisHealth = { status: 'error', error: err.message };
+  }
+  try { aiHealth = await aiService.checkHealth(); } catch (err) { aiHealth = { available: false, error: err.message }; }
+
+  const aiStatus = aiHealth.available
+    ? (aiHealth.modelAvailable === false ? 'model_missing' : 'ok')
+    : 'unavailable';
+
+  const overallStatus = dbOk && redisHealth.status === 'ok' ? 'ok' : 'degraded';
 
   res.status(dbOk ? 200 : 503).json({
-    status:    dbOk ? 'ok' : 'degraded',
+    status:    overallStatus,
     timestamp: new Date().toISOString(),
     version:   '2.0.0',
     services: {
       api:      { status: 'ok' },
       database: { status: dbOk ? 'ok' : 'error' },
-      frontend: { url: process.env.FRONTEND_URL || 'http://localhost:5173' },
+      redis:    { status: redisHealth.status, error: redisHealth.error },
+      ai: {
+        status: aiStatus,
+        model: aiHealth.currentModel,
+        models: aiHealth.models || [],
+        available: aiHealth.available,
+        modelAvailable: aiHealth.modelAvailable,
+        error: aiHealth.error
+      },
+      frontend: { url: config.frontendUrl },
     },
+  });
+});
+
+/**
+ * @openapi
+ * /api/ready:
+ *   get:
+ *     tags: [System]
+ *     summary: Uygulama hazır mı?
+ *     description: DB ve Redis kontrolü yapar, hazır değilse 503 döner.
+ *     security: []
+ *     responses:
+ *       200:
+ *         description: Servis hazır
+ *       503:
+ *         description: Servis hazır değil
+ */
+app.get('/api/ready', async (req, res) => {
+  const pool = require('./src/config/database');
+  let dbOk = false;
+  let redisOk = false;
+
+  try { await pool.query('SELECT 1'); dbOk = true; } catch (_) {
+    // Ready endpoint: DB failure reflected via dbOk flag
+  }
+  try {
+    const client = getRedisClient();
+    if (client && isRedisConnected()) {
+      await client.ping();
+      redisOk = true;
+    }
+  } catch (_) {
+    // Ready endpoint: Redis failure reflected via redisOk flag
+  }
+
+  const ready = dbOk;
+
+  res.status(ready ? 200 : 503).json({
+    status: ready ? 'ready' : 'not_ready',
+    services: {
+      database: dbOk ? 'ok' : 'error',
+      redis: redisOk ? 'ok' : 'degraded',
+    }
   });
 });
 
@@ -145,7 +223,10 @@ app.get('/api/health', async (req, res) => {
  *       200:
  *         description: Capabilities manifest
  */
-app.get('/api/capabilities', (req, res) => {
+app.get('/api/capabilities', async (req, res) => {
+  let aiHealth = { available: false };
+  try { aiHealth = await aiService.checkHealth(); } catch (err) { aiHealth = { available: false, error: err.message }; }
+
   res.json({
     name: 'ERP System API',
     version: '2.0.0',
@@ -155,6 +236,17 @@ app.get('/api/capabilities', (req, res) => {
       method:      'JWT Bearer',
       obtain_token: { method: 'POST', path: '/api/auth/login',
         body: { email: 'string', password: 'string' } },
+    },
+    agent: {
+      llm: {
+        model: aiHealth.currentModel,
+        models: aiHealth.models || [],
+        available: aiHealth.available,
+        modelAvailable: aiHealth.modelAvailable,
+        error: aiHealth.error
+      },
+      mutation_tools: Object.keys(aiService.mutationPermissionMap || {}),
+      mutation_permissions: aiService.mutationPermissionMap || {}
     },
     modules: [
       { name: 'products',   base: '/api/products',
@@ -302,11 +394,11 @@ io.on('connection', (socket) => {
 });
 
 // Start server
-const PORT = process.env.PORT || 5000;
+const PORT = config.port || 5000;
 server.listen(PORT, () => {
-  console.log(`🚀 Server running on port 5000`);
+  console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📡 WebSocket ready`);
-  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🌍 Environment: ${config.nodeEnv || 'development'}`);
   
   // Keep server alive
   setInterval(() => {

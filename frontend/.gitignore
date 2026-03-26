@@ -5,4 +5,7 @@ node_modules/
 dist/
 .vscode/
 .idea/
+cleanup.cjs
+fix*.cjs
+unmangle.cjs
 

@@ -10,6 +10,11 @@ class AIService {
     this.maxTokens = parseInt(process.env.AI_MAX_CONTEXT) || 2000;
     this.timeout = 180000; // 3 dakika — büyük modeller için
     this.pendingMutations = new Map();
+    this.mutationKeywords = [
+      'oluştur', 'ekle', 'yarat', 'güncelle', 'düzenle', 'değiştir', 'sil', 'iptal', 'kapat',
+      'tamamla', 'onayla', 'gönder', 'ödendi', 'öde', 'bekleyen', 'stok düş', 'stok ekle',
+      'status', 'durum', 'cancel', 'create', 'update', 'delete', 'set', 'mark as'
+    ];
     this.mutationPermissionMap = {
       set_product_stock: 'products.edit',
       deactivate_product: 'products.delete',
@@ -214,7 +219,8 @@ class AIService {
 
   detectMutationIntent(message) {
     const msg = String(message || '').toLowerCase();
-    return /(sil|sıfırla|güncelle|değiştir|düş|azalt|iptal et|kaldır|delete|update|set stock|oluştur|ekle|yarat|durumunu|status)/.test(msg);
+    const keywordPattern = new RegExp(`(${this.mutationKeywords.join('|')})`, 'i');
+    return keywordPattern.test(msg);
   }
 
   isConfirmationMessage(message) {
@@ -376,7 +382,7 @@ class AIService {
       const chequeId = (String(message || '').match(/\b\d{3,}\b/) || [])[0] || quoted;
       if (!chequeId) return null;
 
-      let status = statusFromText(msg, 'cheque') || 'pending';
+      const status = statusFromText(msg, 'cheque') || 'pending';
 
       return {
         tool: 'set_cheque_status',

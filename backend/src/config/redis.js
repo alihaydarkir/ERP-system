@@ -1,7 +1,5 @@
 const redis = require('redis');
-const dotenv = require('dotenv');
-
-dotenv.config();
+const { config } = require('./env');
 
 let redisClient = null;
 let isRedisConnected = false;
@@ -9,7 +7,7 @@ let isRedisConnected = false;
 // Create Redis client with optional connection
 const createRedisClient = () => {
   const client = redis.createClient({
-    url: process.env.REDIS_URL || 'redis://localhost:6379',
+    url: config.redisUrl,
     socket: {
       reconnectStrategy: false // Disable auto-reconnect to prevent spam
     }

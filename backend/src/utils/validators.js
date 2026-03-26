@@ -69,10 +69,10 @@ const orderSchemas = {
       Joi.object({
         product_id: Joi.number().integer().required(),
         quantity: Joi.number().integer().min(1).required(),
-        price: Joi.number().min(0).required()
+        price: Joi.number().min(0).optional()
       })
     ).min(1).required(),
-    total_amount: Joi.number().min(0).required(),
+    total_amount: Joi.number().min(0).optional(),
     status: Joi.string().valid('pending', 'completed', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded').default('pending')
   }),
 

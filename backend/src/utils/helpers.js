@@ -109,7 +109,7 @@ const groupBy = (array, key) => {
  */
 const pick = (obj, keys) => {
   return keys.reduce((result, key) => {
-    if (obj.hasOwnProperty(key)) {
+    if (Object.prototype.hasOwnProperty.call(obj, key)) {
       result[key] = obj[key];
     }
     return result;

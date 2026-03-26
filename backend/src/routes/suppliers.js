@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth');
+const { requirePermission } = require('../middleware/permissions');
 const { validate, supplierSchemas, querySchemas } = require('../utils/validators');
 const {
   getAllSuppliers,
@@ -17,14 +18,14 @@ const {
  * @desc    Get supplier statistics
  * @access  Private
  */
-router.get('/stats', authMiddleware, getSupplierStats);
+router.get('/stats', authMiddleware, requirePermission('suppliers.view'), getSupplierStats);
 
 /**
  * @route   GET /api/suppliers/search
  * @desc    Search suppliers
  * @access  Private
  */
-router.get('/search', authMiddleware, searchSuppliers);
+router.get('/search', authMiddleware, requirePermission('suppliers.view'), searchSuppliers);
 
 /**
  * @route   GET /api/suppliers
@@ -34,6 +35,7 @@ router.get('/search', authMiddleware, searchSuppliers);
 router.get(
   '/',
   authMiddleware,
+  requirePermission('suppliers.view'),
   validate(querySchemas.supplierFilters, 'query'),
   getAllSuppliers
 );
@@ -43,7 +45,7 @@ router.get(
  * @desc    Get supplier by ID
  * @access  Private
  */
-router.get('/:id', authMiddleware, getSupplierById);
+router.get('/:id', authMiddleware, requirePermission('suppliers.view'), getSupplierById);
 
 /**
  * @route   POST /api/suppliers
@@ -53,6 +55,7 @@ router.get('/:id', authMiddleware, getSupplierById);
 router.post(
   '/',
   authMiddleware,
+  requirePermission('suppliers.create'),
   validate(supplierSchemas.create),
   createSupplier
 );
@@ -65,6 +68,7 @@ router.post(
 router.put(
   '/:id',
   authMiddleware,
+  requirePermission('suppliers.edit'),
   validate(supplierSchemas.update),
   updateSupplier
 );
@@ -74,6 +78,6 @@ router.put(
  * @desc    Delete supplier
  * @access  Private
  */
-router.delete('/:id', authMiddleware, deleteSupplier);
+router.delete('/:id', authMiddleware, requirePermission('suppliers.delete'), deleteSupplier);
 
 module.exports = router;

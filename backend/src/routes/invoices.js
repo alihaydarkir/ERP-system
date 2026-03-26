@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth');
-const { logActivity } = require('../middleware/permissions');
+const { logActivity, requirePermission } = require('../middleware/permissions');
 const {
   getAllInvoices, getInvoiceById, getInvoiceStats,
   createInvoice, updateInvoice, deleteInvoice,
@@ -20,7 +20,7 @@ const {
  *           application/json:
  *             schema: { $ref: '#/components/schemas/SuccessResponse' }
  */
-router.get('/stats', authMiddleware, getInvoiceStats);
+router.get('/stats', authMiddleware, requirePermission('invoices.view'), getInvoiceStats);
 
 /**
  * @openapi
@@ -81,8 +81,8 @@ router.get('/stats', authMiddleware, getInvoiceStats);
  *       201:
  *         description: Fatura oluşturuldu
  */
-router.get('/',  authMiddleware, getAllInvoices);
-router.post('/', authMiddleware, logActivity('create_invoice', 'invoices'), createInvoice);
+router.get('/',  authMiddleware, requirePermission('invoices.view'), getAllInvoices);
+router.post('/', authMiddleware, requirePermission('invoices.create'), logActivity('create_invoice', 'invoices'), createInvoice);
 
 /**
  * @openapi
@@ -131,9 +131,9 @@ router.post('/', authMiddleware, logActivity('create_invoice', 'invoices'), crea
  *       200:
  *         description: Silindi
  */
-router.get('/:id',    authMiddleware, getInvoiceById);
-router.put('/:id',    authMiddleware, logActivity('update_invoice', 'invoices'), updateInvoice);
-router.delete('/:id', authMiddleware, logActivity('delete_invoice', 'invoices'), deleteInvoice);
+router.get('/:id',    authMiddleware, requirePermission('invoices.view'), getInvoiceById);
+router.put('/:id',    authMiddleware, requirePermission('invoices.edit'), logActivity('update_invoice', 'invoices'), updateInvoice);
+router.delete('/:id', authMiddleware, requirePermission('invoices.delete'), logActivity('delete_invoice', 'invoices'), deleteInvoice);
 
 module.exports = router;
 

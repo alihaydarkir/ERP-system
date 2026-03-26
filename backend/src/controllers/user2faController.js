@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { config } = require('../config/env');
 const QRCode = require('qrcode');
 const User2FA = require('../models/User2FA');
 const User = require('../models/User');
@@ -226,16 +227,16 @@ exports.verifyLogin = async (req, res) => {
     }
 
     // Generate actual access tokens
-    const accessToken = jwt.sign(
-      { userId: user.id, username: user.username, role: user.role, company_id: user.company_id },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRY || '15m' }
-    );
+      const accessToken = jwt.sign(
+        { userId: user.id, username: user.username, role: user.role, company_id: user.company_id },
+        config.jwt.secret,
+        { expiresIn: config.jwt.expiresIn }
+      );
 
     const refreshToken = jwt.sign(
       { userId: user.id },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_REFRESH_EXPIRY || '7d' }
+        config.jwt.secret,
+        { expiresIn: config.jwt.refreshExpiresIn }
     );
 
     // Persist active session (refresh token keyed)

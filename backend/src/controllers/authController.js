@@ -9,14 +9,40 @@ const emailService = require('../services/emailService');
 const cacheService = require('../services/cacheService');
 const { formatUser, formatSuccess, formatError } = require('../utils/formatters');
 const { getClientIP } = require('../utils/helpers');
+const { config } = require('../config/env');
 
 const hashToken = (token) => crypto.createHash('sha256').update(String(token || '')).digest('hex');
 
+const parseExpiryToMs = (value, fallbackMs) => {
+  if (!value) return fallbackMs;
+  const match = String(value).match(/^(\d+)([smhd])$/);
+  if (!match) return fallbackMs;
+  const num = parseInt(match[1], 10);
+  const unit = match[2];
+  const multipliers = { s: 1000, m: 60 * 1000, h: 60 * 60 * 1000, d: 24 * 60 * 60 * 1000 };
+  return num * (multipliers[unit] || fallbackMs);
+};
+
+const refreshTtlMs = parseExpiryToMs(config.jwt.refreshExpiresIn, 7 * 24 * 60 * 60 * 1000);
+
+const signAccessToken = (user) => jwt.sign(
+  { userId: user.id, username: user.username, role: user.role, company_id: user.company_id },
+  config.jwt.secret,
+  { expiresIn: config.jwt.expiresIn }
+);
+
+const signRefreshToken = (user, sessionId) => jwt.sign(
+  { userId: user.id, sid: sessionId },
+  config.jwt.secret,
+  { expiresIn: config.jwt.refreshExpiresIn }
+);
+
 const createUserSession = async ({ userId, sessionToken, ipAddress, userAgent }) => {
+  const expiresAt = new Date(Date.now() + refreshTtlMs);
   await pool.query(`
     INSERT INTO user_sessions (user_id, session_token, ip_address, user_agent, last_activity, expires_at, is_active)
-    VALUES ($1, $2, $3, $4, NOW(), NOW() + INTERVAL '7 days', true)
-  `, [userId, sessionToken, ipAddress, userAgent]);
+    VALUES ($1, $2, $3, $4, NOW(), $5, true)
+  `, [userId, sessionToken, ipAddress, userAgent, expiresAt]);
 };
 
 /**
@@ -183,17 +209,9 @@ const register = async (req, res) => {
     );
 
     // Generate JWT token
-    const token = jwt.sign(
-      { userId: user.id, username: user.username, role: user.role, company_id: user.company_id },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRY || '15m' }
-    );
-
-    const refreshToken = jwt.sign(
-      { userId: user.id },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_REFRESH_EXPIRY || '7d' }
-    );
+    const sessionId = crypto.randomUUID();
+    const token = signAccessToken(user);
+    const refreshToken = signRefreshToken(user, sessionId);
 
     await createUserSession({
       userId: user.id,
@@ -297,7 +315,7 @@ const login = async (req, res) => {
       // Generate temporary token for 2FA verification (valid for 5 minutes)
       const tempToken = jwt.sign(
         { userId: user.id, username: user.username, purpose: '2fa_verification' },
-        process.env.JWT_SECRET,
+        config.jwt.secret,
         { expiresIn: '5m' }
       );
 
@@ -312,17 +330,9 @@ const login = async (req, res) => {
     }
 
     // Generate tokens
-    const token = jwt.sign(
-      { userId: user.id, username: user.username, role: user.role, company_id: user.company_id },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRY || '15m' }
-    );
-
-    const refreshToken = jwt.sign(
-      { userId: user.id },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_REFRESH_EXPIRY || '7d' }
-    );
+    const sessionId = crypto.randomUUID();
+    const token = signAccessToken(user);
+    const refreshToken = signRefreshToken(user, sessionId);
 
     // Cache user session
     await cacheService.cacheSession(user.id, {
@@ -426,7 +436,7 @@ const refreshToken = async (req, res) => {
     }
 
     // Verify refresh token
-    const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
+    const decoded = jwt.verify(refreshToken, config.jwt.secret);
 
     // Get user
     const user = await User.findById(decoded.userId);
@@ -449,20 +459,25 @@ const refreshToken = async (req, res) => {
       return res.status(401).json(formatError('Session not found or expired'));
     }
 
-    // Generate new access token
-    const newToken = jwt.sign(
-      { userId: user.id, username: user.username, role: user.role, company_id: user.company_id },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRY || '15m' }
-    );
-
+    // Rotate refresh token: deactivate old session and issue new pair
     await pool.query(`
       UPDATE user_sessions
-      SET last_activity = NOW()
+      SET is_active = false, last_activity = NOW()
       WHERE id = $1
     `, [session.rows[0].id]);
 
-    res.json(formatSuccess({ token: newToken }, 'Token refreshed'));
+    const newSessionId = crypto.randomUUID();
+    const newRefreshToken = signRefreshToken(user, newSessionId);
+    const newAccessToken = signAccessToken(user);
+
+    await createUserSession({
+      userId: user.id,
+      sessionToken: newRefreshToken,
+      ipAddress: getClientIP(req),
+      userAgent: req.get('user-agent') || 'Unknown'
+    });
+
+    res.json(formatSuccess({ token: newAccessToken, refreshToken: newRefreshToken }, 'Token refreshed'));
 
   } catch (error) {
     console.error('Refresh token error:', error);
@@ -601,7 +616,7 @@ const requestPasswordReset = async (req, res) => {
     // Generate reset token
     const resetToken = jwt.sign(
       { userId: user.id, purpose: 'password_reset' },
-      process.env.JWT_SECRET,
+      config.jwt.secret,
       { expiresIn: '1h' }
     );
 
@@ -634,7 +649,7 @@ const resetPassword = async (req, res) => {
     const { token, newPassword } = req.body;
 
     // Verify reset token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, config.jwt.secret);
 
     if (decoded.purpose !== 'password_reset') {
       return res.status(400).json(formatError('Invalid reset token'));

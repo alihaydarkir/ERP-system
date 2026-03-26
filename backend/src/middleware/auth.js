@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const pool = require('../config/database');
+const { config } = require('../config/env');
 
 const hashToken = (token) => crypto.createHash('sha256').update(String(token || '')).digest('hex');
 
@@ -12,7 +13,7 @@ const authMiddleware = async (req, res, next) => {
       return res.status(401).json({ error: 'No token provided' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, config.jwt.secret);
 
     // Revoked token kontrolü (tablo henüz migrate edilmediyse isteği bloklama)
     try {

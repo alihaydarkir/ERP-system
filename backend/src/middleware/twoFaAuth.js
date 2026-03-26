@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
  * - Regular JWT token (for 2FA management endpoints)
  * - Temporary 2FA verification token (for login verification)
  */
+const { config } = require('../config/env');
 const twoFaAuthMiddleware = (req, res, next) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -13,7 +14,7 @@ const twoFaAuthMiddleware = (req, res, next) => {
       return res.status(401).json({ error: 'No token provided' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, config.jwt.secret);
 
     // Normalize user object
     req.user = {

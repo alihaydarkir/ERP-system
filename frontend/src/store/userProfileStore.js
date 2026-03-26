@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import api from '../services/api';
 
-const useUserProfileStore = create((set, get) => ({
+const useUserProfileStore = create((set) => ({
   // State
   profile: null,
   activityHistory: [],
