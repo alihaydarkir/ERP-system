@@ -1,11 +1,18 @@
 const pool = require('../config/database');
 
+// Normalize IP to avoid IPv6 localhost variants leaking through
+const getClientIp = (req) => {
+  const xff = req.headers['x-forwarded-for'];
+  const ip = Array.isArray(xff) ? xff[0] : (xff ? xff.split(',')[0] : (req.ip || req.connection.remoteAddress || ''));
+  return ip.replace('::ffff:', '').trim();
+};
+
 /**
  * IP Whitelist/Blacklist kontrolü
  */
 const ipAccessControl = async (req, res, next) => {
   try {
-    const clientIp = req.ip || req.connection.remoteAddress;
+    const clientIp = getClientIp(req);
     
     // IP blacklist kontrolü
     const blacklistCheck = await pool.query(
@@ -32,8 +39,7 @@ const ipAccessControl = async (req, res, next) => {
  */
 const detectSuspiciousActivity = async (req, res, next) => {
   try {
-    const clientIp = req.ip || req.connection.remoteAddress;
-    const userAgent = req.get('user-agent') || 'Unknown';
+    const clientIp = getClientIp(req);
     
     // Son 5 dakikada aynı IP'den gelen hatalı istekleri kontrol et
     const failedRequests = await pool.query(`
@@ -77,7 +83,6 @@ const sessionSecurity = async (req, res, next) => {
   try {
     if (req.user && req.user.userId) {
       const userId = req.user.userId;
-      const sessionToken = req.headers.authorization?.split(' ')[1];
       
       // Aynı kullanıcının birden fazla cihazdan girişini kontrol et
       const activeSessions = await pool.query(`
@@ -173,10 +178,85 @@ const csrfProtection = (req, res, next) => {
   next();
 };
 
+/**
+ * Origin kontrolü (state-changing istekler için)
+ */
+const originCheck = (req, res, next) => {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    return next();
+  }
+
+  const allowedOrigins = (process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
+    : ['http://localhost:3000', 'http://localhost:5173']);
+
+  const origin = req.headers.origin || '';
+  const referer = req.headers.referer || '';
+  const matchesAllowed = (value) => allowedOrigins.some((o) => value.startsWith(o));
+
+  if (origin && matchesAllowed(origin)) return next();
+  if (!origin && referer && matchesAllowed(referer)) return next();
+  if (!origin && !referer) return next(); // Native clients / curl
+
+  return res.status(403).json({ success: false, message: 'Origin not allowed' });
+};
+
+/**
+ * Host header kontrolü — DNS rebinding/Host header injection'a karşı
+ */
+const hostHeaderCheck = (req, res, next) => {
+  const allowedHosts = (process.env.ALLOWED_HOSTS
+    ? process.env.ALLOWED_HOSTS.split(',').map(h => h.trim().toLowerCase())
+    : ['localhost:5000', 'localhost:3000', 'localhost:5173']);
+
+  const host = (req.headers.host || '').toLowerCase();
+  if (!host || allowedHosts.includes(host)) return next();
+  return res.status(403).json({ success: false, message: 'Host not allowed' });
+};
+
+/**
+ * HPP (HTTP Parameter Pollution) temizleyici — ilk değeri al, çoğul parametreleri reddet opsiyonu
+ */
+const hppSanitize = (req, res, next) => {
+  const sanitizeObject = (obj, { collapseArrays = true } = {}) => {
+    if (!obj || typeof obj !== 'object') return obj;
+
+    for (const key of Object.keys(obj)) {
+      const value = obj[key];
+
+      if (Array.isArray(value)) {
+        if (collapseArrays) {
+          // Query/params için HPP koruması: ilk değeri al
+          obj[key] = value[0];
+        } else {
+          // JSON body için meşru array'leri koru (örn: order.items)
+          obj[key] = value.map((item) => (
+            item && typeof item === 'object'
+              ? sanitizeObject(item, { collapseArrays: false })
+              : item
+          ));
+        }
+      } else if (value && typeof value === 'object') {
+        obj[key] = sanitizeObject(value, { collapseArrays });
+      }
+    }
+
+    return obj;
+  };
+
+  req.query = sanitizeObject(req.query, { collapseArrays: true });
+  req.params = sanitizeObject(req.params, { collapseArrays: true });
+  req.body = sanitizeObject(req.body, { collapseArrays: false });
+  return next();
+};
+
 module.exports = {
   ipAccessControl,
   detectSuspiciousActivity,
   sessionSecurity,
   sqlInjectionProtection,
-  csrfProtection
+  csrfProtection,
+  originCheck,
+  hostHeaderCheck,
+  hppSanitize
 };

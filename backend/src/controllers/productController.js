@@ -209,7 +209,41 @@ const deleteProduct = async (req, res) => {
       return res.status(404).json(formatError('Product not found'));
     }
 
-    await Product.delete(id);
+    try {
+      await Product.delete(id);
+    } catch (dbError) {
+      // FK constraint: product is referenced (e.g. order_items)
+      if (dbError?.code === '23503') {
+        const archived = await Product.archive(id);
+
+        await AuditLog.create({
+          user_id: req.user.userId,
+          action: 'ARCHIVE',
+          entity_type: 'product',
+          entity_id: id,
+          changes: { archived_product: product.name, reason: 'referenced_in_transactions' },
+          ip_address: getClientIP(req),
+          company_id
+        });
+
+        await ActivityLogService.log(
+          req.user.userId,
+          'archive_product',
+          'products',
+          { product_id: id, name: product.name, reason: 'referenced_in_transactions' },
+          req
+        );
+
+        await cacheService.invalidateProductCache(id);
+
+        return res.json(formatSuccess(
+          archived ? formatProduct(archived) : null,
+          'Ürün geçmiş siparişlerde kullanıldığı için silinmedi, pasife alındı (arşivlendi).'
+        ));
+      }
+
+      throw dbError;
+    }
 
     // Log activity
     await AuditLog.create({

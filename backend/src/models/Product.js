@@ -109,6 +109,10 @@ class Product {
       paramCount++;
     }
 
+    if (!filters.includeInactive) {
+      query += ' AND is_active = true';
+    }
+
     query += ' ORDER BY created_at DESC';
 
     if (filters.limit) {
@@ -134,7 +138,7 @@ class Product {
     const values = [];
     let paramCount = 1;
 
-    const allowedFields = ['name', 'description', 'price', 'stock_quantity', 'category', 'sku', 'low_stock_threshold', 'supplier_id'];
+    const allowedFields = ['name', 'description', 'price', 'stock_quantity', 'category', 'sku', 'low_stock_threshold', 'supplier_id', 'is_active'];
 
     for (const field of allowedFields) {
       if (data[field] !== undefined) {
@@ -203,6 +207,20 @@ class Product {
   }
 
   /**
+   * Soft archive product (keep history references intact)
+   */
+  static async archive(id) {
+    const query = `
+      UPDATE products
+      SET is_active = false, updated_at = NOW()
+      WHERE id = $1
+      RETURNING *
+    `;
+    const result = await pool.query(query, [id]);
+    return result.rows[0];
+  }
+
+  /**
    * Get low stock products
    */
   static async getLowStock(threshold = 10, company_id = null) {
@@ -255,6 +273,10 @@ class Product {
       query += ` AND category = $${paramCount}`;
       values.push(filters.category);
       paramCount++;
+    }
+
+    if (!filters.includeInactive) {
+      query += ' AND is_active = true';
     }
 
     const result = await pool.query(query, values);

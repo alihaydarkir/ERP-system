@@ -1,4 +1,5 @@
 const Order = require('../models/Order');
+const Product = require('../models/Product');
 const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
 const ActivityLogService = require('../services/activityLogService');
@@ -7,6 +8,8 @@ const cacheService = require('../services/cacheService');
 const { formatOrder, formatOrders, formatSuccess, formatError, formatPaginated } = require('../utils/formatters');
 const { getClientIP, calculateOffset } = require('../utils/helpers');
 const { ORDER_STATUS, isValidStatusTransition, getNextStatuses } = require('../constants/orderStatus');
+
+const getActorUserId = (req) => req.user?.userId || req.user?.id;
 
 /**
  * Get all orders
@@ -77,8 +80,13 @@ const createOrder = async (req, res) => {
   try {
     const { customer_id, items, total_amount, status = 'pending' } = req.body;
 
-    // Get user from auth middleware
-    const user_id = req.user.id;
+    // Get user from auth middleware (normalized for legacy token shapes)
+    const user_id = req.user?.id || req.user?.userId;
+    const company_id = req.user?.company_id || null;
+
+    if (!user_id) {
+      return res.status(401).json(formatError('Authenticated user not found'));
+    }
 
     // Validate user exists
     const user = await User.findById(user_id);
@@ -86,13 +94,43 @@ const createOrder = async (req, res) => {
       return res.status(404).json(formatError('User not found'));
     }
 
+    // Normalize items and compute prices on server when needed
+    const normalizedItems = [];
+    for (const rawItem of items || []) {
+      const productId = Number(rawItem.product_id);
+      const quantity = Number(rawItem.quantity);
+      let price = Number(rawItem.price);
+
+      if (!Number.isFinite(productId) || !Number.isFinite(quantity) || quantity < 1) {
+        return res.status(400).json(formatError('Invalid order items'));
+      }
+
+      if (!Number.isFinite(price) || price < 0) {
+        const product = await Product.findById(productId, company_id || undefined);
+        if (!product) {
+          return res.status(400).json(formatError(`Invalid product_id: ${productId}`));
+        }
+        price = Number(product.price);
+      }
+
+      normalizedItems.push({
+        product_id: productId,
+        quantity,
+        price
+      });
+    }
+
+    const computedTotalAmount = Number.isFinite(Number(total_amount))
+      ? Number(total_amount)
+      : normalizedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
     const order = await Order.create({
       user_id,
       customer_id,
-      items,
-      total_amount,
+      items: normalizedItems,
+      total_amount: computedTotalAmount,
       status,
-      company_id: req.user.company_id // MULTI-TENANCY
+      company_id // MULTI-TENANCY
     });
 
     // Log activity
@@ -101,9 +139,9 @@ const createOrder = async (req, res) => {
       action: 'CREATE',
       entity_type: 'order',
       entity_id: order.id,
-      changes: { order_id: order.id, total_amount, items_count: items.length },
+      changes: { order_id: order.id, total_amount: computedTotalAmount, items_count: normalizedItems.length },
       ip_address: getClientIP(req),
-      company_id: req.user.company_id // MULTI-TENANCY
+      company_id // MULTI-TENANCY
     });
 
     // Log to activity logs
@@ -111,7 +149,7 @@ const createOrder = async (req, res) => {
       req.user.userId,
       'create_order',
       'orders',
-      { order_id: order.id, customer_id, total_amount, items_count: items.length, status },
+      { order_id: order.id, customer_id, total_amount: computedTotalAmount, items_count: normalizedItems.length, status },
       req
     );
 
@@ -243,6 +281,7 @@ const updateOrderStatus = async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
     const { company_id } = req.user;
+    const actorUserId = getActorUserId(req);
 
     // Validate status
     if (!Object.values(ORDER_STATUS).includes(status)) {
@@ -268,12 +307,13 @@ const updateOrderStatus = async (req, res) => {
 
     // Log activity
     await AuditLog.create({
-      user_id: req.user.userId,
+      user_id: actorUserId,
       action: 'UPDATE_STATUS',
       entity_type: 'order',
       entity_id: id,
       changes: { old_status: order.status, new_status: status },
-      ip_address: getClientIP(req)
+      ip_address: getClientIP(req),
+      company_id
     });
 
     // Invalidate cache
@@ -303,6 +343,7 @@ const cancelOrder = async (req, res) => {
     const { id } = req.params;
     const { reason } = req.body;
     const { company_id } = req.user;
+    const actorUserId = getActorUserId(req);
 
     // Get current order
     const order = await Order.findById(id, company_id);
@@ -322,12 +363,13 @@ const cancelOrder = async (req, res) => {
 
     // Log activity
     await AuditLog.create({
-      user_id: req.user.userId,
+      user_id: actorUserId,
       action: 'CANCEL',
       entity_type: 'order',
       entity_id: id,
       changes: { old_status: order.status, new_status: ORDER_STATUS.CANCELLED, reason },
-      ip_address: getClientIP(req)
+      ip_address: getClientIP(req),
+      company_id
     });
 
     // Invalidate cache
