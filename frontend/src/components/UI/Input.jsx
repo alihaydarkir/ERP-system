@@ -1,17 +1,22 @@
-import React from 'react';
+import React, { useId } from 'react';
 
 export default function Input({ 
   label, 
   error, 
   icon: Icon,
+  id,
   className = '', 
   containerClassName = '',
-  ...props 
+  ...props
 }) {
+  const generatedId = useId();
+  const inputId = id || generatedId;
+  const errorId = `${inputId}-error`;
+
   return (
     <div className={`w-full ${containerClassName}`}>
       {label && (
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label htmlFor={inputId} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           {label}
         </label>
       )}
@@ -22,6 +27,9 @@ export default function Input({
           </div>
         )}
         <input
+          id={inputId}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? errorId : undefined}
           className={`
             block w-full rounded-lg border-gray-300 dark:border-gray-600 shadow-sm 
             focus:border-primary-500 focus:ring-primary-500 
@@ -35,7 +43,11 @@ export default function Input({
           {...props}
         />
       </div>
-      {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
+      {error && (
+        <p id={errorId} className="mt-1 text-sm text-red-600 dark:text-red-400">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

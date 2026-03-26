@@ -2,9 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, dev]
   pull_request:
-    branches: [main, dev]
 
 jobs:
   backend-test:
@@ -44,12 +42,26 @@ jobs:
       - name: Install dependencies
         working-directory: ./frontend
         run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: ./frontend
+        run: npx playwright install --with-deps chromium
       
       - name: Run linter
         working-directory: ./frontend
         run: npm run lint
-      
-      - name: Run tests
+
+      - name: Run build
         working-directory: ./frontend
-        run: npm test
+        run: npm run build
+      
+      - name: Run unit tests
+        working-directory: ./frontend
+        run: npm run test:run
+
+      - name: Run E2E tests
+        working-directory: ./frontend
+        run: npm run test:e2e
+        env:
+          CI: 'true'
 

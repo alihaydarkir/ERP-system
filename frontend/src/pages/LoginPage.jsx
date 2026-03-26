@@ -5,17 +5,26 @@ import useAuthStore from '../store/authStore';
 import { authService } from '../services/authService';
 import Button from '../components/UI/Button';
 import Input from '../components/UI/Input';
+import { hasValidationErrors, validateLoginForm } from '../utils/validators/authValidators';
 import { Mail, Lock, ArrowRight, UserCheck, LayoutDashboard } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [errors, setErrors] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { login } = useAuthStore();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    const nextErrors = validateLoginForm({ email, password });
+    setErrors(nextErrors);
+    if (hasValidationErrors(nextErrors)) {
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -36,6 +45,13 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleFieldChange = (field, value) => {
+    if (field === 'email') setEmail(value);
+    if (field === 'password') setPassword(value);
+
+    setErrors((prev) => ({ ...prev, [field]: '' }));
   };
 
   return (
@@ -85,22 +101,25 @@ export default function LoginPage() {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className='space-y-6'>
+          <form onSubmit={handleSubmit} className='space-y-6' noValidate>
             <Input
+              id='login-email'
               label='E-posta Adresi'
               type='email'
               icon={Mail}
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => handleFieldChange('email', e.target.value)}
               placeholder='isim@sirket.com'
+              error={errors.email}
               required
               autoFocus
+              autoComplete='email'
               className='bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
             />
 
             <div>
               <div className='flex items-center justify-between mb-1'>
-                <label className='block text-sm font-medium text-gray-700 dark:text-gray-300'>
+                <label htmlFor='login-password' className='block text-sm font-medium text-gray-700 dark:text-gray-300'>
                   Şifre
                 </label>
                 <a href='#' className='text-sm font-medium text-primary-600 hover:text-primary-500'>
@@ -108,12 +127,15 @@ export default function LoginPage() {
                 </a>
               </div>
               <Input
+                id='login-password'
                 type='password'
                 icon={Lock}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => handleFieldChange('password', e.target.value)}
                 placeholder='••••••••'
+                error={errors.password}
                 required
+                autoComplete='current-password'
                 className='bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
               />
             </div>
@@ -123,6 +145,7 @@ export default function LoginPage() {
               loading={loading}
               className='w-full py-3 shadow-lg shadow-primary-500/30 hover:shadow-primary-600/40 text-lg'
               icon={ArrowRight}
+              aria-label='Giriş Yap'
             >
               Giriş Yap
             </Button>

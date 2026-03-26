@@ -4,10 +4,16 @@ import toast from 'react-hot-toast';
 import { authService } from '../services/authService';
 import Button from '../components/UI/Button';
 import Input from '../components/UI/Input';
+import { hasValidationErrors, validateRegisterForm } from '../utils/validators/authValidators';
 import { Mail, Lock, User, ArrowRight, LayoutDashboard } from 'lucide-react';
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
+    username: '',
+    email: '',
+    password: ''
+  });
+  const [errors, setErrors] = useState({
     username: '',
     email: '',
     password: ''
@@ -17,6 +23,13 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    const nextErrors = validateRegisterForm(formData);
+    setErrors(nextErrors);
+    if (hasValidationErrors(nextErrors)) {
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -31,6 +44,11 @@ export default function RegisterPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleChange = (field, value) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    setErrors((prev) => ({ ...prev, [field]: '' }));
   };
 
   return (
@@ -77,40 +95,49 @@ export default function RegisterPage() {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className='space-y-6'>
+          <form onSubmit={handleSubmit} className='space-y-6' noValidate>
             <Input
+              id='register-username'
               label='Ad Soyad'
               type='text'
               icon={User}
               value={formData.username}
-              onChange={(e) => setFormData({...formData, username: e.target.value})}
+              onChange={(e) => handleChange('username', e.target.value)}
               placeholder='Adınız Soyadınız'
+              error={errors.username}
               required
+              autoComplete='name'
               className='bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
             />
 
             <Input
+              id='register-email'
               label='E-posta Adresi'
               type='email'
               icon={Mail}
               value={formData.email}
-              onChange={(e) => setFormData({...formData, email: e.target.value})}
+              onChange={(e) => handleChange('email', e.target.value)}
               placeholder='isim@sirket.com'
+              error={errors.email}
               required
+              autoComplete='email'
               className='bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
             />
 
             <div>
-              <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
+              <label htmlFor='register-password' className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
                 Şifre
               </label>
               <Input
+                id='register-password'
                 type='password'
                 icon={Lock}
                 value={formData.password}
-                onChange={(e) => setFormData({...formData, password: e.target.value})}
+                onChange={(e) => handleChange('password', e.target.value)}
                 placeholder='••••••••'
+                error={errors.password}
                 required
+                autoComplete='new-password'
                 className='bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
               />
               <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>En az 6 karakter olmalıdır.</p>

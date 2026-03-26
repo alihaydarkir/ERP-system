@@ -1,4 +1,6 @@
-﻿export default function OrderCard({ order, onComplete, onCancel, onView, isPending }) {
+﻿import PermissionButton from '../PermissionButton';
+
+export default function OrderCard({ order, onComplete, onCancel, onView, isPending }) {
   const totalAmount = Number(order.total_amount || 0);
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('tr-TR', {
@@ -87,27 +89,33 @@
 
       {/* Actions */}
       <div className="flex space-x-2">
-        <button
+        <PermissionButton
+          permission="orders.view"
+          deniedText="Sipariş görüntüleme yetkiniz yok."
           onClick={() => onView(order)}
           className="flex-1 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors font-medium text-sm"
         >
           👁️ Göster
-        </button>
+        </PermissionButton>
 
         {isPending ? (
           <>
-            <button
+            <PermissionButton
+              permissions={["orders.complete", "orders.edit"]}
+              deniedText="Sipariş tamamlama yetkiniz yok."
               onClick={() => onComplete(order)}
               className="flex-1 py-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors font-medium text-sm"
             >
               ✅ Tamamla
-            </button>
-            <button
+            </PermissionButton>
+            <PermissionButton
+              permissions={["orders.cancel", "orders.edit"]}
+              deniedText="Sipariş iptal yetkiniz yok."
               onClick={() => onCancel(order)}
               className="flex-1 py-2 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors font-medium text-sm"
             >
               ❌ İptal
-            </button>
+            </PermissionButton>
           </>
         ) : null}
       </div>

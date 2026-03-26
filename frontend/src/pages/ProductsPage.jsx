@@ -5,8 +5,12 @@ import { warehouseService } from '../services/warehouseService';
 import ImportProductsDialog from '../components/Products/ImportProductsDialog';
 import CategoryFilter from '../components/Products/CategoryFilter';
 import useUIStore from '../store/uiStore';
-import PermissionGuard from '../components/PermissionGuard';
+import PermissionButton from '../components/PermissionButton';
+import LoadingState from '../components/UI/LoadingState';
+import EmptyState from '../components/UI/EmptyState';
+import ErrorState from '../components/UI/ErrorState';
 import { exportProductsToPDF, exportProductsToExcel } from '../utils/exportUtils';
+import { hasEntityValidationErrors, validateProductForm } from '../utils/validators/entityValidators';
 import { FileDown, FileSpreadsheet, Plus, Upload, Edit2, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -16,6 +20,7 @@ export default function ProductsPage() {
   const [suppliers, setSuppliers] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [productsError, setProductsError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -30,6 +35,13 @@ export default function ProductsPage() {
     low_stock_threshold: '10',
     supplier_id: '',
     warehouse_id: '',
+  });
+  const [formErrors, setFormErrors] = useState({
+    name: '',
+    sku: '',
+    price: '',
+    stock: '',
+    low_stock_threshold: ''
   });
 
   useEffect(() => {
@@ -59,10 +71,12 @@ export default function ProductsPage() {
   const fetchProducts = async () => {
     try {
       setLoading(true);
+      setProductsError('');
       const response = await productService.getAll({ limit: 10000 });
       setProducts(response.data || []);
     } catch (error) {
       console.error('Products fetch error:', error);
+      setProductsError(error?.response?.data?.message || 'Ürünler yüklenemedi.');
     } finally {
       setLoading(false);
     }
@@ -75,6 +89,14 @@ export default function ProductsPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    const validationErrors = validateProductForm(formData);
+    setFormErrors(validationErrors);
+    if (hasEntityValidationErrors(validationErrors)) {
+      showError('Lütfen ürün formundaki hataları düzeltin.');
+      return;
+    }
+
     try {
       if (editingProduct) {
         await productService.update(editingProduct.id, formData);
@@ -103,6 +125,13 @@ export default function ProductsPage() {
       low_stock_threshold: product.low_stock_threshold || '10',
       supplier_id: product.supplier_id || '',
       warehouse_id: product.warehouse_id || '',
+    });
+    setFormErrors({
+      name: '',
+      sku: '',
+      price: '',
+      stock: '',
+      low_stock_threshold: ''
     });
     setShowModal(true);
   };
@@ -138,7 +167,19 @@ export default function ProductsPage() {
       supplier_id: '',
       warehouse_id: '',
     });
+    setFormErrors({
+      name: '',
+      sku: '',
+      price: '',
+      stock: '',
+      low_stock_threshold: ''
+    });
     setEditingProduct(null);
+  };
+
+  const handleFormFieldChange = (field, value) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormErrors((prev) => ({ ...prev, [field]: '' }));
   };
 
   const getStockColor = (stock) => {
@@ -180,26 +221,28 @@ export default function ProductsPage() {
             <span>Excel</span>
           </button>
           
-          <PermissionGuard permission="products.create">
-            <button
-              onClick={() => setShowImportDialog(true)}
-              className="group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-lg shadow-sm hover:from-indigo-600 hover:to-indigo-700 hover:shadow-indigo-500/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-            >
-              <Upload className="w-5 h-5 mr-2" />
-              <span>Excel'den Yükle</span>
-            </button>
-          </PermissionGuard>
-          <PermissionGuard permission="products.create">
-            <button
-              onClick={() => setShowModal(true)}
-              className="group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow-lg hover:from-blue-700 hover:to-blue-800 hover:shadow-blue-500/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              <Plus className="w-5 h-5 mr-2" />
-              <span>Yeni Ürün</span>
-            </button>
-          </PermissionGuard>
+          <PermissionButton
+            permission="products.create"
+            deniedText="Ürün içe aktarma yetkiniz yok."
+            onClick={() => setShowImportDialog(true)}
+            className="group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-lg shadow-sm hover:from-indigo-600 hover:to-indigo-700 hover:shadow-indigo-500/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            <Upload className="w-5 h-5 mr-2" />
+            <span>Excel'den Yükle</span>
+          </PermissionButton>
+          <PermissionButton
+            permission="products.create"
+            deniedText="Ürün oluşturma yetkiniz yok."
+            onClick={() => setShowModal(true)}
+            className="group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow-lg hover:from-blue-700 hover:to-blue-800 hover:shadow-blue-500/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            <Plus className="w-5 h-5 mr-2" />
+            <span>Yeni Ürün</span>
+          </PermissionButton>
         </div>
       </div>
+
+      {productsError && <ErrorState title="Ürün verisi yüklenemedi" message={productsError} onRetry={fetchProducts} />}
 
       {/* Main Content: Sidebar + Products Table */}
       <div className="grid grid-cols-12 gap-6">
@@ -216,9 +259,7 @@ export default function ProductsPage() {
         <div className="col-span-9">
 
       {loading ? (
-        <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-        </div>
+        <LoadingState title="Ürünler yükleniyor..." />
       ) : (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden transition-all duration-300">
           <div className="overflow-x-auto">
@@ -255,7 +296,7 @@ export default function ProductsPage() {
                 {filteredProducts.length === 0 ? (
                   <tr>
                     <td colSpan="8" className="px-6 py-10 text-center text-gray-500 dark:text-gray-400">
-                      Ürün bulunamadı.
+                      <EmptyState message="Ürün bulunamadı." />
                     </td>
                   </tr>
                 ) : (
@@ -297,24 +338,24 @@ export default function ProductsPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
                       <div className="flex justify-end gap-2">
-                      <PermissionGuard permission="products.edit">
-                        <button
-                          onClick={() => handleEdit(product)}
-                          className="p-2 text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
-                          title="Düzenle"
-                        >
-                          <Edit2 size={18} />
-                        </button>
-                      </PermissionGuard>
-                      <PermissionGuard permission="products.delete">
-                        <button
-                          onClick={() => handleDelete(product.id, product.name)}
-                          className="p-2 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:bg-red-900/20 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                          title="Sil"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </PermissionGuard>
+                      <PermissionButton
+                        permission="products.edit"
+                        deniedText="Ürün düzenleme yetkiniz yok."
+                        onClick={() => handleEdit(product)}
+                        className="p-2 text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
+                        title="Düzenle"
+                      >
+                        <Edit2 size={18} />
+                      </PermissionButton>
+                      <PermissionButton
+                        permission="products.delete"
+                        deniedText="Ürün silme yetkiniz yok."
+                        onClick={() => handleDelete(product.id, product.name)}
+                        className="p-2 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:bg-red-900/20 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                        title="Sil"
+                      >
+                        <Trash2 size={18} />
+                      </PermissionButton>
                       </div>
                     </td>
                   </tr>
@@ -339,10 +380,11 @@ export default function ProductsPage() {
                 type="text"
                 placeholder="Ürün Adı"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) => handleFormFieldChange('name', e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700/70 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
+              {formErrors.name && <p className="text-xs text-red-600 dark:text-red-400">{formErrors.name}</p>}
               <textarea
                 placeholder="Açıklama"
                 value={formData.description}
@@ -354,10 +396,11 @@ export default function ProductsPage() {
                 type="text"
                 placeholder="SKU"
                 value={formData.sku}
-                onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                onChange={(e) => handleFormFieldChange('sku', e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700/70 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
+              {formErrors.sku && <p className="text-xs text-red-600 dark:text-red-400">{formErrors.sku}</p>}
               <input
                 type="text"
                 placeholder="Kategori"
@@ -404,7 +447,7 @@ export default function ProductsPage() {
                   type="number"
                   placeholder="Fiyat"
                   value={formData.price}
-                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                  onChange={(e) => handleFormFieldChange('price', e.target.value)}
                   className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700/70 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 />
@@ -412,11 +455,17 @@ export default function ProductsPage() {
                   type="number"
                   placeholder="Stok"
                   value={formData.stock}
-                  onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
+                  onChange={(e) => handleFormFieldChange('stock', e.target.value)}
                   className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700/70 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 />
               </div>
+              {(formErrors.price || formErrors.stock) && (
+                <div className="grid grid-cols-2 gap-4">
+                  <p className="text-xs text-red-600 dark:text-red-400">{formErrors.price}</p>
+                  <p className="text-xs text-red-600 dark:text-red-400">{formErrors.stock}</p>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   Düşük Stok Limiti
@@ -425,10 +474,13 @@ export default function ProductsPage() {
                   type="number"
                   placeholder="Minimum stok miktarı"
                   value={formData.low_stock_threshold}
-                  onChange={(e) => setFormData({ ...formData, low_stock_threshold: e.target.value })}
+                  onChange={(e) => handleFormFieldChange('low_stock_threshold', e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700/70 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   min="0"
                 />
+                {formErrors.low_stock_threshold && (
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-1">{formErrors.low_stock_threshold}</p>
+                )}
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   Stok bu değerin altına düştüğünde uyarı verilecektir
                 </p>

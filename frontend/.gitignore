@@ -8,4 +8,7 @@ dist/
 cleanup.cjs
 fix*.cjs
 unmangle.cjs
+playwright-report/
+test-results/
+blob-report/
 

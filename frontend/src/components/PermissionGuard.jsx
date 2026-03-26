@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import usePermissionStore from '../store/permissionStore';
 import useAuthStore from '../store/authStore';
 

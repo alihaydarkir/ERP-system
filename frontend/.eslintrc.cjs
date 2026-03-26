@@ -23,6 +23,18 @@ module.exports = {
       version: 'detect',
     },
   },
+  overrides: [
+    {
+      files: ['e2e/**/*.spec.js'],
+      env: {
+        node: true,
+      },
+      globals: {
+        test: 'readonly',
+        expect: 'readonly',
+      },
+    },
+  ],
   rules: {
     'react/prop-types': 'off',
     'no-unused-vars': 'warn',

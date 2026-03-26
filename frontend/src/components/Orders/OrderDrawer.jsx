@@ -4,6 +4,7 @@ import OrderCart from './OrderCart';
 import AddProductToOrder from './AddProductToOrder';
 import CustomerSearch from './CustomerSearch';
 import useUIStore from '../../store/uiStore';
+import { hasEntityValidationErrors, validateOrderDraft } from '../../utils/validators/entityValidators';
 
 export default function OrderDrawer({ isOpen, onClose, onSuccess }) {
   const { showSuccess, showError, showWarning } = useUIStore();
@@ -11,6 +12,7 @@ export default function OrderDrawer({ isOpen, onClose, onSuccess }) {
   const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
   const [cartItems, setCartItems] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [formErrors, setFormErrors] = useState({ customer: '', orderDate: '', cart: '' });
 
   const handleAddToCart = (product) => {
     // Check if product already exists in cart
@@ -28,31 +30,32 @@ export default function OrderDrawer({ isOpen, onClose, onSuccess }) {
 
       newItems[existingIndex].quantity = newQuantity;
       setCartItems(newItems);
+      setFormErrors((prev) => ({ ...prev, cart: '' }));
     } else {
       // Add new product
       setCartItems([...cartItems, product]);
+      setFormErrors((prev) => ({ ...prev, cart: '' }));
     }
   };
 
   const handleRemoveFromCart = (index) => {
     const newItems = cartItems.filter((_, i) => i !== index);
     setCartItems(newItems);
+    setFormErrors((prev) => ({ ...prev, cart: '' }));
   };
 
   const handleUpdateQuantity = (index, newQuantity) => {
     const newItems = [...cartItems];
     newItems[index].quantity = newQuantity;
     setCartItems(newItems);
+    setFormErrors((prev) => ({ ...prev, cart: '' }));
   };
 
   const handleSubmit = async () => {
-    if (!selectedCustomer) {
-      showWarning('Lütfen müşteri seçin');
-      return;
-    }
-
-    if (cartItems.length === 0) {
-      showWarning('Sepete en az bir ürün ekleyin');
+    const validationErrors = validateOrderDraft({ selectedCustomer, orderDate, cartItems });
+    setFormErrors(validationErrors);
+    if (hasEntityValidationErrors(validationErrors)) {
+      showWarning('Lütfen sipariş formundaki hataları düzeltin.');
       return;
     }
 
@@ -95,6 +98,7 @@ export default function OrderDrawer({ isOpen, onClose, onSuccess }) {
     setSelectedCustomer(null);
     setOrderDate(new Date().toISOString().split('T')[0]);
     setCartItems([]);
+    setFormErrors({ customer: '', orderDate: '', cart: '' });
     onClose();
   };
 
@@ -119,8 +123,12 @@ export default function OrderDrawer({ isOpen, onClose, onSuccess }) {
           {/* Customer Selection */}
           <CustomerSearch
             selectedCustomer={selectedCustomer}
-            onSelectCustomer={setSelectedCustomer}
+            onSelectCustomer={(customer) => {
+              setSelectedCustomer(customer);
+              setFormErrors((prev) => ({ ...prev, customer: '' }));
+            }}
           />
+          {formErrors.customer && <p className="text-sm text-red-600 dark:text-red-400">{formErrors.customer}</p>}
 
           {/* Date */}
           <div>
@@ -130,9 +138,13 @@ export default function OrderDrawer({ isOpen, onClose, onSuccess }) {
             <input
               type="date"
               value={orderDate}
-              onChange={(e) => setOrderDate(e.target.value)}
+              onChange={(e) => {
+                setOrderDate(e.target.value);
+                setFormErrors((prev) => ({ ...prev, orderDate: '' }));
+              }}
               className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700/70 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
+            {formErrors.orderDate && <p className="text-sm text-red-600 dark:text-red-400 mt-1">{formErrors.orderDate}</p>}
           </div>
 
           {/* Order Cart */}
@@ -142,6 +154,7 @@ export default function OrderDrawer({ isOpen, onClose, onSuccess }) {
               onRemoveItem={handleRemoveFromCart}
               onUpdateQuantity={handleUpdateQuantity}
             />
+            {formErrors.cart && <p className="text-sm text-red-600 dark:text-red-400 mt-1">{formErrors.cart}</p>}
           </div>
 
           {/* Add Product Section */}

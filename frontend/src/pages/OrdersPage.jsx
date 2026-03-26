@@ -4,6 +4,8 @@ import OrderDrawer from '../components/Orders/OrderDrawer';
 import OrderDetailModal from '../components/Orders/OrderDetailModal';
 import PendingOrdersSection from '../components/Orders/PendingOrdersSection';
 import CompletedOrdersSection from '../components/Orders/CompletedOrdersSection';
+import PermissionButton from '../components/PermissionButton';
+import ErrorState from '../components/UI/ErrorState';
 import useUIStore from '../store/uiStore';
 import { exportOrdersToPDF, exportOrdersToExcel } from '../utils/exportUtils';
 import { FileDown, FileSpreadsheet, Plus, Search, X } from 'lucide-react';
@@ -17,6 +19,7 @@ export default function OrdersPage() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [ordersError, setOrdersError] = useState('');
 
   useEffect(() => {
     fetchOrders();
@@ -25,10 +28,12 @@ export default function OrdersPage() {
   const fetchOrders = async () => {
     try {
       setLoading(true);
+      setOrdersError('');
       const response = await orderService.getAll({ limit: 100 });
       setOrders(response.data || []);
     } catch (error) {
       console.error('Orders fetch error:', error);
+      setOrdersError(error?.response?.data?.message || 'Siparişler yüklenemedi.');
     } finally {
       setLoading(false);
     }
@@ -199,15 +204,19 @@ export default function OrdersPage() {
             <FileSpreadsheet className="w-5 h-5" />
             <span>Excel</span>
           </button>
-          <button
+          <PermissionButton
+            permission="orders.create"
+            deniedText="Sipariş oluşturma yetkiniz yok."
             onClick={() => setShowOrderDrawer(true)}
             className="flex items-center justify-center gap-2 px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5"
           >
             <Plus className="w-5 h-5" />
             <span>Yeni Sipariş</span>
-          </button>
+          </PermissionButton>
         </div>
       </div>
+
+      {ordersError && <ErrorState title="Sipariş verisi yüklenemedi" message={ordersError} onRetry={fetchOrders} />}
 
       {/* Search Bar */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 transition-colors duration-200">

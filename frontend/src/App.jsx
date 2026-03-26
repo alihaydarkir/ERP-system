@@ -1,31 +1,33 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { Toaster } from 'react-hot-toast';
-import DashboardPage from './pages/DashboardPage';
-import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
-import ProductsPage from './pages/ProductsPage';
-import OrdersPage from './pages/OrdersPage';
-import CustomersPage from './pages/CustomersPage';
-import SuppliersPage from './pages/SuppliersPage';
-import WarehousesPage from './pages/WarehousesPage';
-import ChequesPage from './pages/ChequesPage';
-import SettingsPage from './pages/SettingsPage';
-import ProfilePage from './pages/ProfilePage';
-import ChatPage from './pages/ChatPage';
-import ReportsPage from './pages/ReportsPage';
-import UserManagementPage from './pages/UserManagementPage';
-import EmployeeApprovalsPage from './pages/EmployeeApprovalsPage';
-import ActivityLogsPage from './pages/ActivityLogsPage';
-import InvoicesPage from './pages/InvoicesPage';
-import CurrentAccountPage from './pages/CurrentAccountPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import ToastContainer from './components/UI/Toast';
 import ConfirmDialog from './components/UI/ConfirmDialog';
+import PageLoader from './components/UI/PageLoader';
 import useAuthStore from './store/authStore';
 import useUIStore from './store/uiStore';
 import usePermissionStore from './store/permissionStore';
+
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const RegisterPage = lazy(() => import('./pages/RegisterPage'));
+const ProductsPage = lazy(() => import('./pages/ProductsPage'));
+const OrdersPage = lazy(() => import('./pages/OrdersPage'));
+const CustomersPage = lazy(() => import('./pages/CustomersPage'));
+const SuppliersPage = lazy(() => import('./pages/SuppliersPage'));
+const WarehousesPage = lazy(() => import('./pages/WarehousesPage'));
+const ChequesPage = lazy(() => import('./pages/ChequesPage'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const ChatPage = lazy(() => import('./pages/ChatPage'));
+const ReportsPage = lazy(() => import('./pages/ReportsPage'));
+const UserManagementPage = lazy(() => import('./pages/UserManagementPage'));
+const EmployeeApprovalsPage = lazy(() => import('./pages/EmployeeApprovalsPage'));
+const ActivityLogsPage = lazy(() => import('./pages/ActivityLogsPage'));
+const InvoicesPage = lazy(() => import('./pages/InvoicesPage'));
+const CurrentAccountPage = lazy(() => import('./pages/CurrentAccountPage'));
 
 function App() {
   const { isAuthenticated } = useAuthStore();
@@ -103,174 +105,176 @@ function App() {
         cancelText={confirmDialog.cancelText}
         type={confirmDialog.type}
       />
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route
-          path="/"
-          element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />}
-        />
-         <Route path="/register" element={<RegisterPage />} />
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <DashboardPage />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/products"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <ProductsPage />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/orders"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <OrdersPage />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/customers"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <CustomersPage />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/suppliers"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <SuppliersPage />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/warehouses"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <WarehousesPage />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/cheques"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <ChequesPage />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/settings"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <SettingsPage />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/profile"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <ProfilePage />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/chat"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <ChatPage />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/reports"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <ReportsPage />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/user-management"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <UserManagementPage />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/employee-approvals"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <EmployeeApprovalsPage />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/activity-logs"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <ActivityLogsPage />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/invoices"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <InvoicesPage />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/current-accounts"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <CurrentAccountPage />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route
+            path="/"
+            element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />}
+          />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <DashboardPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/products"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <ProductsPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/orders"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <OrdersPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/customers"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <CustomersPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/suppliers"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <SuppliersPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/warehouses"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <WarehousesPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/cheques"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <ChequesPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <SettingsPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <ProfilePage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/chat"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <ChatPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/reports"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <ReportsPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/user-management"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <UserManagementPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/employee-approvals"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <EmployeeApprovalsPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/activity-logs"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <ActivityLogsPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/invoices"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <InvoicesPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/current-accounts"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <CurrentAccountPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </Suspense>
 
       {/* React Hot Toast */}
       <Toaster

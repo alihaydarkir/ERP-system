@@ -1,5 +1,7 @@
 ﻿import { useState } from 'react';
 import OrderCard from './OrderCard';
+import LoadingState from '../UI/LoadingState';
+import EmptyState from '../UI/EmptyState';
 
 export default function CompletedOrdersSection({ orders, onView, loading }) {
   const [displayCount, setDisplayCount] = useState(6);
@@ -12,9 +14,7 @@ export default function CompletedOrdersSection({ orders, onView, loading }) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 transition-colors duration-200">
         <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4">✅ TAMAMLANAN SİPARİŞLER</h2>
-        <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500"></div>
-        </div>
+        <LoadingState title="Tamamlanan siparişler yükleniyor..." />
       </div>
     );
   }
@@ -32,9 +32,7 @@ export default function CompletedOrdersSection({ orders, onView, loading }) {
       </div>
 
       {orders.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-gray-500 dark:text-gray-400">Tamamlanan sipariş bulunmamaktadır.</p>
-        </div>
+        <EmptyState message="Tamamlanan sipariş bulunmamaktadır." />
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

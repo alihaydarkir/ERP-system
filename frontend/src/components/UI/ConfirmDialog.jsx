@@ -1,4 +1,5 @@
-﻿import { AlertCircle, X } from 'lucide-react';
+﻿import { useEffect, useRef } from 'react';
+import { AlertCircle, X } from 'lucide-react';
 
 const ConfirmDialog = ({ 
   isOpen, 
@@ -10,6 +11,23 @@ const ConfirmDialog = ({
   cancelText = 'İptal',
   type = 'danger'
 }) => {
+  const closeButtonRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    closeButtonRef.current?.focus();
+
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const getTypeStyles = () => {
@@ -57,10 +75,18 @@ const ConfirmDialog = ({
       />
 
       <div className="flex min-h-full items-center justify-center p-4">
-        <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full animate-scale-in border border-gray-100 dark:border-gray-700 overflow-hidden">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="confirm-dialog-title"
+          aria-describedby="confirm-dialog-message"
+          className="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full animate-scale-in border border-gray-100 dark:border-gray-700 overflow-hidden"
+        >
           <button
+            ref={closeButtonRef}
             onClick={onClose}
             className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors bg-transparent border-0"
+            aria-label="Dialogu kapat"
           >
             <X className="w-5 h-5" />
           </button>
@@ -72,10 +98,10 @@ const ConfirmDialog = ({
               </div>
               
               <div className="flex-1 min-w-0 mt-1">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2 leading-tight">
+                <h3 id="confirm-dialog-title" className="text-lg font-bold text-gray-900 dark:text-white mb-2 leading-tight">
                   {title}
                 </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
+                <p id="confirm-dialog-message" className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
                   {message}
                 </p>
               </div>
