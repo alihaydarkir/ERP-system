@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const { upload } = require('../middleware/fileUpload');
+const { upload, handleUploadError } = require('../middleware/fileUpload');
 const { requirePermission, requireAnyPermission, logActivity } = require('../middleware/permissions');
 
 // Controllers
@@ -32,8 +32,8 @@ router.get('/due-soon', requirePermission('cheques.view'), getDueSoonCheques);
 
 // Import/Export routes
 router.get('/import/template', requirePermission('cheques.view'), downloadTemplate);
-router.post('/import/validate', requirePermission('cheques.create'), upload.single('file'), validateChequeImport);
-router.post('/import', requirePermission('cheques.create'), upload.single('file'), importCheques);
+router.post('/import/validate', requirePermission('cheques.create'), upload.single('file'), handleUploadError, validateChequeImport);
+router.post('/import', requirePermission('cheques.create'), upload.single('file'), handleUploadError, importCheques);
 router.get('/export/excel', requirePermission('cheques.view'), exportChequesToExcel);
 
 // CRUD routes

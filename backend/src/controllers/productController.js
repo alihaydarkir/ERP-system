@@ -126,8 +126,6 @@ const createProduct = async (req, res) => {
     // Invalidate cache
     await cacheService.invalidateProductCache();
 
-    console.log(`Product created: ${name} (${product.id}) by user ${req.user.userId}`);
-
     res.status(201).json(formatSuccess(formatProduct(product), 'Product created'));
 
   } catch (error) {
@@ -185,8 +183,6 @@ const updateProduct = async (req, res) => {
 
     // Invalidate cache
     await cacheService.invalidateProductCache(id);
-
-    console.log(`Product updated: ${product.name} (${id}) by user ${req.user.userId}`);
 
     res.json(formatSuccess(formatProduct(product), 'Product updated'));
 
@@ -267,8 +263,6 @@ const deleteProduct = async (req, res) => {
 
     // Invalidate cache
     await cacheService.invalidateProductCache(id);
-
-    console.log(`Product deleted: ${product.name} (${id}) by user ${req.user.userId}`);
 
     res.json(formatSuccess(null, 'Product deleted'));
 

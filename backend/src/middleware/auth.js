@@ -4,10 +4,26 @@ const pool = require('../config/database');
 const { config } = require('../config/env');
 
 const hashToken = (token) => crypto.createHash('sha256').update(String(token || '')).digest('hex');
+const getCookieValue = (req, name) => {
+  const header = String(req.headers.cookie || '');
+  if (!header) return null;
+
+  const pairs = header.split(';').map((part) => part.trim());
+  for (const pair of pairs) {
+    const [key, ...rest] = pair.split('=');
+    if (key === name) {
+      return decodeURIComponent(rest.join('='));
+    }
+  }
+
+  return null;
+};
 
 const authMiddleware = async (req, res, next) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
+    const bearerToken = req.headers.authorization?.split(' ')[1];
+    const cookieToken = getCookieValue(req, 'access_token');
+    const token = bearerToken || cookieToken;
 
     if (!token) {
       return res.status(401).json({ error: 'No token provided' });

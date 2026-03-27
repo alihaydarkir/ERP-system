@@ -22,6 +22,24 @@ const MUTATION_TOOLS = new Set([
   'set_invoice_status'
 ]);
 
+const DEFAULT_MUTATION_PERMISSION_MAP = {
+  set_product_stock: 'products.edit',
+  deactivate_product: 'products.delete',
+  cancel_order: 'orders.cancel',
+  set_cheque_status: 'cheques.change_status',
+  create_customer: 'customers.create',
+  update_customer: 'customers.edit',
+  create_product: 'products.create',
+  update_product: 'products.edit',
+  create_supplier: 'suppliers.create',
+  update_supplier: 'suppliers.edit',
+  create_warehouse: 'warehouses.create',
+  update_warehouse: 'warehouses.edit',
+  create_cheque: 'cheques.create',
+  set_order_status: 'orders.edit',
+  set_invoice_status: 'invoices.edit'
+};
+
 const ORDER_STATUS = new Set(['pending', 'processing', 'completed', 'cancelled']);
 const CHEQUE_STATUS = new Set(['pending', 'paid', 'cancelled']);
 const INVOICE_STATUS = new Set(['draft', 'sent', 'paid', 'overdue', 'cancelled']);
@@ -1205,6 +1223,30 @@ const agentTools = {
     const { valid, sanitizedArgs, error } = this.validateToolArgs(toolName, args || {});
     if (!valid) {
       throw new Error(`Geçersiz araç parametresi: ${error}`);
+    }
+
+    if (this.isMutationTool(toolName)) {
+      const permissionMap = context.mutationPermissionMap || DEFAULT_MUTATION_PERMISSION_MAP;
+      const requiredPermission = permissionMap[toolName];
+
+      if (!requiredPermission) {
+        throw new Error(`Permission mapping bulunamadı: ${toolName}`);
+      }
+
+      if (typeof context.hasMutationPermission !== 'function') {
+        throw new Error(`Mutation permission checker bulunamadı: ${toolName}`);
+      }
+
+      const permissionResult = await context.hasMutationPermission({
+        user_id: context.user_id,
+        role: context.role,
+        toolName,
+        requiredPermission
+      });
+
+      if (!permissionResult?.allowed) {
+        throw new Error(`Permission denied: ${permissionResult?.requiredPermission || requiredPermission}`);
+      }
     }
 
     return await fn.call(this, {

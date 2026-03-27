@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { generalLimiter, strictLimiter, passwordResetLimiter } = require('../middleware/rateLimit');
+const { passwordResetLimiter } = require('../middleware/rateLimit');
 const authMiddleware = require('../middleware/auth');
 const { validate, userSchemas } = require('../utils/validators');
 const {
@@ -43,7 +43,7 @@ const {
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
-router.post('/login', strictLimiter, validate(userSchemas.login), login);
+router.post('/login', validate(userSchemas.login), login);
 
 /**
  * @openapi
@@ -75,9 +75,9 @@ router.post('/login', strictLimiter, validate(userSchemas.login), login);
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
-router.post('/register', strictLimiter, validate(userSchemas.register), register);
+router.post('/register', validate(userSchemas.register), register);
 
-router.post('/refresh', generalLimiter, refreshToken);
+router.post('/refresh', refreshToken);
 router.post('/reset-password-request', passwordResetLimiter, requestPasswordReset);
 router.post('/reset-password', passwordResetLimiter, resetPassword);
 
@@ -95,7 +95,7 @@ router.post('/reset-password', passwordResetLimiter, resetPassword);
  *             schema: { $ref: '#/components/schemas/SuccessResponse' }
  */
 router.get('/profile',  authMiddleware, getProfile);
-router.post('/logout',  authMiddleware, generalLimiter, logout);
+router.post('/logout', logout);
 router.put('/profile',  authMiddleware, validate(userSchemas.updateUser), updateProfile);
 
 module.exports = router;

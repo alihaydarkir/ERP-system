@@ -49,8 +49,6 @@ const blockIP = async (req, res) => {
         is_active = true,
         updated_at = NOW()
     `, [ip_address, reason, blocked_by, expires_at || null]);
-
-    console.log(`✅ IP blocked: ${ip_address} by user ${blocked_by}`);
     res.json(formatSuccess({ ip_address }, 'IP başarıyla engellendi'));
   } catch (error) {
     console.error('Block IP error:', error);
@@ -69,8 +67,6 @@ const unblockIP = async (req, res) => {
       DELETE FROM ip_blacklist
       WHERE ip_address = $1
     `, [ip_address]);
-
-    console.log(`✅ IP unblocked: ${ip_address}`);
     res.json(formatSuccess({ ip_address }, 'IP engeli kaldırıldı'));
   } catch (error) {
     console.error('Unblock IP error:', error);
@@ -149,8 +145,6 @@ const terminateSession = async (req, res) => {
       DELETE FROM user_sessions
       WHERE id = $1
     `, [session_id]);
-
-    console.log(`✅ Session terminated: ${session_id}`);
     res.json(formatSuccess({ session_id }, 'Oturum sonlandırıldı'));
   } catch (error) {
     console.error('Terminate session error:', error);

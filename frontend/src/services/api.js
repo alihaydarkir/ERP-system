@@ -1,10 +1,12 @@
 import axios from 'axios';
+import useAuthStore from '../store/authStore';
 
 // In production (Docker Compose): VITE_API_URL="" (empty) → relative URLs → nginx proxies /api
 // In development:                 VITE_API_URL=http://localhost:5000 (set in .env.development)
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL ?? '',
   timeout: parseInt(import.meta.env.VITE_API_TIMEOUT) || 30000,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -14,12 +16,12 @@ const api = axios.create({
 let isRefreshing = false;
 let failedQueue = [];
 
-const processQueue = (error, token = null) => {
+const processQueue = (error) => {
   failedQueue.forEach((prom) => {
     if (error) {
       prom.reject(error);
     } else {
-      prom.resolve(token);
+      prom.resolve();
     }
   });
 
@@ -29,15 +31,10 @@ const processQueue = (error, token = null) => {
 // Request interceptor
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
+    config.withCredentials = true;
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
 // Response interceptor with token refresh
@@ -46,6 +43,18 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    if (!originalRequest) {
+      return Promise.reject(error);
+    }
+
+    const isRefreshEndpoint = String(originalRequest.url || '').includes('/api/auth/refresh');
+
+    if (isRefreshEndpoint) {
+      useAuthStore.getState().logout();
+      window.location.href = '/login';
+      return Promise.reject(error);
+    }
+
     // If error is 401 and we haven't tried to refresh yet
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
@@ -53,10 +62,7 @@ api.interceptors.response.use(
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         })
-          .then((token) => {
-            originalRequest.headers.Authorization = `Bearer ${token}`;
-            return api(originalRequest);
-          })
+          .then(() => api(originalRequest))
           .catch((err) => {
             return Promise.reject(err);
           });
@@ -65,38 +71,15 @@ api.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
-      const refreshToken = localStorage.getItem('refreshToken');
-
-      if (!refreshToken) {
-        // No refresh token, redirect to login
-        localStorage.removeItem('token');
-        localStorage.removeItem('refreshToken');
-        window.location.href = '/login';
-        return Promise.reject(error);
-      }
-
       try {
         // Call refresh endpoint
-        const response = await axios.post(
-          `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/refresh`,
-          { refreshToken },
-          { headers: { 'Content-Type': 'application/json' } }
-        );
+        const response = await api.post('/api/auth/refresh', {});
 
-        if (response.data.success && response.data.data.token) {
-          const newToken = response.data.data.token;
-
-          // Update stored token
-          localStorage.setItem('token', newToken);
-
-          // Update default axios header
-          api.defaults.headers.common.Authorization = `Bearer ${newToken}`;
-
+        if (response.data.success) {
           // Process queued requests
-          processQueue(null, newToken);
+          processQueue(null);
 
-          // Retry original request with new token
-          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          // Retry original request
           return api(originalRequest);
         } else {
           throw new Error('Token refresh failed');
@@ -104,8 +87,7 @@ api.interceptors.response.use(
       } catch (refreshError) {
         // Refresh failed, logout user
         processQueue(refreshError, null);
-        localStorage.removeItem('token');
-        localStorage.removeItem('refreshToken');
+        useAuthStore.getState().logout();
         window.location.href = '/login';
         return Promise.reject(refreshError);
       } finally {

@@ -2,7 +2,7 @@ const Warehouse = require('../models/Warehouse');
 
 // Simple activity logger
 const logActivity = async (userId, action, entity, entityId, details) => {
-  console.log(`[Activity] User ${userId} - ${action} on ${entity} ${entityId}`, details);
+  return { userId, action, entity, entityId, details };
 };
 
 // Get all warehouses

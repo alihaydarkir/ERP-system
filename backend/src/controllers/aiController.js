@@ -1,6 +1,8 @@
 const aiService = require('../services/aiService');
+const aiApprovalService = require('../services/aiApprovalService');
 const { formatSuccess, formatError } = require('../utils/formatters');
 const { randomUUID } = require('crypto');
+const { notifyAIApprovalUpdated } = require('../websocket/notifier');
 
 /**
  * POST /api/ai/chat
@@ -38,8 +40,6 @@ const agentChat = async (req, res) => {
         'MODEL_NOT_FOUND'
       ));
     }
-
-    console.log(`[AI Agent][${requestId}] User ${req.user.userId} | Company ${company_id} | Message: ${message.substring(0, 80)}...`);
 
     const result = await aiService.runAgent(message, {
       company_id,
@@ -114,4 +114,139 @@ const getModels = async (req, res) => {
   }
 };
 
-module.exports = { agentChat, getHealth, getModels };
+/**
+ * GET /api/ai/approvals/my
+ * Kullanıcının bekleyen AI onay taleplerini listeler
+ */
+const getMyApprovals = async (req, res) => {
+  try {
+    const rows = await aiApprovalService.getPendingForRequester({
+      company_id: req.user.company_id,
+      user_id: req.user.userId
+    });
+
+    return res.json(formatSuccess({
+      approvals: rows
+    }));
+  } catch (error) {
+    return res.status(500).json(formatError(error.message));
+  }
+};
+
+/**
+ * POST /api/ai/approvals/:id/approve
+ * AI aksiyon onayını verir ve işlemi yürütür
+ */
+const approveAIAction = async (req, res) => {
+  const approvalId = Number(req.params.id);
+  if (!Number.isInteger(approvalId) || approvalId <= 0) {
+    return res.status(400).json(formatError('Geçersiz onay ID', null, 'VALIDATION_ERROR'));
+  }
+
+  const userRole = req.user.role;
+  if (!['super_admin', 'admin', 'manager'].includes(userRole)) {
+    return res.status(403).json(formatError('Bu işlem için onay yetkiniz yok', null, 'FORBIDDEN'));
+  }
+
+  try {
+    const existing = await aiApprovalService.findById(approvalId);
+    if (!existing || existing.status !== 'pending') {
+      return res.status(404).json(formatError('Bekleyen onay kaydı bulunamadı', null, 'NOT_FOUND'));
+    }
+
+    if (existing.company_id !== req.user.company_id && req.user.role !== 'super_admin') {
+      return res.status(403).json(formatError('Farklı şirkete ait onayı çalıştıramazsınız', null, 'FORBIDDEN'));
+    }
+
+    const approved = await aiApprovalService.approve({
+      id: approvalId,
+      approver_user_id: req.user.userId,
+      note: req.body?.note
+    });
+
+    if (!approved) {
+      return res.status(404).json(formatError('Bekleyen onay kaydı bulunamadı', null, 'NOT_FOUND'));
+    }
+
+    notifyAIApprovalUpdated({
+      approval: approved,
+      status: 'approved',
+      actor_user_id: req.user.userId,
+      actor_role: req.user.role
+    });
+
+    const executionResult = await aiService.executeApprovedAction(approvalId, {
+      user_id: req.user.userId,
+      role: req.user.role,
+      company_id: req.user.company_id
+    });
+
+    return res.json(formatSuccess({
+      approval_id: approvalId,
+      status: 'executed',
+      result: executionResult
+    }, 'AI işlem onaylandı ve yürütüldü'));
+  } catch (error) {
+    return res.status(500).json(formatError(error.message, null, 'AI_APPROVAL_EXECUTION_FAILED'));
+  }
+};
+
+/**
+ * POST /api/ai/approvals/:id/reject
+ * AI aksiyon onayını reddeder
+ */
+const rejectAIAction = async (req, res) => {
+  const approvalId = Number(req.params.id);
+  if (!Number.isInteger(approvalId) || approvalId <= 0) {
+    return res.status(400).json(formatError('Geçersiz onay ID', null, 'VALIDATION_ERROR'));
+  }
+
+  const userRole = req.user.role;
+  if (!['super_admin', 'admin', 'manager'].includes(userRole)) {
+    return res.status(403).json(formatError('Bu işlem için onay yetkiniz yok', null, 'FORBIDDEN'));
+  }
+
+  try {
+    const existing = await aiApprovalService.findById(approvalId);
+    if (!existing || existing.status !== 'pending') {
+      return res.status(404).json(formatError('Bekleyen onay kaydı bulunamadı', null, 'NOT_FOUND'));
+    }
+
+    if (existing.company_id !== req.user.company_id && req.user.role !== 'super_admin') {
+      return res.status(403).json(formatError('Farklı şirkete ait onay reddedilemez', null, 'FORBIDDEN'));
+    }
+
+    const rejected = await aiApprovalService.reject({
+      id: approvalId,
+      approver_user_id: req.user.userId,
+      note: req.body?.note || 'Reddedildi'
+    });
+
+    if (!rejected) {
+      return res.status(404).json(formatError('Bekleyen onay kaydı bulunamadı', null, 'NOT_FOUND'));
+    }
+
+    notifyAIApprovalUpdated({
+      approval: rejected,
+      status: 'rejected',
+      actor_user_id: req.user.userId,
+      actor_role: req.user.role
+    });
+
+    return res.json(formatSuccess({
+      approval_id: approvalId,
+      status: 'rejected'
+    }, 'AI işlem onayı reddedildi'));
+  } catch (error) {
+    return res.status(500).json(formatError(error.message, null, 'AI_APPROVAL_REJECT_FAILED'));
+  }
+};
+
+module.exports = {
+  agentChat,
+  getHealth,
+  getModels,
+  getMyApprovals,
+  approveAIAction,
+  rejectAIAction
+};

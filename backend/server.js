@@ -3,12 +3,18 @@ const http = require('http');
 const socketIo = require('socket.io');
 const helmet = require('helmet');
 const cors = require('cors');
-const rateLimit = require('express-rate-limit');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./src/config/swagger');
 const aiService = require('./src/services/aiService');
 const { config } = require('./src/config/env');
 const { redisClient: getRedisClient, connectRedis, isRedisConnected } = require('./src/config/redis');
+const {
+  generalApiLimiter,
+  authLoginLimiter,
+  authRegisterLimiter,
+  authRefreshLimiter,
+  aiUserLimiter
+} = require('./src/middleware/rateLimit');
 
 const app = express();
 const server = http.createServer(app);
@@ -74,15 +80,13 @@ app.use(hostHeaderCheck);
 app.use(originCheck);
 app.use(csrfProtection);
 
-// Rate limiting — production: 100 req/15min, development: 1000
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: config.rateLimitMax,
-  message: { success: false, message: 'Çok fazla istek gönderildi, lütfen daha sonra tekrar deneyin' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use('/api/', limiter);
+// Rate limiting
+app.use('/api/', generalApiLimiter);
+app.use('/api/auth/login', authLoginLimiter);
+app.use('/api/auth/register', authRegisterLimiter);
+app.use('/api/auth/refresh', authRefreshLimiter);
+app.use('/api/chat', aiUserLimiter);
+app.use('/api/ai', aiUserLimiter);
 
 // Routes
 /**
@@ -247,8 +251,14 @@ app.get('/api/capabilities', async (req, res) => {
         modelAvailable: aiHealth.modelAvailable,
         error: aiHealth.error
       },
+      orchestrator_mode: aiService.automationMode,
       mutation_tools: Object.keys(aiService.mutationPermissionMap || {}),
-      mutation_permissions: aiService.mutationPermissionMap || {}
+      mutation_permissions: aiService.mutationPermissionMap || {},
+      approval_flow: {
+        list_my: '/api/ai/approvals/my',
+        approve: '/api/ai/approvals/:id/approve',
+        reject: '/api/ai/approvals/:id/reject'
+      }
     },
     modules: [
       { name: 'products',   base: '/api/products',
@@ -388,7 +398,9 @@ app.use(errorHandler);
 
 // WebSocket handlers
 const WebSocketHandlers = require('./src/websocket/handlers');
+const { setWebSocketHandlers } = require('./src/websocket/notifier');
 const wsHandlers = new WebSocketHandlers(io);
+setWebSocketHandlers(wsHandlers);
 
 // WebSocket connection
 io.on('connection', (socket) => {

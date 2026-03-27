@@ -13,6 +13,21 @@ const { config } = require('../config/env');
 
 const hashToken = (token) => crypto.createHash('sha256').update(String(token || '')).digest('hex');
 
+const getCookieValue = (req, name) => {
+  const header = String(req.headers.cookie || '');
+  if (!header) return null;
+
+  const pairs = header.split(';').map((part) => part.trim());
+  for (const pair of pairs) {
+    const [key, ...rest] = pair.split('=');
+    if (key === name) {
+      return decodeURIComponent(rest.join('='));
+    }
+  }
+
+  return null;
+};
+
 const parseExpiryToMs = (value, fallbackMs) => {
   if (!value) return fallbackMs;
   const match = String(value).match(/^(\d+)([smhd])$/);
@@ -24,6 +39,32 @@ const parseExpiryToMs = (value, fallbackMs) => {
 };
 
 const refreshTtlMs = parseExpiryToMs(config.jwt.refreshExpiresIn, 7 * 24 * 60 * 60 * 1000);
+const accessTtlMs = parseExpiryToMs(config.jwt.expiresIn, 15 * 60 * 1000);
+
+const buildCookieOptions = (maxAge) => ({
+  httpOnly: true,
+  secure: config.nodeEnv === 'production',
+  sameSite: 'lax',
+  path: '/',
+  maxAge,
+});
+
+const setAuthCookies = (res, { accessToken, refreshToken }) => {
+  res.cookie('access_token', accessToken, buildCookieOptions(accessTtlMs));
+  res.cookie('refresh_token', refreshToken, buildCookieOptions(refreshTtlMs));
+};
+
+const clearAuthCookies = (res) => {
+  const clearOptions = {
+    httpOnly: true,
+    secure: config.nodeEnv === 'production',
+    sameSite: 'lax',
+    path: '/',
+  };
+
+  res.clearCookie('access_token', clearOptions);
+  res.clearCookie('refresh_token', clearOptions);
+};
 
 const signAccessToken = (user) => jwt.sign(
   { userId: user.id, username: user.username, role: user.role, company_id: user.company_id },
@@ -50,8 +91,7 @@ const createUserSession = async ({ userId, sessionToken, ipAddress, userAgent })
  */
 const register = async (req, res) => {
   try {
-    console.log('🔍 req.body BEFORE destructuring:', req.body);
-    
+
     const { 
       username, 
       email, 
@@ -63,9 +103,6 @@ const register = async (req, res) => {
       companyCode,
       joinCompanyCode
     } = req.body;
-
-    // DEBUG: Log company action
-    console.log('🔍 Register request AFTER destructuring:', { username, email, companyAction, companyName, companyCode });
 
     // Check if user already exists
     const existingUser = await User.findByEmail(email);
@@ -108,8 +145,6 @@ const register = async (req, res) => {
 
       company_id = newCompany.rows[0].id;
       userRole = 'admin'; // First user of new company becomes admin
-
-      console.log(`New company created: ${companyName} (${companyCode})`);
     } else if (companyAction === 'join') {
       // Join existing company - requires admin approval
       if (!joinCompanyCode) {
@@ -130,7 +165,6 @@ const register = async (req, res) => {
       }
 
       company_id = existingCompany.rows[0].id;
-      console.log(`User requesting to join company: ${existingCompany.rows[0].company_name}`);
     } else {
       // Join default company
       const defaultCompany = await pool.query(
@@ -170,8 +204,6 @@ const register = async (req, res) => {
         'SELECT id, company_name, company_code FROM companies WHERE id = $1',
         [user.company_id]
       );
-
-      console.log(`User registered (pending approval): ${username} (${user.id})`);
 
       return res.status(201).json(formatSuccess({
         message: 'Kayıt başarılı! Şirket yöneticisinin onayı bekleniyor.',
@@ -213,6 +245,8 @@ const register = async (req, res) => {
     const token = signAccessToken(user);
     const refreshToken = signRefreshToken(user, sessionId);
 
+    setAuthCookies(res, { accessToken: token, refreshToken });
+
     await createUserSession({
       userId: user.id,
       sessionToken: refreshToken,
@@ -226,13 +260,9 @@ const register = async (req, res) => {
       [user.company_id]
     );
 
-    console.log(`User registered: ${username} (${user.id})`);
-
     res.status(201).json(formatSuccess({
       user: formatUser(user),
-      company: companyInfo.rows[0] || null,
-      token,
-      refreshToken
+      company: companyInfo.rows[0] || null
     }, 'Registration successful'));
 
   } catch (error) {
@@ -279,14 +309,6 @@ const login = async (req, res) => {
       return res.status(401).json(formatError('Invalid credentials'));
     }
 
-    console.log('🔍 DEBUG - User object from DB:', { 
-      id: user.id, 
-      email: user.email, 
-      company_id: user.company_id,
-      has_company_id: 'company_id' in user,
-      all_keys: Object.keys(user)
-    });
-
     // Verify password
     const isValidPassword = await User.verifyPassword(password, user.password_hash);
     if (!isValidPassword) {
@@ -319,8 +341,6 @@ const login = async (req, res) => {
         { expiresIn: '5m' }
       );
 
-      console.log(`User login attempt with 2FA: ${user.username} (${user.id})`);
-
       return res.status(200).json(formatSuccess({
         userId: user.id,
         username: user.username,
@@ -333,6 +353,8 @@ const login = async (req, res) => {
     const sessionId = crypto.randomUUID();
     const token = signAccessToken(user);
     const refreshToken = signRefreshToken(user, sessionId);
+
+    setAuthCookies(res, { accessToken: token, refreshToken });
 
     // Cache user session
     await cacheService.cacheSession(user.id, {
@@ -409,13 +431,9 @@ const login = async (req, res) => {
       [user.company_id]
     );
 
-    console.log(`User logged in: ${user.username} (${user.id})`);
-
     res.json(formatSuccess({
       user: formatUser(user),
-      company: companyInfo.rows[0] || null,
-      token,
-      refreshToken
+      company: companyInfo.rows[0] || null
     }, 'Login successful'));
 
   } catch (error) {
@@ -429,14 +447,15 @@ const login = async (req, res) => {
  */
 const refreshToken = async (req, res) => {
   try {
-    const { refreshToken } = req.body;
+    const incomingRefreshToken = getCookieValue(req, 'refresh_token');
 
-    if (!refreshToken) {
-      return res.status(400).json(formatError('Refresh token required'));
+    if (!incomingRefreshToken) {
+      clearAuthCookies(res);
+      return res.status(401).json(formatError('Refresh token required'));
     }
 
     // Verify refresh token
-    const decoded = jwt.verify(refreshToken, config.jwt.secret);
+    const decoded = jwt.verify(incomingRefreshToken, config.jwt.secret);
 
     // Get user
     const user = await User.findById(decoded.userId);
@@ -453,9 +472,10 @@ const refreshToken = async (req, res) => {
         AND is_active = true
         AND expires_at > NOW()
       LIMIT 1
-    `, [user.id, refreshToken]);
+    `, [user.id, incomingRefreshToken]);
 
     if (session.rows.length === 0) {
+      clearAuthCookies(res);
       return res.status(401).json(formatError('Session not found or expired'));
     }
 
@@ -477,10 +497,13 @@ const refreshToken = async (req, res) => {
       userAgent: req.get('user-agent') || 'Unknown'
     });
 
-    res.json(formatSuccess({ token: newAccessToken, refreshToken: newRefreshToken }, 'Token refreshed'));
+    setAuthCookies(res, { accessToken: newAccessToken, refreshToken: newRefreshToken });
+
+    res.json(formatSuccess({ refreshed: true }, 'Token refreshed'));
 
   } catch (error) {
     console.error('Refresh token error:', error);
+    clearAuthCookies(res);
     res.status(401).json(formatError('Invalid refresh token'));
   }
 };
@@ -490,23 +513,57 @@ const refreshToken = async (req, res) => {
  */
 const logout = async (req, res) => {
   try {
-    const userId = req.user.userId;
-    const token = req.headers.authorization?.split(' ')[1];
+    const token = req.headers.authorization?.split(' ')[1] || getCookieValue(req, 'access_token');
+    const refreshTokenCookie = getCookieValue(req, 'refresh_token');
+    let userId = req.user?.userId || null;
+    let companyId = req.user?.company_id || null;
+    let username = req.user?.username || null;
 
-    // Delete cached session
-    await cacheService.deleteSession(userId);
+    if (!userId && token) {
+      try {
+        const decodedAccess = jwt.verify(token, config.jwt.secret);
+        userId = decodedAccess.userId || decodedAccess.id || null;
+        companyId = decodedAccess.company_id || null;
+        username = decodedAccess.username || null;
+      } catch (_) {
+        // access token may be expired/invalid; continue with cookie cleanup
+      }
+    }
 
-    // Kullanıcının aktif oturumlarını sonlandır
-    await pool.query(`
-      UPDATE user_sessions
-      SET is_active = false,
-          last_activity = NOW()
-      WHERE user_id = $1
-        AND is_active = true
-    `, [userId]);
+    if (!userId && refreshTokenCookie) {
+      try {
+        const decodedRefresh = jwt.verify(refreshTokenCookie, config.jwt.secret);
+        userId = decodedRefresh.userId || null;
+      } catch (_) {
+        // refresh token may be expired/invalid; continue with cookie cleanup
+      }
+    }
+
+    if (userId) {
+      // Delete cached session
+      await cacheService.deleteSession(userId);
+
+      // Kullanıcının aktif oturumlarını sonlandır
+      await pool.query(`
+        UPDATE user_sessions
+        SET is_active = false,
+            last_activity = NOW()
+        WHERE user_id = $1
+          AND is_active = true
+      `, [userId]);
+    } else if (refreshTokenCookie) {
+      // User çözümlenemese bile ilgili refresh token session'ını kapatmayı dene
+      await pool.query(`
+        UPDATE user_sessions
+        SET is_active = false,
+            last_activity = NOW()
+        WHERE session_token = $1
+          AND is_active = true
+      `, [refreshTokenCookie]);
+    }
 
     // Access token'ı kalan ömrü boyunca blacklist'e al (tablo yoksa akışı bozma)
-    if (token) {
+    if (token && userId) {
       try {
         const decoded = jwt.decode(token);
         if (decoded?.exp) {
@@ -523,19 +580,21 @@ const logout = async (req, res) => {
       }
     }
 
-    // Log activity
-    await AuditLog.logLogout(userId, getClientIP(req), req.user.company_id);
+    if (userId) {
+      // Log activity
+      await AuditLog.logLogout(userId, getClientIP(req), companyId);
 
-    // Log to activity logs
-    await ActivityLogService.log(
-      userId,
-      'logout',
-      'auth',
-      { username: req.user.username },
-      req
-    );
+      // Log to activity logs
+      await ActivityLogService.log(
+        userId,
+        'logout',
+        'auth',
+        { username: username || 'unknown' },
+        req
+      );
+    }
 
-    console.log(`User logged out: ${req.user.username} (${userId})`);
+    clearAuthCookies(res);
 
     res.json(formatSuccess(null, 'Logout successful'));
 
@@ -589,8 +648,6 @@ const updateProfile = async (req, res) => {
 
     // Invalidate session cache
     await cacheService.deleteSession(userId);
-
-    console.log(`User profile updated: ${updatedUser.username} (${userId})`);
 
     res.json(formatSuccess(formatUser(updatedUser), 'Profile updated'));
 
@@ -667,8 +724,6 @@ const resetPassword = async (req, res) => {
       changes: { password_changed: true },
       ip_address: getClientIP(req)
     });
-
-    console.log(`Password reset: User ${decoded.userId}`);
 
     res.json(formatSuccess(null, 'Password reset successful'));
 

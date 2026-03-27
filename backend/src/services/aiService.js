@@ -1,15 +1,39 @@
-const axios = require('axios');
-const agentTools = require('./agentTools');
+const agentTools = require('./tools');
 const AuditLog = require('../models/AuditLog');
 const PermissionService = require('./permissionService');
+const pool = require('../config/database');
+const aiGateway = require('./aiGateway');
+const AgentOrchestrator = require('./agentOrchestrator');
+const aiApprovalService = require('./aiApprovalService');
+const { notifyAIApprovalRequested, notifyAIApprovalUpdated } = require('../websocket/notifier');
+const { logger } = require('../middleware/logger');
+const {
+  sanitizeUserInput,
+  wrapExternalData,
+  filterAIOutput
+} = require('../middleware/aiSecurityMiddleware');
 
 class AIService {
   constructor() {
-    this.ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
-    this.model = process.env.OLLAMA_MODEL || 'llama2';
+    this.provider = aiGateway.getProvider();
+    this.model = process.env.AI_MODEL || aiGateway.getDefaultModel() || process.env.OLLAMA_MODEL || 'llama2';
     this.maxTokens = parseInt(process.env.AI_MAX_CONTEXT) || 2000;
+    this.maxInputLength = parseInt(process.env.AI_MAX_INPUT_LENGTH, 10) || 2000;
+    this.rateLimitPerUser = parseInt(process.env.AI_RATE_LIMIT_PER_USER, 10) || 20;
+    this.rateLimitWindowMs = parseInt(process.env.AI_RATE_LIMIT_WINDOW_MS, 10) || 60 * 1000;
     this.timeout = 180000; // 3 dakika — büyük modeller için
+    this.automationMode = 'copilot';
+    try {
+      this.automationMode = this.resolveAutomationMode(process.env.AI_AUTOMATION_MODE);
+    } catch (error) {
+      logger.error('Invalid AI_AUTOMATION_MODE. Falling back to copilot.', {
+        error: error.message,
+        provided: process.env.AI_AUTOMATION_MODE
+      });
+      this.automationMode = 'copilot';
+    }
     this.pendingMutations = new Map();
+    this.userRateCounters = new Map();
     this.mutationKeywords = [
       'oluştur', 'ekle', 'yarat', 'güncelle', 'düzenle', 'değiştir', 'sil', 'iptal', 'kapat',
       'tamamla', 'onayla', 'gönder', 'ödendi', 'öde', 'bekleyen', 'stok düş', 'stok ekle',
@@ -32,6 +56,134 @@ class AIService {
       set_order_status: 'orders.edit',
       set_invoice_status: 'invoices.edit'
     };
+    this.toolRiskMatrix = {
+      cancel_order: { level: 'high', requiresApproval: true, requiredRole: 'manager' },
+      set_cheque_status: { level: 'high', requiresApproval: true, requiredRole: 'admin' },
+      deactivate_product: { level: 'high', requiresApproval: true, requiredRole: 'manager' },
+      create_order: { level: 'medium', requiresApproval: false, requiredRole: 'manager' },
+      set_product_stock: { level: 'low', requiresApproval: false, requiredRole: null }
+    };
+    this.highRiskTools = new Set(['cancel_order', 'set_cheque_status', 'deactivate_product']);
+    this.orchestrator = new AgentOrchestrator();
+  }
+
+  resolveAutomationMode(mode) {
+    const allowedModes = new Set(['copilot', 'guarded', 'transactional']);
+    const normalizedMode = String(mode || 'copilot').toLowerCase().trim();
+
+    if (!allowedModes.has(normalizedMode)) {
+      throw new Error(
+        `Invalid AI_AUTOMATION_MODE: "${normalizedMode}". Allowed values: copilot, guarded, transactional.`
+      );
+    }
+
+    return normalizedMode;
+  }
+
+  enforceRateLimit({ user_id, company_id }) {
+    const scope = `${company_id || 'global'}:${user_id || 'anonymous'}`;
+    const now = Date.now();
+    const state = this.userRateCounters.get(scope) || { count: 0, resetAt: now + this.rateLimitWindowMs };
+
+    if (now >= state.resetAt) {
+      state.count = 0;
+      state.resetAt = now + this.rateLimitWindowMs;
+    }
+
+    state.count += 1;
+    this.userRateCounters.set(scope, state);
+
+    const remaining = Math.max(this.rateLimitPerUser - state.count, 0);
+    return {
+      allowed: state.count <= this.rateLimitPerUser,
+      remaining,
+      retryAfterMs: Math.max(state.resetAt - now, 0)
+    };
+  }
+
+  getToolRisk(toolName) {
+    if (!agentTools.isMutationTool(toolName)) {
+      return { level: 'none', requiresApproval: false, requiredRole: null };
+    }
+
+    return this.toolRiskMatrix[toolName] || {
+      level: 'medium',
+      requiresApproval: true,
+      requiredRole: 'manager'
+    };
+  }
+
+  shouldRequireExternalApproval(toolName) {
+    if (this.isHighRiskMutationTool(toolName)) {
+      return true;
+    }
+
+    const risk = this.getToolRisk(toolName);
+
+    if (this.automationMode === 'copilot') {
+      return agentTools.isMutationTool(toolName);
+    }
+
+    if (this.automationMode === 'guarded') {
+      return risk.level !== 'low' || risk.requiresApproval;
+    }
+
+    if (this.automationMode === 'transactional') {
+      return Boolean(risk.requiresApproval);
+    }
+
+    return true;
+  }
+
+  isHighRiskMutationTool(toolName) {
+    const normalized = String(toolName || '').toLowerCase();
+    if (this.highRiskTools.has(normalized)) {
+      return true;
+    }
+
+    if (/delete|deactivate|remove/.test(normalized)) {
+      return true;
+    }
+
+    const risk = this.getToolRisk(normalized);
+    return risk.level === 'high';
+  }
+
+  canRoleApproveRisk(role, requiredRole) {
+    if (role === 'super_admin') return true;
+    if (!requiredRole) return ['admin', 'manager'].includes(role);
+
+    const roleRank = {
+      user: 1,
+      manager: 2,
+      admin: 3,
+      super_admin: 4
+    };
+
+    return (roleRank[role] || 0) >= (roleRank[requiredRole] || 99);
+  }
+
+  async getUserRoleById(userId) {
+    if (!userId) return 'user';
+    const result = await pool.query('SELECT role FROM users WHERE id = $1 LIMIT 1', [userId]);
+    return result.rows[0]?.role || 'user';
+  }
+
+  buildSecureToolExecutionContext(baseContext = {}) {
+    const context = {
+      ...baseContext,
+      mutationPermissionMap: this.mutationPermissionMap
+    };
+
+    context.hasMutationPermission = async ({ user_id: requestedUserId, role: requestedRole, toolName }) => {
+      return this.hasMutationPermission({
+        user_id: requestedUserId,
+        role: requestedRole,
+        toolName
+      });
+    };
+
+    return context;
   }
 
   formatTRY(value) {
@@ -54,6 +206,7 @@ class AIService {
         return {
           tool: toolName,
           data: safeResult,
+          wrapped_data: wrapExternalData(safeResult),
           summary: `Vadesi geçmiş çek sayısı: ${count}. Toplam tutar: ${this.formatTRY(total)}.`,
           meta: { has_data: count > 0, count }
         };
@@ -66,6 +219,7 @@ class AIService {
         return {
           tool: toolName,
           data: list,
+          wrapped_data: wrapExternalData(list),
           summary: `Çek listesi sonucu: ${count} kayıt. Toplam tutar: ${this.formatTRY(total)}.`,
           meta: { has_data: count > 0, count }
         };
@@ -78,6 +232,7 @@ class AIService {
         return {
           tool: toolName,
           data: safeResult,
+          wrapped_data: wrapExternalData(safeResult),
           summary: `Finansal özet: bekleyen çek ${pendingCheques}, vadesi geçmiş çek ${overdueCheques}, bekleyen sipariş ${pendingOrders}.`,
           meta: {
             has_data: pendingCheques > 0 || overdueCheques > 0 || pendingOrders > 0,
@@ -91,6 +246,7 @@ class AIService {
         return {
           tool: toolName,
           data: safeResult,
+          wrapped_data: wrapExternalData(safeResult),
           summary: `Düşük stoklu ürün sayısı: ${count}.`,
           meta: { has_data: count > 0, count }
         };
@@ -101,6 +257,7 @@ class AIService {
         return {
           tool: toolName,
           data: safeResult,
+          wrapped_data: wrapExternalData(safeResult),
           summary: `Ürün arama sonucu: ${count} kayıt.`,
           meta: { has_data: count > 0, count }
         };
@@ -111,6 +268,7 @@ class AIService {
         return {
           tool: toolName,
           data: safeResult,
+          wrapped_data: wrapExternalData(safeResult),
           summary: `Müşteri arama sonucu: ${count} kayıt.`,
           meta: { has_data: count > 0, count }
         };
@@ -122,6 +280,7 @@ class AIService {
         return {
           tool: toolName,
           data: safeResult,
+          wrapped_data: wrapExternalData(safeResult),
           summary: `Sipariş özeti: ${totalOrders} sipariş, toplam ${this.formatTRY(totalAmount)}.`,
           meta: { has_data: totalOrders > 0, count: totalOrders }
         };
@@ -134,6 +293,7 @@ class AIService {
         return {
           tool: toolName,
           data: safeResult,
+          wrapped_data: wrapExternalData(safeResult),
           summary: `Genel durum: ${totalOrders} sipariş, ${totalCustomers} müşteri, ${lowStock} düşük stok uyarısı.`,
           meta: {
             has_data: totalOrders > 0 || totalCustomers > 0 || lowStock > 0,
@@ -152,6 +312,7 @@ class AIService {
         return {
           tool: toolName,
           data: safeResult,
+          wrapped_data: wrapExternalData(safeResult),
           summary: mutationMessage,
           meta: { has_data: count > 0, count }
         };
@@ -311,7 +472,7 @@ class AIService {
         company_id
       });
     } catch (err) {
-      console.error('AI mutation audit log error:', err.message);
+      logger.error('AI mutation audit log error', { error: err.message });
     }
   }
 
@@ -646,24 +807,45 @@ class AIService {
     return null;
   }
 
-  // ── Ollama'ya mesaj gönder ────────────────────────────────────────────────
+  // ── Aktif AI provider'a mesaj gönder ──────────────────────────────────────
+  async sendToProvider(messages) {
+    const sanitizedMessages = (messages || []).map((m) => ({
+      ...m,
+      content: sanitizeUserInput(m?.content || '')
+    }));
+
+    const response = await aiGateway.chat(sanitizedMessages, {
+      model: this.model,
+      timeout: this.timeout,
+      temperature: 0.3,
+      top_p: 0.9
+    });
+    return filterAIOutput(response.content || '');
+  }
+
+  // Geriye dönük uyumluluk
   async sendToOllama(messages) {
-    const response = await axios.post(
-      `${this.ollamaUrl}/api/chat`,
-      {
-        model: this.model,
-        messages,
-        stream: false,
-        options: { temperature: 0.3, top_p: 0.9 }
-      },
-      { timeout: this.timeout }
-    );
-    return response.data.message?.content || '';
+    return this.sendToProvider(messages);
   }
 
   // ── Ana Agent (Fetch-First Pattern) ──────────────────────────────────────
   // Önce veriyi çek, sonra modele sadece "yorumla" de
   async runAgent(userMessage, contextOrCompanyId) {
+    const rawUserMessage = String(userMessage || '');
+    if (rawUserMessage.length > this.maxInputLength) {
+      return {
+        success: false,
+        answer: `Mesaj çok uzun. Maksimum ${this.maxInputLength} karakter gönderebilirsiniz.`,
+        steps: [],
+        meta: {
+          validation_error: 'input_too_long',
+          max_input_length: this.maxInputLength
+        }
+      };
+    }
+
+    const sanitizedUserMessage = sanitizeUserInput(userMessage);
+
     const context = typeof contextOrCompanyId === 'object'
       ? contextOrCompanyId
       : { company_id: contextOrCompanyId };
@@ -675,7 +857,21 @@ class AIService {
 
     const steps = [];
 
-    if (this.isCancelMessage(userMessage)) {
+    const rateLimit = this.enforceRateLimit({ user_id, company_id });
+    if (!rateLimit.allowed) {
+      return {
+        success: false,
+        answer: `AI kullanım limitiniz aşıldı. Lütfen ${Math.ceil(rateLimit.retryAfterMs / 1000)} saniye sonra tekrar deneyin.`,
+        steps,
+        meta: {
+          rate_limited: true,
+          limit: this.rateLimitPerUser,
+          retry_after_ms: rateLimit.retryAfterMs
+        }
+      };
+    }
+
+    if (this.isCancelMessage(sanitizedUserMessage)) {
       const pending = this.pendingMutations.get(mutationKey);
       if (pending) {
         this.pendingMutations.delete(mutationKey);
@@ -695,7 +891,7 @@ class AIService {
     }
 
     // 0) Onay mesajı gelirse bekleyen mutation'ı uygula
-    if (this.isConfirmationMessage(userMessage)) {
+    if (this.isConfirmationMessage(sanitizedUserMessage)) {
       const pending = this.pendingMutations.get(mutationKey);
       if (!pending) {
         return { success: true, answer: 'Onay bekleyen bir işlem bulunamadı.', steps, meta: { requires_confirmation: false } };
@@ -752,7 +948,8 @@ class AIService {
 
       steps.push({ type: 'tool_call', tool: pending.tool, args: pending.args });
       try {
-        const result = await agentTools.execute(pending.tool, confirmValidation.sanitizedArgs, context);
+        const secureContext = this.buildSecureToolExecutionContext(context);
+        const result = await agentTools.execute(pending.tool, confirmValidation.sanitizedArgs, secureContext);
         const normalizedResult = this.normalizeToolResult(pending.tool, result);
         steps.push({ type: 'tool_result', tool: pending.tool, result: normalizedResult });
         await this.logAgentMutation({
@@ -767,7 +964,7 @@ class AIService {
         this.pendingMutations.delete(mutationKey);
         return {
           success: true,
-          answer: `İşlem başarıyla tamamlandı. ${normalizedResult.summary}`,
+          answer: filterAIOutput(`İşlem başarıyla tamamlandı. ${normalizedResult.summary}`),
           steps,
           meta: {
             mutation_executed: true,
@@ -792,8 +989,8 @@ class AIService {
     }
 
     // 1) Yazma/silme niyeti varsa önce onay iste
-    if (this.detectMutationIntent(userMessage)) {
-      const action = this.detectMutationAction(userMessage);
+    if (this.detectMutationIntent(sanitizedUserMessage)) {
+      const action = this.detectMutationAction(sanitizedUserMessage);
       if (!action) {
         return {
           success: true,
@@ -838,6 +1035,50 @@ class AIService {
         };
       }
 
+      if (this.shouldRequireExternalApproval(action.tool)) {
+        const risk = this.getToolRisk(action.tool);
+        const approval = await aiApprovalService.createRequest({
+          company_id,
+          requested_by_user_id: user_id,
+          agent_tool: action.tool,
+          agent_input: action.args,
+          risk_level: risk.level,
+          required_role: risk.requiredRole,
+          summary: action.preview
+        });
+
+        await this.logAgentMutation({
+          user_id,
+          company_id,
+          tool: action.tool,
+          args: action.args,
+          result: { approval_id: approval.id, status: approval.status },
+          error: null,
+          status: 'approval_required'
+        });
+
+        notifyAIApprovalRequested({
+          approval,
+          requester: {
+            user_id,
+            role
+          }
+        });
+
+        return {
+          success: true,
+          answer: `⏳ Bu işlem onaya gönderildi. Onay ID: ${approval.id}. Yetkili kullanıcı /api/ai/approvals/${approval.id}/approve endpoint'i ile işlemi tamamlayabilir.`,
+          steps,
+          meta: {
+            requires_human_approval: true,
+            approval_id: approval.id,
+            mutation_tool: action.tool,
+            risk_level: risk.level,
+            required_role: risk.requiredRole
+          }
+        };
+      }
+
       this.pendingMutations.set(mutationKey, {
         ...action,
         created_at: Date.now()
@@ -856,83 +1097,186 @@ class AIService {
       };
     }
 
-    // 1. Hangi araçlar gerekli? (keyword eşleşmesi, LLM gerekmez)
-    const toolsToRun = this.detectTools(userMessage);
-    console.log(`[AI Agent] Detected tools: ${toolsToRun.map(t => t.name).join(', ')}`);
+    const toolsToRun = this.detectTools(sanitizedUserMessage);
+    const secureContext = this.buildSecureToolExecutionContext(context);
+    const orchestrated = await this.orchestrator.run({
+      userMessage: sanitizedUserMessage,
+      context: secureContext,
+      fallbackTools: toolsToRun,
+      hasMutationPermission: async ({ user_id: requestedByUserId, role: requestedByRole, toolName }) => {
+        return this.hasMutationPermission({
+          user_id: requestedByUserId,
+          role: requestedByRole,
+          toolName
+        });
+      },
+      requestApproval: async ({ tool, args, risk }) => {
+        const approval = await aiApprovalService.createRequest({
+          company_id,
+          requested_by_user_id: user_id,
+          agent_tool: tool,
+          agent_input: args,
+          risk_level: risk.level,
+          required_role: risk.requiredRole,
+          summary: `${tool} işlemi AI orchestrator tarafından onaya gönderildi`
+        });
 
-    // 2. Araçları paralel çalıştır, gerçek veriyi topla
-    const toolContexts = [];
-    for (const tool of toolsToRun) {
-      steps.push({ type: 'tool_call', tool: tool.name, args: tool.args });
-      try {
-        const result = await agentTools.execute(tool.name, tool.args, context);
-        const normalizedResult = this.normalizeToolResult(tool.name, result);
-        steps.push({ type: 'tool_result', tool: tool.name, result: normalizedResult });
-        toolContexts.push(normalizedResult);
-      } catch (err) {
-        console.error(`Tool "${tool.name}" error:`, err.message);
-        steps.push({ type: 'tool_error', tool: tool.name, error: err.message });
+        await this.logAgentMutation({
+          user_id,
+          company_id,
+          tool,
+          args,
+          result: { approval_id: approval.id, status: approval.status },
+          error: null,
+          status: 'approval_required'
+        });
+
+        notifyAIApprovalRequested({
+          approval,
+          requester: {
+            user_id,
+            role
+          }
+        });
+
+        return approval;
       }
+    });
+
+    const wrappedSteps = [...steps, ...(orchestrated.steps || [])].map((step) => {
+      if (step?.type === 'tool_result' && step.result !== undefined) {
+        return {
+          ...step,
+          wrapped_result: wrapExternalData(step.result)
+        };
+      }
+      return step;
+    });
+
+    return {
+      success: true,
+      answer: filterAIOutput(orchestrated.answer),
+      steps: wrappedSteps,
+      meta: {
+        ...(orchestrated.meta || {}),
+        requires_confirmation: false
+      }
+    };
+  }
+
+  async executeApprovedAction(approvalId, approverContext = {}) {
+    const request = await aiApprovalService.findById(approvalId);
+    if (!request) {
+      throw new Error('Onay kaydı bulunamadı');
     }
 
-    // 3. Gerçek veriyi modele ver, sadece yorumlamasını iste
-    const systemPrompt = `Sen Türkçe konuşan bir ERP asistanısın. Sana gerçek ERP verisi verilecek.
-GÖREV: Bu veriyi kullanarak kullanıcının sorusunu net, kısa ve Türkçe yanıtla.
-KURALLAR:
-- Sadece verilen veriyi kullan, asla uydurma
-- Para birimini ₺ ile göster
-- Tarih formatı: GG.AA.YYYY
-- Veri yoksa "Kayıt bulunamadı" yaz
-- JSON yazdırma, düz Türkçe metin yaz
-  - Tool çıktısında olmayan bilgi ekleme
-  - Çelişkili ifade üretme
-  - Gerekirse başlık ve madde işareti kullan`;
+    if (request.status !== 'approved') {
+      throw new Error('Bu kayıt henüz approved durumunda değil');
+    }
 
-    const userPrompt = `Kullanıcı sorusu: "${userMessage}"
+    if (request.company_id !== approverContext.company_id && approverContext.role !== 'super_admin') {
+      throw new Error('Farklı şirket onayı yürütülemez');
+    }
 
-Gerçek ERP Verisi:
-  ${JSON.stringify(toolContexts, null, 2)}
+    if (!this.canRoleApproveRisk(approverContext.role, request.required_role)) {
+      throw new Error('Bu onayı yürütmek için rolünüz yetersiz');
+    }
 
-Bu veriye dayanarak soruyu Türkçe yanıtla:`;
+    const requesterRole = await this.getUserRoleById(request.requested_by_user_id);
 
-    let answer;
+    const permissionCheck = await this.hasMutationPermission({
+      user_id: request.requested_by_user_id,
+      role: requesterRole,
+      toolName: request.agent_tool
+    });
+
+    if (!permissionCheck.allowed && approverContext.role !== 'super_admin') {
+      throw new Error('İşlem izni doğrulanamadı');
+    }
+
+    const validation = agentTools.validateToolArgs(request.agent_tool, request.agent_input || {});
+    if (!validation.valid) {
+      await aiApprovalService.markExecutionFailed({ id: request.id, error_message: validation.error });
+      throw new Error(`Onaylı işlem doğrulaması başarısız: ${validation.error}`);
+    }
+
     try {
-      answer = await this.sendToOllama([
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ]);
-    } catch (err) {
-      console.error('Ollama error:', err.message);
-      throw new Error('Ollama servisine ulaşılamıyor: ' + err.message);
-    }
+      const secureContext = this.buildSecureToolExecutionContext({
+        company_id: request.company_id,
+        user_id: request.requested_by_user_id,
+        role: requesterRole
+      });
 
-    return { success: true, answer, steps, meta: { requires_confirmation: false } };
+      const result = await agentTools.execute(request.agent_tool, validation.sanitizedArgs, secureContext);
+
+      await aiApprovalService.markExecuted({
+        id: request.id,
+        result_payload: result
+      });
+
+      notifyAIApprovalUpdated({
+        approval: request,
+        status: 'executed',
+        actor_user_id: approverContext.user_id,
+        actor_role: approverContext.role,
+        execution_result: result
+      });
+
+      await this.logAgentMutation({
+        user_id: approverContext.user_id,
+        company_id: request.company_id,
+        tool: request.agent_tool,
+        args: validation.sanitizedArgs,
+        result,
+        error: null,
+        status: 'approved_executed'
+      });
+
+      return result;
+    } catch (error) {
+      await aiApprovalService.markExecutionFailed({ id: request.id, error_message: error.message });
+      notifyAIApprovalUpdated({
+        approval: request,
+        status: 'failed',
+        actor_user_id: approverContext.user_id,
+        actor_role: approverContext.role,
+        execution_error: error.message
+      });
+      await this.logAgentMutation({
+        user_id: approverContext.user_id,
+        company_id: request.company_id,
+        tool: request.agent_tool,
+        args: request.agent_input,
+        result: null,
+        error: error.message,
+        status: 'approved_failed'
+      });
+      throw error;
+    }
   }
 
   /**
-   * Generate text completion using Ollama
+   * Generate text completion via AI gateway
    */
   async generateCompletion(prompt, options = {}) {
     try {
-      const response = await axios.post(`${this.ollamaUrl}/api/generate`, {
+      const safePrompt = sanitizeUserInput(prompt);
+      const response = await aiGateway.generate(safePrompt, {
         model: this.model,
-        prompt: prompt,
-        stream: false,
-        options: {
-          temperature: options.temperature || 0.7,
-          top_p: options.top_p || 0.9,
-          max_tokens: options.max_tokens || this.maxTokens
-        }
+        temperature: options.temperature || 0.7,
+        top_p: options.top_p || 0.9,
+        max_tokens: options.max_tokens || this.maxTokens,
+        timeout: this.timeout
       });
 
       return {
         success: true,
-        response: response.data.response,
-        model: this.model,
-        context: response.data.context
+        response: filterAIOutput(response.content),
+        model: response.model || this.model,
+        context: response.context
       };
     } catch (error) {
-      console.error('Ollama completion error:', error.message);
+      logger.error('AI gateway completion error', { error: error.message });
       return {
         success: false,
         error: error.message,
@@ -946,23 +1290,25 @@ Bu veriye dayanarak soruyu Türkçe yanıtla:`;
    */
   async chat(messages, options = {}) {
     try {
-      const response = await axios.post(`${this.ollamaUrl}/api/chat`, {
+      const sanitizedMessages = (messages || []).map((m) => ({
+        ...m,
+        content: sanitizeUserInput(m?.content || '')
+      }));
+
+      const response = await aiGateway.chat(sanitizedMessages, {
         model: this.model,
-        messages: messages,
-        stream: false,
-        options: {
-          temperature: options.temperature || 0.7,
-          top_p: options.top_p || 0.9
-        }
+        timeout: this.timeout,
+        temperature: options.temperature || 0.7,
+        top_p: options.top_p || 0.9
       });
 
       return {
         success: true,
-        message: response.data.message,
-        model: this.model
+        message: { role: 'assistant', content: filterAIOutput(response.content) },
+        model: response.model || this.model
       };
     } catch (error) {
-      console.error('Ollama chat error:', error.message);
+      logger.error('AI gateway chat error', { error: error.message });
       return {
         success: false,
         error: error.message,
@@ -976,17 +1322,19 @@ Bu veriye dayanarak soruyu Türkçe yanıtla:`;
    */
   async generateEmbeddings(text) {
     try {
-      const response = await axios.post(`${this.ollamaUrl}/api/embeddings`, {
+      const safeText = sanitizeUserInput(text);
+      const response = await aiGateway.embeddings(safeText, {
         model: this.model,
-        prompt: text
+        timeout: this.timeout
       });
 
       return {
         success: true,
-        embeddings: response.data.embedding
+        embeddings: response.embedding,
+        wrapped_result: wrapExternalData(response.embedding)
       };
     } catch (error) {
-      console.error('Ollama embeddings error:', error.message);
+      logger.error('AI gateway embeddings error', { error: error.message });
       return {
         success: false,
         error: error.message,
@@ -998,15 +1346,7 @@ Bu veriye dayanarak soruyu Türkçe yanıtla:`;
   // ── Sağlık Kontrolü ──────────────────────────────────────────────────────
   async checkHealth() {
     try {
-      const response = await axios.get(`${this.ollamaUrl}/api/tags`, { timeout: 5000 });
-      const models = response.data.models || [];
-      const modelNames = models.map(m => m.name);
-      return {
-        available: true,
-        models: modelNames,
-        currentModel: this.model,
-        modelAvailable: modelNames.some(m => m.startsWith(this.model.split(':')[0]))
-      };
+      return await aiGateway.health();
     } catch (error) {
       return { available: false, error: error.message };
     }
@@ -1016,6 +1356,8 @@ Bu veriye dayanarak soruyu Türkçe yanıtla:`;
    * Generate ERP-specific response with context
    */
   async generateERPResponse(userQuery, context = '') {
+    const safeUserQuery = sanitizeUserInput(userQuery);
+    const safeContext = sanitizeUserInput(context);
     const systemPrompt = `You are an AI assistant for an ERP (Enterprise Resource Planning) system.
 You help users with:
 - Product management and inventory queries
@@ -1025,9 +1367,9 @@ You help users with:
 
 Provide clear, concise, and helpful responses. If you need more information, ask the user.
 
-Context: ${context}
+Context: ${safeContext}
 
-User Query: ${userQuery}
+User Query: ${safeUserQuery}
 
 Response:`;
 

@@ -14,8 +14,6 @@ export const authService = {
       data = { username, email: emailArg, password: passwordArg, role: roleArg };
     }
     
-    console.log('🚀 authService.register - About to send:', data);
-    
     const response = await api.post('/api/auth/register', data);
     return response.data;
   },

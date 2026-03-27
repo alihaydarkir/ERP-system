@@ -14,6 +14,12 @@ const createRedisClient = () => {
   });
 
   client.on('error', (err) => {
+    if (isRedisConnected) {
+      isRedisConnected = false;
+      console.log('⚠️  Redis connection lost - running without cache');
+      return;
+    }
+
     if (!isRedisConnected) {
       console.log('⚠️  Redis not available - running without cache');
     }
@@ -22,6 +28,15 @@ const createRedisClient = () => {
   client.on('connect', () => {
     isRedisConnected = true;
     console.log('✅ Redis connected');
+  });
+
+  client.on('end', () => {
+    isRedisConnected = false;
+    console.log('⚠️  Redis disconnected - running without cache');
+  });
+
+  client.on('reconnecting', () => {
+    isRedisConnected = false;
   });
 
   return client;

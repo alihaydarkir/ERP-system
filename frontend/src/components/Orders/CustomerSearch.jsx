@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import useUIStore from '../../store/uiStore';
+import api from '../../services/api';
 
 export default function CustomerSearch({ selectedCustomer, onSelectCustomer }) {
   const { showError } = useUIStore();
@@ -28,18 +29,8 @@ export default function CustomerSearch({ selectedCustomer, onSelectCustomer }) {
   const fetchCustomers = async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/customers?limit=100', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch customers');
-      }
-
-      const data = await response.json();
-      setCustomers(data.data || []);
+      const response = await api.get('/api/customers?limit=100');
+      setCustomers(response.data?.data || []);
     } catch (error) {
       console.error('Failed to fetch customers:', error);
       showError('Müşteri listesi yüklenemedi.');

@@ -15,8 +15,6 @@ const sendMessage = async (req, res) => {
       return res.status(400).json(formatError('Message cannot be empty'));
     }
 
-    console.log(`Chat message from user ${req.user.userId}: ${message}`);
-
     // Generate answer using RAG
     const response = await ragService.generateAnswer(message);
 

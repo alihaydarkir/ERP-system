@@ -75,8 +75,6 @@ const createModel = async (req, res) => {
       datasetFilename
     );
 
-    console.log(`Creating fine-tuned model: ${modelName}`);
-
     // This is a long-running operation, consider using background job
     const result = await fineTuningService.createFineTunedModel(modelName, datasetPath);
 

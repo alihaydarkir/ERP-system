@@ -1,7 +1,17 @@
 # 🗺️ Piyasaya Çıkış Yol Haritası
 
-> Mevcut durum: ~%55-60 hazır  
+> Son güncelleme: 26.03.2026  
+> Mevcut durum: **~%86 hazır**  
 > Hedef: KOBİ pazarı (küçük-orta işletme) → Ücretli B2B beta → Genel piyasa
+
+### 📌 Son Sprint Özeti
+- AI katmanı provider-agnostic hale getirildi (`AI_PROVIDER=ollama/openai/azure`)
+- Yüksek riskli AI mutasyonlarında human-in-the-loop onay akışı aktifleştirildi
+- `approval_requests` tablosu + onay/execute/reject lifecycle tamamlandı
+- WebSocket ile onay bildirimleri (approver + requester) devreye alındı
+- Docker tarafında PostgreSQL günlük backup + retention (7 gün) eklendi
+- Nginx tarafında HTTP → HTTPS redirect zorunlu hale getirildi
+- Backend test kapsamı genişletildi (kritik approval akışlarında 21/21 passing)
 
 ---
 
@@ -52,9 +62,9 @@
 - [ ] Backend: `GET /api/users/me/export` — verileri indir (JSON)
 
 ### 6. 🗄️ Otomatik Veritabanı Yedekleme
-- [ ] Cron job: Her gece `pg_dump` çalıştır
+- [x] Günlük `pg_dump` yedeği (docker `postgres_backup` servisi)
 - [ ] Cloud storage: S3 veya Backblaze B2'ye yükle
-- [ ] 30 günlük saklama + eski yedekleri otomatik sil
+- [ ] 30 günlük saklama + eski yedekleri otomatik sil (şu an 7 gün retention aktif)
 - [ ] Yedek alındığında email bildirimi
 
 ---
@@ -66,7 +76,7 @@
 - [ ] Kullanıcı onboarding akışı (ilk girişte ne görsün?)
 - [ ] Yardım / Dokümantasyon sayfası
 - [ ] Kalan route'lar için Swagger JSDoc (customers, suppliers, warehouses, cheques)
-- [ ] AI model seçimi (Ollama qwen2.5 upgrade veya Hybrid OpenAI)
+- [ ] AI model stratejisi (şu an provider altyapısı hazır: Ollama/OpenAI/Azure)
 
 ---
 
@@ -77,6 +87,12 @@
 - [x] Multi-tenancy (company_id)
 - [x] Dashboard (tek API çağrısı ile)
 - [x] AI-ready altyapı (Swagger, /health, /capabilities)
+- [x] AI Gateway soyutlama katmanı (Ollama/OpenAI/Azure provider seçimi)
+- [x] AI high-risk mutasyonlar için human approval flow (`approval_requests`)
+- [x] AI approval event’leri için WebSocket bildirim altyapısı
 - [x] Docker + CI/CD pipeline
+- [x] Docker compose ile PostgreSQL otomatik günlük backup (7 gün retention, ayrı volume)
+- [x] Nginx zorunlu HTTP → HTTPS redirect + aktif SSL server bloğu
 - [x] Rate limiting, CORS, Helmet güvenliği
 - [x] OpenAPI dokümantasyonu (16 endpoint)
+- [x] Kritik AI approval akışları için test kapsamı genişletildi (service + controller + websocket)

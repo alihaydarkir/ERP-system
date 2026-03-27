@@ -9,6 +9,7 @@ import PageLoader from './components/UI/PageLoader';
 import useAuthStore from './store/authStore';
 import useUIStore from './store/uiStore';
 import usePermissionStore from './store/permissionStore';
+import { authService } from './services/authService';
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
@@ -30,16 +31,64 @@ const InvoicesPage = lazy(() => import('./pages/InvoicesPage'));
 const CurrentAccountPage = lazy(() => import('./pages/CurrentAccountPage'));
 
 function App() {
-  const { isAuthenticated } = useAuthStore();
+  const {
+    isAuthenticated,
+    isAuthLoading,
+    isAuthInitialized,
+    setAuthLoading,
+    setAuthInitialized,
+    setUser,
+    setCompany,
+    logout,
+  } = useAuthStore();
   const { confirmDialog, hideConfirm } = useUIStore();
   const { fetchMyPermissions } = usePermissionStore();
+
+  useEffect(() => {
+    if (isAuthInitialized) {
+      return;
+    }
+
+    let mounted = true;
+
+    const bootstrapAuth = async () => {
+      setAuthLoading(true);
+
+      try {
+        const response = await authService.getProfile();
+        const profile = response?.data || null;
+
+        if (!mounted) return;
+
+        if (response?.success && profile) {
+          setUser(profile);
+          setCompany(null);
+        } else {
+          logout();
+        }
+      } catch (_) {
+        if (!mounted) return;
+        logout();
+      } finally {
+        if (!mounted) return;
+        setAuthInitialized(true);
+        setAuthLoading(false);
+      }
+    };
+
+    bootstrapAuth();
+
+    return () => {
+      mounted = false;
+    };
+  }, [isAuthInitialized, setAuthLoading, setAuthInitialized, setUser, setCompany, logout]);
 
   // Load permissions when authenticated
   useEffect(() => {
     if (isAuthenticated) {
       fetchMyPermissions();
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, fetchMyPermissions]);
 
   // Load and apply theme on mount
   useEffect(() => {
@@ -91,6 +140,10 @@ function App() {
     mediaQuery.addEventListener('change', handleChange);
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, []);
+
+  if (isAuthLoading && !isAuthInitialized) {
+    return <PageLoader />;
+  }
 
   return (
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>

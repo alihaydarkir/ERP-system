@@ -29,15 +29,11 @@ export default function LoginPage() {
 
     try {
       const response = await authService.login(email, password);
+      const payload = response?.data || {};
 
       if (response.success) {
-        login(
-          response.data.token, 
-          response.data.user, 
-          response.data.refreshToken,
-          response.data.company
-        );
-        toast.success('Hoş geldiniz, ' + response.data.user.username + '! 🎉');
+        login(payload.user, payload.company || null);
+        toast.success('Hoş geldiniz, ' + payload.user.username + '! 🎉');
         navigate('/dashboard');
       }
     } catch (err) {

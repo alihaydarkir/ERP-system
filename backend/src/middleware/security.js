@@ -1,7 +1,28 @@
 const pool = require('../config/database');
 const { config } = require('../config/env');
+const validator = require('validator');
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+const AUTH_COOKIE_ENDPOINTS = new Set([
+  '/api/auth/login',
+  '/api/auth/register',
+  '/api/auth/refresh',
+  '/api/auth/logout'
+]);
+
+// Saldırı tespiti pattern listesi (tek kaynak noktası)
+// Request başına derleme yok: dosya yüklenirken bir kez oluşturulur.
+const SECURITY_THREAT_PATTERNS = [
+  /(\s|^)(union\s+select|drop\s+table|delete\s+from|truncate\s+table)(\s|$)/i,
+  /(;[^\n\r]*--)|(\/\*[\s\S]*?\*\/)/i, // SQL comments
+  /(xp_cmdshell|sp_executesql)/i, // SQL Server commands
+  /(<script[\s\S]*?>|javascript:)/i // XSS
+];
+
+const isEmailField = (key) => {
+  const normalized = String(key || '').toLowerCase();
+  return normalized === 'email' || normalized.endsWith('_email');
+};
 
 const hasBearerAuth = (req) => {
   const auth = String(req.headers.authorization || '');
@@ -130,17 +151,9 @@ const sessionSecurity = async (req, res, next) => {
  * SQL Injection koruması (basic)
  */
 const sqlInjectionProtection = (req, res, next) => {
-  // Sadece gerçekten tehlikeli SQL injection pattern'lerini kontrol et
-  const suspiciousPatterns = [
-    /(\s|^)(union\s+select|drop\s+table|delete\s+from|truncate\s+table)(\s|$)/gi,
-    /(;.*--)|(\/\*.*\*\/)/gi,  // SQL comments
-    /(xp_cmdshell|sp_executesql)/gi,  // SQL Server commands
-    /(<script[\s\S]*?>|javascript:)/gi  // XSS
-  ];
-  
   const checkValue = (value) => {
     if (typeof value === 'string') {
-      for (const pattern of suspiciousPatterns) {
+      for (const pattern of SECURITY_THREAT_PATTERNS) {
         if (pattern.test(value)) {
           return true;
         }
@@ -151,6 +164,13 @@ const sqlInjectionProtection = (req, res, next) => {
   
   // Query parameters kontrolü
   for (const key in req.query) {
+    if (isEmailField(key) && typeof req.query[key] === 'string' && !validator.isEmail(req.query[key].trim())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Geçersiz email formatı'
+      });
+    }
+
     if (checkValue(req.query[key])) {
       console.warn(`⚠️ SQL Injection attempt detected in query: ${key}`);
       return res.status(400).json({
@@ -162,6 +182,13 @@ const sqlInjectionProtection = (req, res, next) => {
   
   // Body kontrolü
   for (const key in req.body) {
+    if (isEmailField(key) && typeof req.body[key] === 'string' && !validator.isEmail(req.body[key].trim())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Geçersiz email formatı'
+      });
+    }
+
     if (checkValue(req.body[key])) {
       console.warn(`⚠️ SQL Injection attempt detected in body: ${key}`);
       return res.status(400).json({
@@ -180,6 +207,12 @@ const sqlInjectionProtection = (req, res, next) => {
 const csrfProtection = (req, res, next) => {
   // Safe methods için CSRF kontrolü yapma
   if (SAFE_METHODS.has(req.method)) {
+    return next();
+  }
+
+  // Cookie tabanlı auth endpoint'leri için CSRF bypass
+  // (originCheck + hostHeaderCheck + rate limiting katmanları aktif kalır)
+  if (AUTH_COOKIE_ENDPOINTS.has(req.path)) {
     return next();
   }
 

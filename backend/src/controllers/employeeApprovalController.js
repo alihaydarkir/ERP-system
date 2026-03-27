@@ -10,8 +10,6 @@ const getPendingApprovals = async (req, res) => {
   try {
     const { company_id, role } = req.user;
 
-    console.log('🔍 getPendingApprovals called:', { company_id, role, user_id: req.user.userId });
-
     // Only admins can view pending approvals
     if (role !== 'admin') {
       return res.status(403).json(formatError('Bu işlem için yetkiniz yok'));
@@ -34,8 +32,6 @@ const getPendingApprovals = async (req, res) => {
       AND u.approval_status = 'pending'
       ORDER BY u.created_at DESC
     `, [company_id]);
-
-    console.log('📊 Found pending users:', result.rows.length, result.rows);
 
     res.json(formatSuccess({
       requests: result.rows,
@@ -103,8 +99,6 @@ const approveEmployee = async (req, res) => {
       },
       ip_address: getClientIP(req)
     });
-
-    console.log(`Employee approved: ${user.username} by admin ${approverId}`);
 
     res.json(formatSuccess({
       message: `${user.username} onaylandı`,
@@ -175,8 +169,6 @@ const rejectEmployee = async (req, res) => {
       },
       ip_address: getClientIP(req)
     });
-
-    console.log(`Employee rejected: ${user.username} by admin ${approverId}`);
 
     res.json(formatSuccess({
       message: `${user.username} reddedildi`,

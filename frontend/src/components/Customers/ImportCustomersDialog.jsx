@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import axios from 'axios';
+import api from '../../services/api';
 
 export default function ImportCustomersDialog({ isOpen, onClose, onSuccess }) {
   const [file, setFile] = useState(null);
@@ -65,10 +65,9 @@ export default function ImportCustomersDialog({ isOpen, onClose, onSuccess }) {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await axios.post('http://localhost:5000/api/customers/import/validate', formData, {
+      const response = await api.post('/api/customers/import/validate', formData, {
         headers: {
-          'Content-Type': 'multipart/form-data',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Content-Type': 'multipart/form-data'
         }
       });
 
@@ -103,12 +102,11 @@ export default function ImportCustomersDialog({ isOpen, onClose, onSuccess }) {
 
     try {
       setProcessing(true);
-      const response = await axios.post('http://localhost:5000/api/customers/import/process',
+      const response = await api.post('/api/customers/import/process',
         { validData },
         {
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            'Content-Type': 'application/json'
           }
         }
       );

@@ -114,8 +114,6 @@ const createSupplier = async (req, res) => {
        iban, payment_terms || 'Net 30', currency || 'TRY', notes, rating, userId, company_id]
     );
 
-    console.log(`Supplier created: ${supplier_name} (${result.rows[0].id}) by user ${userId}`);
-
     res.status(201).json({
       success: true,
       message: 'Tedarikçi başarıyla oluşturuldu',
@@ -184,8 +182,6 @@ const updateSupplier = async (req, res) => {
        iban, payment_terms, currency, notes, rating, is_active, id]
     );
 
-    console.log(`Supplier updated: ${result.rows[0].supplier_name} (${id}) by user ${req.user.id}`);
-
     res.json({
       success: true,
       message: 'Tedarikçi başarıyla güncellendi',
@@ -211,8 +207,6 @@ const deleteSupplier = async (req, res) => {
     }
 
     await db.query('DELETE FROM suppliers WHERE id = $1', [id]);
-
-    console.log(`Supplier deleted: ${existing.rows[0].supplier_name} (${id}) by user ${req.user.id}`);
 
     res.json({
       success: true,

@@ -59,12 +59,15 @@ class WebSocketHandlers {
       socket.userId = decoded.userId;
       socket.userRole = decoded.role;
       socket.username = decoded.username;
+      socket.companyId = decoded.company_id || decoded.companyId || null;
 
       // Track user connection
       this.users.set(socket.userId, {
+        userId: socket.userId,
         socketId: socket.id,
         username: socket.username,
         role: socket.userRole,
+        companyId: socket.companyId,
         connectedAt: new Date()
       });
 
@@ -221,6 +224,24 @@ class WebSocketHandlers {
       if (user.role === 'admin') {
         this.io.to(`user:${userId}`).emit(eventType, data);
       }
+    }
+  }
+
+  /**
+   * Send notification to approvers (manager/admin/super_admin)
+   */
+  sendToApprovers(eventType, data, options = {}) {
+    const companyId = options.companyId;
+
+    for (const [userId, user] of this.users.entries()) {
+      const canApprove = ['manager', 'admin', 'super_admin'].includes(user.role);
+      if (!canApprove) continue;
+
+      if (user.role !== 'super_admin' && companyId && Number(user.companyId) !== Number(companyId)) {
+        continue;
+      }
+
+      this.io.to(`user:${userId}`).emit(eventType, data);
     }
   }
 

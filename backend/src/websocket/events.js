@@ -31,6 +31,10 @@ module.exports = {
   ORDER_DELETED: 'order:deleted',
   ORDER_STATUS_CHANGED: 'order:status_changed',
 
+  // AI approval events
+  AI_APPROVAL_REQUESTED: 'ai:approval_requested',
+  AI_APPROVAL_UPDATED: 'ai:approval_updated',
+
   // Notification events
   NOTIFICATION: 'notification',
   ALERT: 'alert',

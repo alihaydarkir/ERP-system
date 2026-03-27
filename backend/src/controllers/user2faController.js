@@ -292,8 +292,6 @@ exports.verifyLogin = async (req, res) => {
       WHERE id = $1
     `, [user.id]);
 
-    console.log(`User logged in after 2FA: ${user.username} (${user.id})`);
-
     res.status(200).json(formatSuccess({
       user: formatUser(user),
       token: accessToken,

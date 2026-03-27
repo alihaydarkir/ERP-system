@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc -l \"/c/Users/Ali Haydar Kır/Desktop/ErpFinaly/frontend/src/pages\"/*.jsx)",
+      "Bash(find '/c/Users/Ali Haydar Kır/Desktop/ErpFinaly/frontend/src/components' -type f -name *.jsx -o -name *.js)",
+      "Bash(find 'c:\\\\Users\\\\Ali Haydar Kır\\\\Desktop\\\\ErpFinaly\\\\frontend\\\\src\\\\components' -type f \\\\\\(-name *.jsx -o -name *.js \\\\\\))",
+      "Bash(find 'c:\\\\Users\\\\Ali Haydar Kır\\\\Desktop\\\\ErpFinaly' -type f -name *.test.js -o -name *.spec.js)",
+      "Bash(find 'c:\\\\Users\\\\Ali Haydar Kır\\\\Desktop\\\\ErpFinaly' -type f \\\\\\(-name *.test.js -o -name *.spec.js \\\\\\) ! -path */node_modules/*)",
+      "Bash(sort -k2)",
+      "Bash(wc -l frontend/src/pages/*.jsx)",
+      "Bash(grep -l \"validate\\\\|Joi\\\\|schema\" backend/src/routes/*.js)",
+      "Bash(grep -c \"async\\\\|await\" backend/src/controllers/*.js)",
+      "Bash(sort -t: -k2 -rn)",
+      "Bash(grep -r \"logger\\\\|console.error\\\\|console.log\" backend/src/routes/*.js)",
+      "Bash(grep -o \"CREATE TABLE\\\\|model\\\\|TABLE_NAME\\\\|table:\" backend/src/models/*.js)"
+    ]
+  }
+}

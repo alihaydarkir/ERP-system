@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
+import { authService } from '../services/authService';
 import CurrencyTicker from './CurrencyTicker';
 import { 
   LayoutDashboard, Package, Warehouse, ShoppingCart, Users, Truck, 
@@ -34,9 +35,15 @@ export default function Layout({ children }) {
     setTheme(currentTheme);
   }, []);
 
-  const handleLogout = () => {
-    logoutFn();
-    navigate('/login');
+  const handleLogout = async () => {
+    try {
+      await authService.logout();
+    } catch (_) {
+      // Logout endpoint failure should not block client-side logout
+    } finally {
+      logoutFn();
+      navigate('/login');
+    }
   };
 
   const isActive = (path) => location.pathname === path;

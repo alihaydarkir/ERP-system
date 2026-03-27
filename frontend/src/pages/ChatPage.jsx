@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { aiService } from '../services/aiService';
+import { socket } from '../services/socket';
 
 // ── Araç ikonu ─────────────────────────────────────────────────────────────
 const TOOL_ICONS = {
@@ -65,6 +66,102 @@ const QUICK_QUESTIONS = [
   { icon: '📋', label: 'Bekleyen çekler', text: 'Bekleyen çeklerimi listele' },
 ];
 
+const TOOL_CALL_BLOCK_REGEX = /```tool_call\s*([\s\S]*?)```/gi;
+
+const tryParseToolCallJson = (rawBlock) => {
+  if (!rawBlock) return null;
+  const cleaned = String(rawBlock).trim();
+  if (!cleaned) return null;
+
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    return null;
+  }
+};
+
+const extractToolCardsFromText = (text) => {
+  if (!text || typeof text !== 'string') {
+    return { cleanText: text || '', toolCards: [] };
+  }
+
+  const toolCards = [];
+  const cleanText = text.replace(TOOL_CALL_BLOCK_REGEX, (_, block) => {
+    const parsed = tryParseToolCallJson(block);
+    if (parsed) {
+      const toolName = parsed.tool || parsed.tool_name || parsed.name || parsed?.call?.tool || 'unknown_tool';
+      const params = parsed.params || parsed.parameters || parsed.args || parsed.input || {};
+      const result = parsed.result || parsed.output || parsed.response || parsed.data || null;
+      toolCards.push({
+        tool: toolName,
+        params,
+        result,
+        status: parsed.status || null
+      });
+    }
+    return '';
+  }).trim();
+
+  return { cleanText, toolCards };
+};
+
+function ReadableObject({ value }) {
+  if (value === null || value === undefined) {
+    return <span className="text-gray-500 dark:text-gray-400">-</span>;
+  }
+
+  if (typeof value !== 'object') {
+    return <span className="text-gray-700 dark:text-gray-200">{String(value)}</span>;
+  }
+
+  const entries = Object.entries(value);
+  if (entries.length === 0) {
+    return <span className="text-gray-500 dark:text-gray-400">Boş</span>;
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {entries.map(([key, item]) => (
+        <div key={key} className="grid grid-cols-[120px_1fr] gap-2 text-xs">
+          <span className="font-semibold text-gray-600 dark:text-gray-300">{key}</span>
+          <span className="text-gray-700 dark:text-gray-200 break-words">
+            {typeof item === 'object' && item !== null ? JSON.stringify(item) : String(item)}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ToolCallCard({ card }) {
+  const icon = TOOL_ICONS[card.tool] || TOOL_ICONS.default;
+  const label = TOOL_LABELS[card.tool] || card.tool;
+
+  return (
+    <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/70 dark:bg-blue-900/20 p-3 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm font-semibold text-blue-700 dark:text-blue-300">
+          <span>{icon}</span>
+          <span>{label}</span>
+        </div>
+        <span className="text-xs px-2 py-0.5 rounded-full bg-white/80 dark:bg-gray-700 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700">
+          tool: {card.tool}
+        </span>
+      </div>
+
+      <div className="rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-2">
+        <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">Parametreler</div>
+        <ReadableObject value={card.params} />
+      </div>
+
+      <div className="rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-2">
+        <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">Sonuç</div>
+        <ReadableObject value={card.result} />
+      </div>
+    </div>
+  );
+}
+
 function ToolStep({ step }) {
   const icon = TOOL_ICONS[step.tool] || TOOL_ICONS.default;
   const label = TOOL_LABELS[step.tool] || TOOL_LABELS.default;
@@ -99,6 +196,7 @@ function ToolStep({ step }) {
 function ChatMessage({ message }) {
   const isUser = message.type === 'user';
   const isThinking = message.type === 'thinking';
+  const { cleanText, toolCards } = extractToolCardsFromText(message.text || '');
 
   if (isThinking) {
     return (
@@ -140,7 +238,14 @@ function ChatMessage({ message }) {
             {message.steps.filter(s => s.type === 'tool_result' || s.type === 'tool_error').map((step, i) => <ToolStep key={i} step={step} />)}
           </div>
         )}
-        <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.text}</p>
+        {!isUser && toolCards.length > 0 && (
+          <div className="space-y-2 mb-2">
+            {toolCards.map((card, index) => (
+              <ToolCallCard key={`${card.tool}-${index}`} card={card} />
+            ))}
+          </div>
+        )}
+        {cleanText && <p className="whitespace-pre-wrap text-sm leading-relaxed">{cleanText}</p>}
         <p className={`text-xs mt-1.5 ${isUser ? 'text-blue-100' : 'text-gray-400 dark:text-gray-400'}`}>
           {message.timestamp.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
         </p>
@@ -161,10 +266,14 @@ export default function ChatPage() {
   ]);
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [chatError, setChatError] = useState('');
+  const [lastMessage, setLastMessage] = useState('');
   const [aiStatus, setAiStatus] = useState({ available: null, model: '' });
   const [pendingConfirmation, setPendingConfirmation] = useState(null);
+  const [approvalState, setApprovalState] = useState(null);
   const messagesEndRef = useRef(null);
   const thinkingIdRef = useRef(null);
+  const lastApprovalEventRef = useRef('');
 
   useEffect(() => {
     const checkAI = async () => {
@@ -182,10 +291,64 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  useEffect(() => {
+    const handleApprovalUpdate = (payload) => {
+      if (!payload || payload.type !== 'ai_approval_status_update') return;
+
+      const dedupeKey = `${payload.approval_id}:${payload.status}:${payload.timestamp || ''}`;
+      if (lastApprovalEventRef.current === dedupeKey) return;
+      lastApprovalEventRef.current = dedupeKey;
+
+      setApprovalState((prev) => {
+        if (prev && prev.approvalId && Number(prev.approvalId) !== Number(payload.approval_id)) {
+          return prev;
+        }
+
+        return {
+          approvalId: payload.approval_id,
+          status: payload.status,
+          tool: payload.agent_tool,
+          requiresApproval: payload.status === 'pending'
+        };
+      });
+
+      if (payload.status === 'approved' || payload.status === 'rejected') {
+        const text = payload.status === 'approved'
+          ? `✅ Onaylandı: ${payload.agent_tool || 'işlem'} işlemi onaylandı.`
+          : `❌ Reddedildi: ${payload.agent_tool || 'işlem'} işlemi reddedildi.`;
+
+        setMessages((prev) => ([
+          ...prev,
+          {
+            id: Date.now() + Math.random(),
+            type: 'ai',
+            text,
+            timestamp: new Date(),
+            steps: []
+          }
+        ]));
+      }
+    };
+
+    const handleNotification = (payload) => {
+      handleApprovalUpdate(payload);
+    };
+
+    socket.on('ai:approval_updated', handleApprovalUpdate);
+    socket.on('notification', handleNotification);
+
+    return () => {
+      socket.off('ai:approval_updated', handleApprovalUpdate);
+      socket.off('notification', handleNotification);
+    };
+  }, []);
+
   const sendMessage = async (text) => {
     const messageText = text || inputMessage.trim();
     if (!messageText || loading) return;
     setInputMessage('');
+    setChatError('');
+    setLastMessage(messageText);
 
     const userMsg = { id: Date.now(), type: 'user', text: messageText, timestamp: new Date() };
     const thinkingId = Date.now() + 1;
@@ -214,8 +377,18 @@ export default function ChatPage() {
         });
       }
 
+      if (agentMeta.requires_approval || agentMeta.requires_human_approval) {
+        setApprovalState({
+          approvalId: agentMeta.approval_id || null,
+          status: 'pending',
+          tool: agentMeta.mutation_tool || null,
+          requiresApproval: true
+        });
+      }
+
       if (agentMeta.mutation_executed || agentMeta.cancelled_pending_mutation || agentMeta.confirmation_expired) {
         setPendingConfirmation(null);
+        setApprovalState(null);
       }
 
       setMessages(prev => prev.map(m => m.id === thinkingId ? aiMsg : m));
@@ -227,6 +400,7 @@ export default function ChatPage() {
         : is503
         ? '⚠️ AI servisi şu an çevrimdışı.\n\nOllama\'yı başlatmak için: `ollama serve`'
         : `❌ Hata: ${error.responseData?.message || error.message || 'Bilinmeyen hata'}`;
+      setChatError(error.responseData?.message || error.message || 'AI yanıt üretilemedi.');
       const errMsg = {
         id: thinkingId,
         type: 'ai',
@@ -291,21 +465,59 @@ export default function ChatPage() {
           <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">🤖 ERP AI Asistanı</h1>
           <p className="text-gray-500 dark:text-gray-400 text-sm mt-0.5">ERP verilerinizi anlayıp analiz eden akıllı asistan</p>
         </div>
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${
-          aiStatus.available === null ? 'bg-gray-100 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400'
-          : aiStatus.available ? 'bg-green-100 text-green-700'
-          : 'bg-red-100 text-red-600'
-        }`}>
-          <span className={`w-2 h-2 rounded-full ${
-            aiStatus.available === null ? 'bg-gray-400 animate-pulse'
-            : aiStatus.available ? 'bg-green-50 dark:bg-green-900/200'
-            : 'bg-red-50 dark:bg-red-900/200'
-          }`} />
-          {aiStatus.available === null ? 'Kontrol ediliyor...'
-            : aiStatus.available ? `Çevrimiçi · ${aiStatus.model}`
-            : 'Ollama Çevrimdışı'}
+        <div className="flex items-center gap-2">
+          {approvalState?.requiresApproval && (
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+              Onay Bekleniyor
+            </span>
+          )}
+
+          {approvalState && !approvalState.requiresApproval && approvalState.status === 'approved' && (
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 border border-green-200 dark:border-green-800">
+              ✅ Onaylandı
+            </span>
+          )}
+
+          {approvalState && !approvalState.requiresApproval && approvalState.status === 'rejected' && (
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 border border-red-200 dark:border-red-800">
+              ❌ Reddedildi
+            </span>
+          )}
+
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${
+            aiStatus.available === null ? 'bg-gray-100 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400'
+            : aiStatus.available ? 'bg-green-100 text-green-700'
+            : 'bg-red-100 text-red-600'
+          }`}>
+            <span className={`w-2 h-2 rounded-full ${
+              aiStatus.available === null ? 'bg-gray-400 animate-pulse'
+              : aiStatus.available ? 'bg-green-50 dark:bg-green-900/200'
+              : 'bg-red-50 dark:bg-red-900/200'
+            }`} />
+            {aiStatus.available === null ? 'Kontrol ediliyor...'
+              : aiStatus.available ? `Çevrimiçi · ${aiStatus.model}`
+              : 'Ollama Çevrimdışı'}
+          </div>
         </div>
       </div>
+
+      {chatError && (
+        <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="text-sm text-red-700 dark:text-red-300">
+            <span className="font-semibold mr-1">Hata:</span>
+            {chatError}
+          </div>
+          <button
+            type="button"
+            onClick={() => lastMessage && sendMessage(lastMessage)}
+            disabled={loading || !lastMessage}
+            className="px-3 py-1.5 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Tekrar dene
+          </button>
+        </div>
+      )}
 
       {/* Hızlı Sorular */}
       <div className="grid grid-cols-3 gap-2">
@@ -321,6 +533,16 @@ export default function ChatPage() {
       {/* Mesajlar */}
       <div className="flex-1 bg-gray-50 dark:bg-gray-800/50 rounded-2xl overflow-y-auto p-4 space-y-4" style={{ maxHeight: '50vh' }}>
         {messages.map(message => <ChatMessage key={message.id} message={message} />)}
+        {loading && (
+          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+            <span className="font-medium">Asistan yazıyor</span>
+            <span className="inline-flex gap-1">
+              {[0, 0.2, 0.4].map((delay, i) => (
+                <span key={i} className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: `${delay}s` }} />
+              ))}
+            </span>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 

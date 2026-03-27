@@ -19,8 +19,6 @@ const getAllOrders = async (req, res) => {
     const { status, start_date, end_date, page = 1, limit = 20 } = req.query;
     const { company_id } = req.user; // MULTI-TENANCY
 
-    console.log('🔍 getAllOrders called:', { company_id, user_id: req.user.userId, status });
-
     // Build filters
     const filters = {
       company_id, // MULTI-TENANCY
@@ -33,8 +31,6 @@ const getAllOrders = async (req, res) => {
 
     const orders = await Order.findAll(filters);
     const total = await Order.count({ company_id, status });
-
-    console.log('📊 Orders found:', orders.length, 'Total:', total);
 
     const result = formatPaginated(
       formatOrders(orders),
@@ -161,8 +157,6 @@ const createOrder = async (req, res) => {
     // Invalidate cache
     await cacheService.invalidateOrderCache();
 
-    console.log(`Order created: #${order.id} by user ${user_id}`);
-
     res.status(201).json(formatSuccess(formatOrder(order), 'Order created'));
 
   } catch (error) {
@@ -215,8 +209,6 @@ const updateOrder = async (req, res) => {
     // Invalidate cache
     await cacheService.invalidateOrderCache();
 
-    console.log(`Order updated: #${id} by user ${req.user.userId}`);
-
     res.json(formatSuccess(formatOrder(order), 'Order updated'));
 
   } catch (error) {
@@ -262,8 +254,6 @@ const deleteOrder = async (req, res) => {
 
     // Invalidate cache
     await cacheService.invalidateOrderCache();
-
-    console.log(`Order deleted: #${id} by user ${req.user.userId}`);
 
     res.json(formatSuccess(null, 'Order deleted'));
 
@@ -325,8 +315,6 @@ const updateOrderStatus = async (req, res) => {
       console.error('Order status update email error:', err)
     );
 
-    console.log(`Order #${id} status updated: ${order.status} → ${status}`);
-
     res.json(formatSuccess(formatOrder(updatedOrder), 'Order status updated'));
 
   } catch (error) {
@@ -380,8 +368,6 @@ const cancelOrder = async (req, res) => {
     emailService.sendOrderCancellationEmail(cancelledOrder, user, reason).catch(err =>
       console.error('Order cancellation email error:', err)
     );
-
-    console.log(`Order #${id} cancelled by user ${req.user.userId}. Reason: ${reason || 'N/A'}`);
 
     res.json(formatSuccess(formatOrder(cancelledOrder), 'Order cancelled successfully'));
 
