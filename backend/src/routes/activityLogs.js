@@ -3,11 +3,14 @@ const router = express.Router();
 const authMiddleware = require('../middleware/auth');
 const activityLogController = require('../controllers/activityLogController');
 const { requirePermission } = require('../middleware/permissions');
+const { validate } = require('../validators/validate');
+const { activityLogSchemas } = require('../validators/activityLogValidators');
 
 // Get all activity logs (admin only)
 router.get('/',
   authMiddleware,
   requirePermission('logs.view'),
+  validate(activityLogSchemas.query, 'query'),
   activityLogController.getActivityLogs
 );
 

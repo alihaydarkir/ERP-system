@@ -118,9 +118,9 @@ export default function LoginPage() {
                 <label htmlFor='login-password' className='block text-sm font-medium text-gray-700 dark:text-gray-300'>
                   Şifre
                 </label>
-                <a href='#' className='text-sm font-medium text-primary-600 hover:text-primary-500'>
+                <Link to='/forgot-password' className='text-sm font-medium text-primary-600 hover:text-primary-500'>
                   Şifremi unuttum?
-                </a>
+                </Link>
               </div>
               <Input
                 id='login-password'

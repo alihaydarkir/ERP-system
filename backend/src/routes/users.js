@@ -4,11 +4,14 @@ const authMiddleware = require('../middleware/auth');
 const userManagementController = require('../controllers/userManagementController');
 const { requirePermission } = require('../middleware/permissions');
 const { generalLimiter, sensitiveOperationsLimiter } = require('../middleware/rateLimit');
+const { validate } = require('../validators/validate');
+const { userManagementSchemas } = require('../validators/userValidators');
 
 // Get all users (admin only)
 router.get('/',
   authMiddleware,
   requirePermission('users.view'),
+  validate(userManagementSchemas.listQuery, 'query'),
   generalLimiter,
   userManagementController.getAllUsers
 );
@@ -33,6 +36,7 @@ router.get('/:id',
 router.post('/',
   authMiddleware,
   requirePermission('users.create'),
+  validate(userManagementSchemas.createUser),
   sensitiveOperationsLimiter,
   userManagementController.createUser
 );
@@ -41,6 +45,7 @@ router.post('/',
 router.put('/:id',
   authMiddleware,
   requirePermission('users.edit'),
+  validate(userManagementSchemas.updateUser),
   sensitiveOperationsLimiter,
   userManagementController.updateUser
 );

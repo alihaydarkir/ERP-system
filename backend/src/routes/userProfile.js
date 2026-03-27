@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth');
 const { avatarUpload, handleUploadError } = require('../middleware/fileUpload');
+const { validate } = require('../validators/validate');
+const { userProfileSchemas } = require('../validators/userProfileValidators');
 const {
   getProfile,
   updateProfile,
@@ -21,13 +23,13 @@ router.use(authMiddleware);
 router.get('/profile', getProfile);
 
 // Update profile
-router.put('/profile', updateProfile);
+router.put('/profile', validate(userProfileSchemas.update), updateProfile);
 
 // Upload avatar
 router.post('/profile/avatar', avatarUpload.single('avatar'), handleUploadError, uploadAvatar);
 
 // Change password
-router.put('/profile/password', changePassword);
+router.put('/profile/password', validate(userProfileSchemas.changePassword), changePassword);
 
 // Update preferences
 router.put('/profile/preferences', updatePreferences);

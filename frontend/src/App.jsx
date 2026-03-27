@@ -14,6 +14,8 @@ import { authService } from './services/authService';
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/RegisterPage'));
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
 const ProductsPage = lazy(() => import('./pages/ProductsPage'));
 const OrdersPage = lazy(() => import('./pages/OrdersPage'));
 const CustomersPage = lazy(() => import('./pages/CustomersPage'));
@@ -161,6 +163,8 @@ function App() {
       <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route
             path="/"
             element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />}

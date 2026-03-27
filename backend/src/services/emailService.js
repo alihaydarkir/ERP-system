@@ -203,6 +203,23 @@ class EmailService {
     return this.sendEmail(user.email, 'Şifre Sıfırlama Talebi', html);
   }
 
+  static async sendEmailVerificationEmail(user, verificationToken) {
+    const verifyUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
+
+    const html = `
+      <h1>E-posta Doğrulama</h1>
+      <p>Merhaba ${user.username || 'Kullanıcı'},</p>
+      <p>E-posta adresinizi doğrulamak için aşağıdaki bağlantıya tıklayın:</p>
+      <p><a href="${verifyUrl}">E-posta Adresimi Doğrula</a></p>
+      <p>Bu bağlantı 24 saat geçerlidir.</p>
+      <p>Eğer bu işlemi siz yapmadıysanız, bu e-postayı dikkate almayabilirsiniz.</p>
+      <br>
+      <p>Saygılarımızla,<br>ERP Ekibi</p>
+    `;
+
+    return this.sendEmail(user.email, 'E-posta Doğrulama', html);
+  }
+
   static async sendOrderStatusUpdateEmail(order, user, newStatus) {
     const html = `
       <h2>Sipariş Durumu Güncellendi</h2>

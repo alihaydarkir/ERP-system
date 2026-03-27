@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const bcrypt = require('bcrypt');
 const User = require('../models/User');
 const User2FA = require('../models/User2FA');
 const AuditLog = require('../models/AuditLog');
@@ -12,6 +13,7 @@ const { getClientIP } = require('../utils/helpers');
 const { config } = require('../config/env');
 
 const hashToken = (token) => crypto.createHash('sha256').update(String(token || '')).digest('hex');
+const generateSecureToken = () => crypto.randomBytes(32).toString('hex');
 
 const getCookieValue = (req, name) => {
   const header = String(req.headers.cookie || '');
@@ -85,6 +87,8 @@ const createUserSession = async ({ userId, sessionToken, ipAddress, userAgent })
     VALUES ($1, $2, $3, $4, NOW(), $5, true)
   `, [userId, sessionToken, ipAddress, userAgent, expiresAt]);
 };
+
+const FORGOT_PASSWORD_SUCCESS_MESSAGE = 'Eğer e-posta kayıtlıysa şifre sıfırlama bağlantısı gönderildi.';
 
 /**
  * Register new user
@@ -660,21 +664,36 @@ const updateProfile = async (req, res) => {
 /**
  * Request password reset
  */
-const requestPasswordReset = async (req, res) => {
+const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
+
+    if (!email) {
+      return res.status(200).json(formatSuccess(null, FORGOT_PASSWORD_SUCCESS_MESSAGE));
+    }
 
     const user = await User.findByEmail(email);
     if (!user) {
       // Return success even if user doesn't exist (security best practice)
-      return res.json(formatSuccess(null, 'If email exists, reset link has been sent'));
+      return res.status(200).json(formatSuccess(null, FORGOT_PASSWORD_SUCCESS_MESSAGE));
     }
 
-    // Generate reset token
-    const resetToken = jwt.sign(
-      { userId: user.id, purpose: 'password_reset' },
-      config.jwt.secret,
-      { expiresIn: '1h' }
+    // Generate secure reset token and store only hash
+    const resetToken = generateSecureToken();
+    const tokenHash = hashToken(resetToken);
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 saat
+
+    await pool.query(
+      `UPDATE password_reset_tokens
+       SET used_at = NOW()
+       WHERE user_id = $1 AND used_at IS NULL`,
+      [user.id]
+    );
+
+    await pool.query(
+      `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+       VALUES ($1, $2, $3)`,
+      [user.id, tokenHash, expiresAt]
     );
 
     // Send reset email
@@ -690,13 +709,17 @@ const requestPasswordReset = async (req, res) => {
       ip_address: getClientIP(req)
     });
 
-    res.json(formatSuccess(null, 'If email exists, reset link has been sent'));
+    return res.status(200).json(formatSuccess(null, FORGOT_PASSWORD_SUCCESS_MESSAGE));
 
   } catch (error) {
     console.error('Password reset request error:', error);
-    res.status(500).json(formatError('Failed to process request'));
+    // Kullanıcı var/yok sızıntısını ve detaylı hata ifşasını önle
+    return res.status(200).json(formatSuccess(null, FORGOT_PASSWORD_SUCCESS_MESSAGE));
   }
 };
+
+// Backward-compatible alias
+const requestPasswordReset = forgotPassword;
 
 /**
  * Reset password
@@ -705,31 +728,173 @@ const resetPassword = async (req, res) => {
   try {
     const { token, newPassword } = req.body;
 
-    // Verify reset token
-    const decoded = jwt.verify(token, config.jwt.secret);
+    if (!token || !newPassword) {
+      return res.status(400).json(formatError('Token ve yeni şifre zorunludur'));
+    }
 
-    if (decoded.purpose !== 'password_reset') {
+    const tokenHash = hashToken(token);
+    const tokenResult = await pool.query(
+      `SELECT id, user_id
+       FROM password_reset_tokens
+       WHERE token_hash = $1
+         AND used_at IS NULL
+         AND expires_at > NOW()
+       ORDER BY id DESC
+       LIMIT 1`,
+      [tokenHash]
+    );
+
+    if (tokenResult.rows.length === 0) {
       return res.status(400).json(formatError('Invalid reset token'));
     }
 
-    // Update password
-    await User.update(decoded.userId, { password: newPassword });
+    const resetTokenRow = tokenResult.rows[0];
+    const hashedPassword = await bcrypt.hash(String(newPassword), 10);
+
+    await pool.query(
+      `UPDATE users
+       SET password_hash = $1,
+           updated_at = NOW()
+       WHERE id = $2`,
+      [hashedPassword, resetTokenRow.user_id]
+    );
+
+    await pool.query(
+      `UPDATE password_reset_tokens
+       SET used_at = NOW()
+       WHERE id = $1`,
+      [resetTokenRow.id]
+    );
+
+    // Tüm aktif session'ları sonlandır
+    await pool.query(
+      `UPDATE user_sessions
+       SET is_active = false,
+           last_activity = NOW()
+       WHERE user_id = $1
+         AND is_active = true`,
+      [resetTokenRow.user_id]
+    );
+
+    await cacheService.deleteSession(resetTokenRow.user_id);
+
+    clearAuthCookies(res);
 
     // Log activity
     await AuditLog.create({
-      user_id: decoded.userId,
+      user_id: resetTokenRow.user_id,
       action: 'PASSWORD_RESET',
       entity_type: 'user',
-      entity_id: decoded.userId,
+      entity_id: resetTokenRow.user_id,
       changes: { password_changed: true },
       ip_address: getClientIP(req)
     });
 
-    res.json(formatSuccess(null, 'Password reset successful'));
+    return res.json(formatSuccess(null, 'Password reset successful'));
 
   } catch (error) {
     console.error('Password reset error:', error);
-    res.status(400).json(formatError('Invalid or expired reset token'));
+    return res.status(400).json(formatError('Invalid or expired reset token'));
+  }
+};
+
+/**
+ * Send verification email for authenticated user
+ */
+const sendVerificationEmail = async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json(formatError('Kimlik doğrulaması gerekli'));
+    }
+
+    const userResult = await pool.query(
+      `SELECT id, username, email, COALESCE(email_verified, false) AS email_verified
+       FROM users
+       WHERE id = $1
+       LIMIT 1`,
+      [userId]
+    );
+
+    const user = userResult.rows[0];
+    if (!user) {
+      return res.status(404).json(formatError('User not found'));
+    }
+
+    if (user.email_verified) {
+      return res.json(formatSuccess(null, 'E-posta adresi zaten doğrulanmış'));
+    }
+
+    const verificationToken = generateSecureToken();
+    const tokenHash = hashToken(verificationToken);
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 saat
+
+    await pool.query(
+      `UPDATE email_verification_tokens
+       SET used_at = NOW()
+       WHERE user_id = $1 AND used_at IS NULL`,
+      [user.id]
+    );
+
+    await pool.query(
+      `INSERT INTO email_verification_tokens (user_id, token_hash, expires_at)
+       VALUES ($1, $2, $3)`,
+      [user.id, tokenHash, expiresAt]
+    );
+
+    await emailService.sendEmailVerificationEmail(user, verificationToken);
+
+    return res.json(formatSuccess(null, 'Doğrulama e-postası gönderildi'));
+  } catch (error) {
+    console.error('Send verification email error:', error);
+    return res.status(500).json(formatError('Doğrulama e-postası gönderilemedi'));
+  }
+};
+
+/**
+ * Verify email by token
+ */
+const verifyEmail = async (req, res) => {
+  try {
+    const { token } = req.query;
+
+    if (!token) {
+      return res.status(400).json(formatError('Token gerekli'));
+    }
+
+    const tokenHash = hashToken(token);
+
+    const tokenResult = await pool.query(
+      `SELECT id, user_id
+       FROM email_verification_tokens
+       WHERE token_hash = $1
+         AND used_at IS NULL
+         AND expires_at > NOW()
+       ORDER BY id DESC
+       LIMIT 1`,
+      [tokenHash]
+    );
+
+    if (tokenResult.rows.length === 0) {
+      return res.status(400).json(formatError('Geçersiz veya süresi dolmuş doğrulama linki'));
+    }
+
+    const row = tokenResult.rows[0];
+
+    await pool.query(
+      `UPDATE users
+       SET email_verified = true,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [row.user_id]
+    );
+
+    await pool.query('DELETE FROM email_verification_tokens WHERE id = $1', [row.id]);
+
+    return res.json(formatSuccess({ verified: true }, 'E-posta başarıyla doğrulandı'));
+  } catch (error) {
+    console.error('Verify email error:', error);
+    return res.status(500).json(formatError('E-posta doğrulanamadı'));
   }
 };
 
@@ -740,6 +905,9 @@ module.exports = {
   logout,
   getProfile,
   updateProfile,
+  forgotPassword,
   requestPasswordReset,
-  resetPassword
+  resetPassword,
+  sendVerificationEmail,
+  verifyEmail
 };

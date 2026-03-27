@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth');
 const { requireRole } = require('../middleware/permissions');
+const { validate } = require('../validators/validate');
+const { employeeApprovalSchemas } = require('../validators/employeeApprovalValidators');
 const {
   getPendingApprovals,
   approveEmployee,
@@ -13,6 +15,7 @@ const {
 router.get('/pending', 
   authMiddleware,
   requireRole(['admin']),
+  validate(employeeApprovalSchemas.query, 'query'),
   getPendingApprovals
 );
 
@@ -20,6 +23,7 @@ router.get('/pending',
 router.get('/all',
   authMiddleware,
   requireRole(['admin']),
+  validate(employeeApprovalSchemas.query, 'query'),
   getAllEmployees
 );
 
@@ -27,6 +31,7 @@ router.get('/all',
 router.post('/:userId/approve',
   authMiddleware,
   requireRole(['admin']),
+  validate(employeeApprovalSchemas.create),
   approveEmployee
 );
 
@@ -34,6 +39,7 @@ router.post('/:userId/approve',
 router.post('/:userId/reject',
   authMiddleware,
   requireRole(['admin']),
+  validate(employeeApprovalSchemas.create),
   rejectEmployee
 );
 

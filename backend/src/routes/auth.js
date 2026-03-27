@@ -6,7 +6,8 @@ const { validate, userSchemas } = require('../utils/validators');
 const {
   register, login, refreshToken, logout,
   getProfile, updateProfile,
-  requestPasswordReset, resetPassword
+  forgotPassword, requestPasswordReset, resetPassword,
+  sendVerificationEmail, verifyEmail
 } = require('../controllers/authController');
 
 /**
@@ -78,8 +79,13 @@ router.post('/login', validate(userSchemas.login), login);
 router.post('/register', validate(userSchemas.register), register);
 
 router.post('/refresh', refreshToken);
-router.post('/reset-password-request', passwordResetLimiter, requestPasswordReset);
+router.post('/forgot-password', passwordResetLimiter, forgotPassword);
 router.post('/reset-password', passwordResetLimiter, resetPassword);
+router.post('/send-verification', authMiddleware, sendVerificationEmail);
+router.get('/verify-email', verifyEmail);
+
+// Backward-compatible aliases
+router.post('/reset-password-request', passwordResetLimiter, requestPasswordReset);
 
 /**
  * @openapi

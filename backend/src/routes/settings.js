@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth');
+const { validate } = require('../validators/validate');
+const { settingsSchemas } = require('../validators/settingsValidators');
 const {
   getAllSettings,
   getSettingsByCategory,
@@ -23,12 +25,22 @@ const isAdmin = (req, res, next) => {
   next();
 };
 
+const injectSettingKeyFromParams = (req, _res, next) => {
+  if (req.params?.key) {
+    req.body = {
+      ...req.body,
+      key: req.params.key,
+    };
+  }
+  next();
+};
+
 // All settings endpoints require authentication and admin role
 router.use(authMiddleware);
 router.use(isAdmin);
 
 // Get all settings
-router.get('/', getAllSettings);
+router.get('/', validate(settingsSchemas.getQuery, 'query'), getAllSettings);
 
 // Get settings grouped by category
 router.get('/categories', getSettingsByCategory);
@@ -43,10 +55,10 @@ router.put('/bulk', bulkUpdateSettings);
 router.get('/:key', getSettingByKey);
 
 // Update single setting
-router.put('/:key', updateSetting);
+router.put('/:key', injectSettingKeyFromParams, validate(settingsSchemas.update), updateSetting);
 
 // Create new setting
-router.post('/', createSetting);
+router.post('/', validate(settingsSchemas.update), createSetting);
 
 // Delete setting
 router.delete('/:key', deleteSetting);
