@@ -1324,7 +1324,6 @@ class AIService {
     try {
       const safeText = sanitizeUserInput(text);
       const response = await aiGateway.embeddings(safeText, {
-        model: this.model,
         timeout: this.timeout
       });
 

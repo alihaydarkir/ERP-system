@@ -1,32 +1,47 @@
-const sgMail = require('@sendgrid/mail');
-
-// Only set SendGrid API key if it looks valid to avoid crashing the app
-try {
-  if (process.env.SENDGRID_API_KEY && String(process.env.SENDGRID_API_KEY).startsWith('SG.')) {
-    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-  } else {
-    console.warn('[Email] SENDGRID_API_KEY not set or invalid; email sending disabled in dev');
-  }
-} catch (err) {
-  console.warn('[Email] Failed to initialize SendGrid mail client:', err.message);
-}
+const nodemailer = require('nodemailer');
 
 class EmailService {
+  static smtpConfigured() {
+    return Boolean(process.env.SMTP_HOST && process.env.SMTP_PORT && process.env.SMTP_USER && process.env.SMTP_PASSWORD);
+  }
+
+  static getFromAddress() {
+    return process.env.SMTP_FROM || process.env.SENDGRID_FROM_EMAIL || process.env.SMTP_USER || 'no-reply@localhost';
+  }
+
+  static getTransporter() {
+    if (!this.smtpConfigured()) {
+      return null;
+    }
+
+    return nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT || 587),
+      secure: Number(process.env.SMTP_PORT || 587) === 465,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASSWORD
+      }
+    });
+  }
+
   static async sendEmail(to, subject, htmlContent) {
     try {
-      if (!process.env.ENABLE_EMAIL_NOTIFICATIONS || process.env.ENABLE_EMAIL_NOTIFICATIONS !== 'true') {
-        console.log('[Email] Notifications disabled');
-        return { success: false };
+      const transporter = this.getTransporter();
+
+      if (!transporter) {
+        console.log(`[Email][DEV] SMTP ayarlı değil. Mail gönderimi simüle edildi. to=${to}, subject=${subject}`);
+        return { success: true, simulated: true };
       }
 
       const msg = {
         to,
-        from: process.env.SENDGRID_FROM_EMAIL,
+        from: this.getFromAddress(),
         subject,
         html: htmlContent
       };
 
-      const result = await sgMail.send(msg);
+      await transporter.sendMail(msg);
       console.log('[Email] Sent to', to, ':', subject);
       return { success: true };
     } catch (error) {
@@ -186,12 +201,26 @@ class EmailService {
     return this.sendEmail(user.email, 'ERP Sistemine Hoş Geldiniz', html);
   }
 
-  static async sendPasswordResetEmail(user, resetToken) {
-    const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+  static async sendPasswordResetEmail(emailOrUser, resetUrlOrToken) {
+    const isStringInput = typeof emailOrUser === 'string';
+    const email = isStringInput ? emailOrUser : emailOrUser?.email;
+    const username = isStringInput ? 'Kullanıcı' : (emailOrUser?.username || 'Kullanıcı');
+    const resetUrl = isStringInput
+      ? resetUrlOrToken
+      : `${process.env.FRONTEND_URL}/reset-password?token=${resetUrlOrToken}`;
+
+    if (!email || !resetUrl) {
+      throw new Error('sendPasswordResetEmail için email ve resetUrl gerekli');
+    }
+
+    if (!this.smtpConfigured() && process.env.NODE_ENV !== 'production') {
+      const tokenFromUrl = String(resetUrl).split('token=')[1] || 'N/A';
+      console.log(`[Email][DEV] Password reset token (${email}): ${decodeURIComponent(tokenFromUrl)}`);
+    }
 
     const html = `
       <h1>Şifre Sıfırlama Talebi</h1>
-      <p>Merhaba ${user.username},</p>
+      <p>Merhaba ${username},</p>
       <p>Şifrenizi sıfırlamak için lütfen aşağıdaki bağlantıya tıklayın:</p>
       <p><a href="${resetUrl}">Şifre Sıfırla</a></p>
       <p>Bu bağlantı 1 saat geçerlidir.</p>
@@ -200,15 +229,29 @@ class EmailService {
       <p>Saygılarımızla,<br>ERP Ekibi</p>
     `;
 
-    return this.sendEmail(user.email, 'Şifre Sıfırlama Talebi', html);
+    return this.sendEmail(email, 'Şifre Sıfırlama Talebi', html);
   }
 
-  static async sendEmailVerificationEmail(user, verificationToken) {
-    const verifyUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
+  static async sendVerificationEmail(emailOrUser, verifyUrlOrToken) {
+    const isStringInput = typeof emailOrUser === 'string';
+    const email = isStringInput ? emailOrUser : emailOrUser?.email;
+    const username = isStringInput ? 'Kullanıcı' : (emailOrUser?.username || 'Kullanıcı');
+    const verifyUrl = isStringInput
+      ? verifyUrlOrToken
+      : `${process.env.FRONTEND_URL}/verify-email?token=${verifyUrlOrToken}`;
+
+    if (!email || !verifyUrl) {
+      throw new Error('sendVerificationEmail için email ve verifyUrl gerekli');
+    }
+
+    if (!this.smtpConfigured() && process.env.NODE_ENV !== 'production') {
+      const tokenFromUrl = String(verifyUrl).split('token=')[1] || String(verifyUrl).split('/').pop() || 'N/A';
+      console.log(`[Email][DEV] Email verification token (${email}): ${decodeURIComponent(tokenFromUrl)}`);
+    }
 
     const html = `
       <h1>E-posta Doğrulama</h1>
-      <p>Merhaba ${user.username || 'Kullanıcı'},</p>
+      <p>Merhaba ${username},</p>
       <p>E-posta adresinizi doğrulamak için aşağıdaki bağlantıya tıklayın:</p>
       <p><a href="${verifyUrl}">E-posta Adresimi Doğrula</a></p>
       <p>Bu bağlantı 24 saat geçerlidir.</p>
@@ -217,7 +260,11 @@ class EmailService {
       <p>Saygılarımızla,<br>ERP Ekibi</p>
     `;
 
-    return this.sendEmail(user.email, 'E-posta Doğrulama', html);
+    return this.sendEmail(email, 'E-posta Doğrulama', html);
+  }
+
+  static async sendEmailVerificationEmail(user, verificationToken) {
+    return this.sendVerificationEmail(user, verificationToken);
   }
 
   static async sendOrderStatusUpdateEmail(order, user, newStatus) {

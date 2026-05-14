@@ -1,10 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth');
+const { requirePermission } = require('../middleware/permissions');
 const {
   getDailyReport, getWeeklyReport, getMonthlyReport,
   exportReport, getDashboardStats, getDashboardSummary,
-  getInventoryReport, getTopProducts,
+  getInventoryReport, getTopProducts, exportReportExcel, exportReportPDF,
 } = require('../controllers/reportController');
 
 /**
@@ -75,6 +76,9 @@ router.get('/summary',      authMiddleware, getDashboardSummary);
  *         description: Satış sıralaması
  */
 router.get('/top-products', authMiddleware, getTopProducts);
+
+router.get('/export/excel', authMiddleware, requirePermission('reports.view'), exportReportExcel);
+router.get('/export/pdf', authMiddleware, requirePermission('reports.view'), exportReportPDF);
 
 router.get('/daily',     authMiddleware, getDailyReport);
 router.get('/weekly',    authMiddleware, getWeeklyReport);

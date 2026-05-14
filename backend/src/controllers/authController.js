@@ -14,6 +14,7 @@ const { config } = require('../config/env');
 
 const hashToken = (token) => crypto.createHash('sha256').update(String(token || '')).digest('hex');
 const generateSecureToken = () => crypto.randomBytes(32).toString('hex');
+const buildFrontendUrl = (path) => `${(process.env.FRONTEND_URL || config.frontendUrl || 'http://localhost:3000').replace(/\/+$/, '')}${path}`;
 
 const getCookieValue = (req, name) => {
   const header = String(req.headers.cookie || '');
@@ -42,6 +43,7 @@ const parseExpiryToMs = (value, fallbackMs) => {
 
 const refreshTtlMs = parseExpiryToMs(config.jwt.refreshExpiresIn, 7 * 24 * 60 * 60 * 1000);
 const accessTtlMs = parseExpiryToMs(config.jwt.expiresIn, 15 * 60 * 1000);
+const requireEmailVerification = String(process.env.EMAIL_VERIFICATION_REQUIRED || 'false').toLowerCase() === 'true';
 
 const buildCookieOptions = (maxAge) => ({
   httpOnly: true,
@@ -335,6 +337,10 @@ const login = async (req, res) => {
       return res.status(403).json(formatError(`Hesabınız reddedildi. Sebep: ${reason}`));
     }
 
+    if (requireEmailVerification && !user.email_verified) {
+      return res.status(403).json(formatError('E-posta adresiniz doğrulanmamış. Lütfen doğrulama bağlantısını kullanın.'));
+    }
+
     // Check if user has 2FA enabled
     const twoFaStatus = await User2FA.getStatus(user.id);
     if (twoFaStatus && twoFaStatus.is_enabled) {
@@ -436,7 +442,10 @@ const login = async (req, res) => {
     );
 
     res.json(formatSuccess({
-      user: formatUser(user),
+      user: {
+        ...formatUser(user),
+        onboarding_completed: Boolean(user.onboarding_completed)
+      },
       company: companyInfo.rows[0] || null
     }, 'Login successful'));
 
@@ -697,7 +706,8 @@ const forgotPassword = async (req, res) => {
     );
 
     // Send reset email
-    await emailService.sendPasswordResetEmail(user, resetToken);
+    const resetUrl = buildFrontendUrl(`/reset-password?token=${encodeURIComponent(resetToken)}`);
+    await emailService.sendPasswordResetEmail(user.email, resetUrl);
 
     // Log activity
     await AuditLog.create({
@@ -826,23 +836,19 @@ const sendVerificationEmail = async (req, res) => {
     }
 
     const verificationToken = generateSecureToken();
-    const tokenHash = hashToken(verificationToken);
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 saat
 
     await pool.query(
-      `UPDATE email_verification_tokens
-       SET used_at = NOW()
-       WHERE user_id = $1 AND used_at IS NULL`,
-      [user.id]
+      `UPDATE users
+       SET email_verify_token = $1,
+           email_verify_expires = $2,
+           updated_at = NOW()
+       WHERE id = $3`,
+      [hashToken(verificationToken), expiresAt, user.id]
     );
 
-    await pool.query(
-      `INSERT INTO email_verification_tokens (user_id, token_hash, expires_at)
-       VALUES ($1, $2, $3)`,
-      [user.id, tokenHash, expiresAt]
-    );
-
-    await emailService.sendEmailVerificationEmail(user, verificationToken);
+    const verifyUrl = buildFrontendUrl(`/verify-email/${encodeURIComponent(verificationToken)}`);
+    await emailService.sendVerificationEmail(user.email, verifyUrl);
 
     return res.json(formatSuccess(null, 'Doğrulama e-postası gönderildi'));
   } catch (error) {
@@ -856,7 +862,7 @@ const sendVerificationEmail = async (req, res) => {
  */
 const verifyEmail = async (req, res) => {
   try {
-    const { token } = req.query;
+    const token = req.params.token || req.query.token;
 
     if (!token) {
       return res.status(400).json(formatError('Token gerekli'));
@@ -864,32 +870,30 @@ const verifyEmail = async (req, res) => {
 
     const tokenHash = hashToken(token);
 
-    const tokenResult = await pool.query(
-      `SELECT id, user_id
-       FROM email_verification_tokens
-       WHERE token_hash = $1
-         AND used_at IS NULL
-         AND expires_at > NOW()
-       ORDER BY id DESC
+    const userResult = await pool.query(
+      `SELECT id
+       FROM users
+       WHERE email_verify_token = $1
+         AND email_verify_expires > NOW()
        LIMIT 1`,
       [tokenHash]
     );
 
-    if (tokenResult.rows.length === 0) {
+    if (userResult.rows.length === 0) {
       return res.status(400).json(formatError('Geçersiz veya süresi dolmuş doğrulama linki'));
     }
 
-    const row = tokenResult.rows[0];
+    const row = userResult.rows[0];
 
     await pool.query(
       `UPDATE users
        SET email_verified = true,
+           email_verify_token = NULL,
+           email_verify_expires = NULL,
            updated_at = NOW()
        WHERE id = $1`,
-      [row.user_id]
+      [row.id]
     );
-
-    await pool.query('DELETE FROM email_verification_tokens WHERE id = $1', [row.id]);
 
     return res.json(formatSuccess({ verified: true }, 'E-posta başarıyla doğrulandı'));
   } catch (error) {

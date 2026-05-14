@@ -76,6 +76,9 @@ export default function ReportsPage() {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [reportType, setReportType] = useState('sales');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -94,23 +97,32 @@ export default function ReportsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleExcelExport = () => {
-    if (!summary) return;
-    // Build CSV from top products
-    const rows = [
-      ['Ürün', 'Kategori', 'Satılan Adet', 'Gelir'],
-      ...(summary.topProducts || []).map(p => [
-        p.name, p.category || '—', p.total_sold, p.total_revenue,
-      ]),
-    ];
-    const csv = rows.map(r => r.join(',')).join('\n');
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `rapor_${new Date().toISOString().slice(0,10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const downloadReport = async (format) => {
+    try {
+      const params = new URLSearchParams({ type: reportType });
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+
+      const response = await fetch(`/api/reports/export/${format}?${params.toString()}`, {
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error(`İndirme başarısız (${response.status})`);
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `rapor.${format === 'excel' ? 'xlsx' : 'pdf'}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Report download error:', error);
+    }
   };
 
   if (loading) {
@@ -154,12 +166,40 @@ export default function ReportsPage() {
           )}
         </div>
         <div className="flex gap-3">
+          <select
+            value={reportType}
+            onChange={(e) => setReportType(e.target.value)}
+            className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200"
+          >
+            <option value="sales">Satış</option>
+            <option value="inventory">Envanter</option>
+            <option value="financial">Finansal</option>
+          </select>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200"
+          />
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200"
+          />
           <button
-            onClick={handleExcelExport}
+            onClick={() => downloadReport('excel')}
             className="group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-lg shadow-md hover:from-emerald-600 hover:to-emerald-700 hover:shadow-emerald-500/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
           >
-            <Download size={16} className="mr-2" /> 
-            <span>CSV İndir</span>
+            <Download size={16} className="mr-2" />
+            <span>Excel İndir</span>
+          </button>
+          <button
+            onClick={() => downloadReport('pdf')}
+            className="group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-gradient-to-r from-rose-500 to-rose-600 rounded-lg shadow-md hover:from-rose-600 hover:to-rose-700 hover:shadow-rose-500/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rose-500"
+          >
+            <Download size={16} className="mr-2" />
+            <span>PDF İndir</span>
           </button>
           <button
             onClick={load}

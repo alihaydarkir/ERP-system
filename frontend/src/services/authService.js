@@ -44,7 +44,13 @@ export const authService = {
   },
 
   verifyEmail: async (token) => {
-    const response = await api.get('/api/auth/verify-email', { params: { token } });
+    const safeToken = encodeURIComponent(token || '');
+    const response = await api.get(`/api/auth/verify-email/${safeToken}`);
+    return response.data;
+  },
+
+  completeOnboarding: async () => {
+    const response = await api.put('/api/users/me/onboarding');
     return response.data;
   },
 };

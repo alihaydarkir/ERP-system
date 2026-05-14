@@ -12,7 +12,10 @@
       "Bash(grep -c \"async\\\\|await\" backend/src/controllers/*.js)",
       "Bash(sort -t: -k2 -rn)",
       "Bash(grep -r \"logger\\\\|console.error\\\\|console.log\" backend/src/routes/*.js)",
-      "Bash(grep -o \"CREATE TABLE\\\\|model\\\\|TABLE_NAME\\\\|table:\" backend/src/models/*.js)"
+      "Bash(grep -o \"CREATE TABLE\\\\|model\\\\|TABLE_NAME\\\\|table:\" backend/src/models/*.js)",
+      "Bash(head -20 grep -r \"userProfile\\\\|/api/users\" 'c:/Users/Ali Haydar Kır/Desktop/ErpFinaly/backend/src/' --include=*.js -l)",
+      "Bash(/dev/null grep:*)",
+      "Bash(grep -v \"console\\\\|comment\\\\|//\")"
     ]
   }
 }

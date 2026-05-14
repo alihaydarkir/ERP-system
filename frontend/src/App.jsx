@@ -6,6 +6,9 @@ import Layout from './components/Layout';
 import ToastContainer from './components/UI/Toast';
 import ConfirmDialog from './components/UI/ConfirmDialog';
 import PageLoader from './components/UI/PageLoader';
+import CookieBanner from './components/CookieBanner';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import TermsOfServicePage from './pages/TermsOfServicePage';
 import useAuthStore from './store/authStore';
 import useUIStore from './store/uiStore';
 import usePermissionStore from './store/permissionStore';
@@ -16,6 +19,7 @@ const LoginPage = lazy(() => import('./pages/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/RegisterPage'));
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
+const EmailVerificationPage = lazy(() => import('./pages/EmailVerificationPage'));
 const ProductsPage = lazy(() => import('./pages/ProductsPage'));
 const OrdersPage = lazy(() => import('./pages/OrdersPage'));
 const CustomersPage = lazy(() => import('./pages/CustomersPage'));
@@ -48,6 +52,24 @@ function App() {
 
   useEffect(() => {
     if (isAuthInitialized) {
+      return;
+    }
+
+    const publicPaths = [
+      '/login',
+      '/register',
+      '/forgot-password',
+      '/reset-password',
+      '/privacy-policy',
+      '/terms-of-service',
+    ];
+
+    const pathname = window.location.pathname;
+    const isPublicPath = publicPaths.includes(pathname) || pathname.startsWith('/verify-email');
+
+    if (isPublicPath) {
+      setAuthInitialized(true);
+      setAuthLoading(false);
       return;
     }
 
@@ -165,6 +187,10 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/verify-email" element={<EmailVerificationPage />} />
+          <Route path="/verify-email/:token" element={<EmailVerificationPage />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+          <Route path="/terms-of-service" element={<TermsOfServicePage />} />
           <Route
             path="/"
             element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />}
@@ -332,6 +358,7 @@ function App() {
           />
         </Routes>
       </Suspense>
+      <CookieBanner />
 
       {/* React Hot Toast */}
       <Toaster

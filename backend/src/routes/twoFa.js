@@ -4,6 +4,7 @@ const { twoFaAuthMiddleware, checkTwoFaTokenUsage } = require('../middleware/two
 const { generalLimiter } = require('../middleware/rateLimit');
 const { validate } = require('../validators/validate');
 const { twoFaSchemas } = require('../validators/twoFaValidators');
+const { verifyTwoFaSchema, disableTwoFaSchema } = require('../validators/twoFaValidator');
 const {
   startSetup,
   verifySetup,
@@ -31,7 +32,7 @@ router.post('/setup', generalLimiter, validate(twoFaSchemas.enable), startSetup)
 router.post('/setup/verify', generalLimiter, validate(twoFaSchemas.verify), verifySetup);
 
 // Verify token during login (accepts temporary 2FA token)
-router.post('/verify', generalLimiter, validate(twoFaSchemas.verify), verifyLogin);
+router.post('/verify', generalLimiter, validate(verifyTwoFaSchema), verifyLogin);
 
 // Get backup codes
 router.get('/backup-codes', generalLimiter, getBackupCodes);
@@ -40,7 +41,7 @@ router.get('/backup-codes', generalLimiter, getBackupCodes);
 router.post('/backup-codes/regenerate', generalLimiter, regenerateBackupCodes);
 
 // Disable 2FA for current user
-router.post('/disable', generalLimiter, validate(twoFaSchemas.disable), disable);
+router.post('/disable', generalLimiter, validate(disableTwoFaSchema), disable);
 
 // Delete 2FA for user (admin only)
 router.delete('/:userId', generalLimiter, deleteUserTwoFA);

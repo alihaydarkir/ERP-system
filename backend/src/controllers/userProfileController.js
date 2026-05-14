@@ -392,6 +392,89 @@ const disable2FA = async (req, res) => {
   }
 };
 
+/**
+ * Complete onboarding flow for current user
+ */
+const completeOnboarding = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    await pool.query(
+      `UPDATE users
+       SET onboarding_completed = true,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [userId]
+    );
+
+    return res.status(200).json({ message: 'Onboarding tamamlandı' });
+  } catch (error) {
+    console.error('Complete onboarding error:', error);
+    return res.status(500).json(formatError('Onboarding tamamlanamadı'));
+  }
+};
+
+/**
+ * Export current user's data as JSON
+ */
+const exportMyData = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const companyId = req.user.company_id;
+
+    const result = await pool.query(
+      `SELECT id, username, email, role, created_at
+       FROM users
+       WHERE id = $1
+         AND company_id = $2`,
+      [userId, companyId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json(formatError('User not found'));
+    }
+
+    res.setHeader('Content-Disposition', 'attachment; filename=verilerim.json');
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+
+    return res.status(200).send(JSON.stringify(result.rows[0], null, 2));
+  } catch (error) {
+    console.error('Export my data error:', error);
+    return res.status(500).json(formatError('Veriler dışa aktarılamadı'));
+  }
+};
+
+/**
+ * Soft delete current user's account and personal data
+ */
+const deleteMyData = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const companyId = req.user.company_id;
+
+    const result = await pool.query(
+      `UPDATE users
+       SET deleted_at = NOW(),
+           email = $1,
+           password_hash = '',
+           updated_at = NOW()
+       WHERE id = $2
+         AND company_id = $3
+       RETURNING id`,
+      [`deleted_${userId}@deleted.com`, userId, companyId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json(formatError('User not found'));
+    }
+
+    return res.status(200).json({ message: 'Hesabınız ve verileriniz silindi' });
+  } catch (error) {
+    console.error('Delete my data error:', error);
+    return res.status(500).json(formatError('Veriler silinemedi'));
+  }
+};
+
 module.exports = {
   getProfile,
   updateProfile,
@@ -401,5 +484,8 @@ module.exports = {
   getActivityHistory,
   getLoginHistory,
   enable2FA,
-  disable2FA
+  disable2FA,
+  completeOnboarding,
+  exportMyData,
+  deleteMyData
 };

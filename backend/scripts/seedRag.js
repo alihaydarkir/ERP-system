@@ -1,4 +1,11 @@
 const pool = require('../src/config/database');
+const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+
+const OLLAMA_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+const EMBEDDING_MODEL = process.env.OLLAMA_EMBEDDING_MODEL || 'nomic-embed-text';
+const EMBEDDING_DIM = parseInt(process.env.RAG_EMBEDDING_DIM, 10) || 768;
 
 const RAG_ENTRIES = [
   // 1) Sipariş yönetimi kuralları
@@ -51,7 +58,7 @@ const RAG_ENTRIES = [
     category: 'fatura_ve_ödeme',
     source: 'erp_finance_rules_tr_v1',
     content:
-      'Vade tarihinden önce yapılan ödemelerde müşteri segmentine göre %1 ila %3 erken ödeme indirimi uygulanabilir. İndirim, ödeme dekontu doğrulandıktan sonra ERP’de muhasebe fişine yansıtılır.',
+      'Vade tarihinden önce yapılan ödemelerde müşteri segmentine göre %1 ila %3 erken ödeme indirimi uygulanabilir. İndirim, ödeme dekontu doğrulandıktan sonra ERP\'de muhasebe fişine yansıtılır.',
   },
   {
     title: 'Gecikme faizi kuralları',
@@ -74,7 +81,7 @@ const RAG_ENTRIES = [
     category: 'stok_yönetimi',
     source: 'erp_inventory_rules_tr_v1',
     content:
-      'Döngüsel sayım aylık, tam envanter sayımı yıllık yapılır. Sayım farkları ERP’de tutanak ile kaydedilir, onay sonrası düzeltme hareketi oluşturulur ve finans ekipleri bilgilendirilir.',
+      'Döngüsel sayım aylık, tam envanter sayımı yıllık yapılır. Sayım farkları ERP\'de tutanak ile kaydedilir, onay sonrası düzeltme hareketi oluşturulur ve finans ekipleri bilgilendirilir.',
   },
   {
     title: 'Hasarlı ürün prosedürü',
@@ -88,7 +95,7 @@ const RAG_ENTRIES = [
     category: 'stok_yönetimi',
     source: 'erp_inventory_rules_tr_v1',
     content:
-      'Tedarikçi bazında minimum sipariş adedi/tutarı ERP’de tanımlanır. Yeniden sipariş önerisi bu eşiklerin altına düşmeyecek şekilde otomatik oluşturulur ve satın alma onay akışına gönderilir.',
+      'Tedarikçi bazında minimum sipariş adedi/tutarı ERP\'de tanımlanır. Yeniden sipariş önerisi bu eşiklerin altına düşmeyecek şekilde otomatik oluşturulur ve satın alma onay akışına gönderilir.',
   },
 
   // 4) Müşteri yönetimi
@@ -152,58 +159,123 @@ const RAG_ENTRIES = [
   },
 ];
 
+async function generateEmbedding(text) {
+  try {
+    const response = await axios.post(
+      `${OLLAMA_URL}/api/embeddings`,
+      {
+        model: EMBEDDING_MODEL,
+        prompt: text,
+      },
+      {
+        timeout: 60000,
+      }
+    );
+
+    const embedding = response.data?.embedding;
+    if (!Array.isArray(embedding) || embedding.length !== EMBEDDING_DIM) {
+      throw new Error(
+        `Embedding boyutu geçersiz. Beklenen: ${EMBEDDING_DIM}, gelen: ${Array.isArray(embedding) ? embedding.length : 'null'}`
+      );
+    }
+
+    return embedding;
+  } catch (error) {
+    const serverMessage = error.response?.data?.error || error.response?.data?.message;
+    throw new Error(serverMessage || error.message || 'Embedding üretilemedi');
+  }
+}
+
 async function ensureRagSchema() {
+  const migrationPath = path.join(__dirname, '..', 'migrations', '038_add_embedding_to_rag_knowledge.sql');
+
+  if (fs.existsSync(migrationPath)) {
+    const migrationSql = fs.readFileSync(migrationPath, 'utf8');
+    await pool.query(migrationSql);
+    return;
+  }
+
+  // Fallback if migration file is not found
   await pool.query(`
+    CREATE EXTENSION IF NOT EXISTS vector;
     ALTER TABLE rag_knowledge
-    ADD COLUMN IF NOT EXISTS title VARCHAR(255),
-    ADD COLUMN IF NOT EXISTS category VARCHAR(100),
-    ADD COLUMN IF NOT EXISTS source VARCHAR(255)
+      ADD COLUMN IF NOT EXISTS title VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS category VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS source VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS embedding vector(${EMBEDDING_DIM})
+  `);
+}
+
+async function ensureVectorIndex() {
+  await pool.query(`
+    DO $$
+    DECLARE
+      vector_count BIGINT;
+    BEGIN
+      SELECT COUNT(*) INTO vector_count
+      FROM rag_knowledge
+      WHERE embedding IS NOT NULL;
+
+      IF vector_count > 0 THEN
+        IF to_regclass('public.idx_rag_knowledge_embedding') IS NULL THEN
+          EXECUTE 'CREATE INDEX idx_rag_knowledge_embedding
+                   ON rag_knowledge USING ivfflat (embedding vector_cosine_ops)
+                   WITH (lists = 10)';
+        END IF;
+      END IF;
+    END $$;
   `);
 }
 
 async function seedRagKnowledge() {
   try {
     console.log('🌱 RAG bilgi tabanı seed işlemi başlatıldı...');
+    console.log(`📡 Embedding modeli: ${EMBEDDING_MODEL}`);
 
     await ensureRagSchema();
 
     let insertedCount = 0;
+    let skippedCount = 0;
+    let failedCount = 0;
 
     for (const entry of RAG_ENTRIES) {
-      const existsQuery = `
-        SELECT id
-        FROM rag_knowledge
-        WHERE title = $1 AND category = $2 AND source = $3
-        LIMIT 1
-      `;
+      const exists = await pool.query(
+        'SELECT id FROM rag_knowledge WHERE title = $1 AND source = $2 LIMIT 1',
+        [entry.title, entry.source]
+      );
 
-      const exists = await pool.query(existsQuery, [entry.title, entry.category, entry.source]);
       if (exists.rows.length > 0) {
+        skippedCount++;
         continue;
       }
 
-      const insertQuery = `
-        INSERT INTO rag_knowledge (title, content, category, source, metadata)
-        VALUES ($1, $2, $3, $4, $5::jsonb)
-      `;
+      try {
+        process.stdout.write(`  ⏳ Embedding üretiliyor: "${entry.title}"...`);
+        const embedding = await generateEmbedding(entry.content);
+        process.stdout.write(' ✓\n');
 
-      const metadata = {
-        language: 'tr',
-        seeded_by: 'scripts/seedRag.js',
-      };
+        const metadata = { language: 'tr', seeded_by: 'scripts/seedRag.js' };
 
-      await pool.query(insertQuery, [
-        entry.title,
-        entry.content,
-        entry.category,
-        entry.source,
-        JSON.stringify(metadata),
-      ]);
+        await pool.query(
+          `INSERT INTO rag_knowledge (title, content, category, source, metadata, embedding)
+           VALUES ($1, $2, $3, $4, $5::jsonb, $6::vector)`,
+          [entry.title, entry.content, entry.category, entry.source, JSON.stringify(metadata), `[${embedding.join(',')}]`]
+        );
 
-      insertedCount += 1;
+        insertedCount++;
+      } catch (entryError) {
+        failedCount++;
+        console.error(` ✗ (${entry.title})`, entryError.message);
+      }
     }
 
-    console.log(`✅ RAG seed tamamlandı. ${insertedCount} kayıt eklendi.`);
+    await ensureVectorIndex();
+
+    if (insertedCount === 0 && failedCount > 0) {
+      throw new Error('Hiç kayıt eklenemedi. Ollama ve embedding model ayarlarını kontrol edin.');
+    }
+
+    console.log(`\n✅ RAG seed tamamlandı. ${insertedCount} kayıt eklendi, ${skippedCount} kayıt atlandı, ${failedCount} kayıt başarısız.`);
     process.exit(0);
   } catch (error) {
     console.error('❌ RAG seed hatası:', error.message);

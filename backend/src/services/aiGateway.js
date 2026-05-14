@@ -10,6 +10,7 @@ class AIGateway {
     this.azureOpenAIApiKey = process.env.AZURE_OPENAI_API_KEY || '';
     this.azureApiVersion = process.env.AZURE_OPENAI_API_VERSION || '2024-02-01';
     this.defaultModel = this.resolveDefaultModel();
+    this.ollamaEmbeddingModel = process.env.OLLAMA_EMBEDDING_MODEL || 'nomic-embed-text';
     this.openaiEmbeddingModel = process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small';
     this.azureEmbeddingDeployment = process.env.AZURE_OPENAI_EMBEDDING_DEPLOYMENT || process.env.AZURE_OPENAI_DEPLOYMENT || '';
     this.timeout = parseInt(process.env.AI_REQUEST_TIMEOUT_MS, 10) || 180000;
@@ -267,7 +268,7 @@ class AIGateway {
     this.ensureProviderConfig();
 
     if (this.provider === 'ollama') {
-      const selectedModel = options.model || this.defaultModel;
+      const selectedModel = options.model || this.ollamaEmbeddingModel;
       const response = await axios.post(`${this.ollamaUrl}/api/embeddings`, {
         model: selectedModel,
         prompt: this.maskPII(text)

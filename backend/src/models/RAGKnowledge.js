@@ -1,17 +1,33 @@
 const pool = require('../config/database');
 
 class RAGKnowledge {
+  static toVectorLiteral(embedding) {
+    if (!Array.isArray(embedding) || embedding.length === 0) {
+      throw new Error('Geçersiz embedding: dizi bekleniyor');
+    }
+
+    const normalized = embedding.map((value) => {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) {
+        throw new Error('Geçersiz embedding: tüm değerler sayısal olmalı');
+      }
+      return numeric;
+    });
+
+    return `[${normalized.join(',')}]`;
+  }
+
   /**
    * Create a new knowledge entry with vector embedding
    */
   static async create({ content, metadata = {}, embedding }) {
     const query = `
       INSERT INTO rag_knowledge (content, metadata, embedding)
-      VALUES ($1, $2, $3)
+      VALUES ($1, $2, $3::vector)
       RETURNING *
     `;
 
-    const values = [content, JSON.stringify(metadata), embedding];
+    const values = [content, JSON.stringify(metadata), this.toVectorLiteral(embedding)];
     const result = await pool.query(query, values);
     return result.rows[0];
   }
@@ -42,17 +58,19 @@ class RAGKnowledge {
    * Search by vector similarity (cosine similarity)
    */
   static async searchBySimilarity(embedding, limit = 5, threshold = 0.7) {
+    const vector = this.toVectorLiteral(embedding);
     const query = `
       SELECT
         *,
         1 - (embedding <=> $1::vector) as similarity
       FROM rag_knowledge
-      WHERE 1 - (embedding <=> $1::vector) >= $2
+      WHERE embedding IS NOT NULL
+        AND 1 - (embedding <=> $1::vector) >= $2
       ORDER BY embedding <=> $1::vector
       LIMIT $3
     `;
 
-    const result = await pool.query(query, [JSON.stringify(embedding), threshold, limit]);
+    const result = await pool.query(query, [vector, threshold, limit]);
     return result.rows;
   }
 
@@ -91,8 +109,8 @@ class RAGKnowledge {
     }
 
     if (data.embedding !== undefined) {
-      fields.push(`embedding = $${paramCount}`);
-      values.push(data.embedding);
+      fields.push(`embedding = $${paramCount}::vector`);
+      values.push(this.toVectorLiteral(data.embedding));
       paramCount++;
     }
 
@@ -134,13 +152,13 @@ class RAGKnowledge {
       for (const entry of entries) {
         const query = `
           INSERT INTO rag_knowledge (content, metadata, embedding)
-          VALUES ($1, $2, $3)
+          VALUES ($1, $2, $3::vector)
           RETURNING *
         `;
         const values = [
           entry.content,
           JSON.stringify(entry.metadata || {}),
-          entry.embedding
+          this.toVectorLiteral(entry.embedding)
         ];
         const result = await client.query(query, values);
         results.push(result.rows[0]);

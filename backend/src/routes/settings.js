@@ -3,6 +3,7 @@ const router = express.Router();
 const authMiddleware = require('../middleware/auth');
 const { validate } = require('../validators/validate');
 const { settingsSchemas } = require('../validators/settingsValidators');
+const { updateSettingSchema } = require('../validators/settingsValidator');
 const {
   getAllSettings,
   getSettingsByCategory,
@@ -55,10 +56,10 @@ router.put('/bulk', bulkUpdateSettings);
 router.get('/:key', getSettingByKey);
 
 // Update single setting
-router.put('/:key', injectSettingKeyFromParams, validate(settingsSchemas.update), updateSetting);
+router.put('/:key', injectSettingKeyFromParams, validate(updateSettingSchema), updateSetting);
 
 // Create new setting
-router.post('/', validate(settingsSchemas.update), createSetting);
+router.post('/', validate(updateSettingSchema), createSetting);
 
 // Delete setting
 router.delete('/:key', deleteSetting);

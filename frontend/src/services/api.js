@@ -32,6 +32,23 @@ const processQueue = (error) => {
 api.interceptors.request.use(
   (config) => {
     config.withCredentials = true;
+
+    // CSRF token'ı cookie'den okuyup header'a ekle (PUT/POST/DELETE/PATCH için)
+    const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
+    if (!safeMethods.includes((config.method || '').toUpperCase())) {
+      const csrfToken = document.cookie
+        .split('; ')
+        .find((row) => row.startsWith('csrf_token='))
+        ?.split('=')[1];
+
+      if (csrfToken) {
+        if (!config.headers) {
+          config.headers = {};
+        }
+        config.headers['X-CSRF-Token'] = decodeURIComponent(csrfToken);
+      }
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -48,10 +65,14 @@ api.interceptors.response.use(
     }
 
     const isRefreshEndpoint = String(originalRequest.url || '').includes('/api/auth/refresh');
+    const isProfileEndpoint = String(originalRequest.url || '').includes('/api/auth/profile');
 
     if (isRefreshEndpoint) {
       useAuthStore.getState().logout();
-      window.location.href = '/login';
+      return Promise.reject(error);
+    }
+
+    if (isProfileEndpoint && error.response?.status === 401) {
       return Promise.reject(error);
     }
 
@@ -88,7 +109,6 @@ api.interceptors.response.use(
         // Refresh failed, logout user
         processQueue(refreshError, null);
         useAuthStore.getState().logout();
-        window.location.href = '/login';
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

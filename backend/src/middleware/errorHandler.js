@@ -1,4 +1,5 @@
 const { randomUUID } = require('crypto');
+const Sentry = require('@sentry/node');
 const { logger } = require('./logger');
 
 const VALIDATION_CODES = new Set(['VALIDATION_ERROR', 'BAD_REQUEST', 'INVALID_INPUT']);
@@ -48,8 +49,13 @@ const resolveErrorMeta = (err = {}) => {
 
 const errorHandler = (err, req, res, next) => {
   const isDevelopment = process.env.NODE_ENV === 'development';
+  const isSentryEnabled = process.env.NODE_ENV === 'production' && Boolean(process.env.SENTRY_DSN);
   const requestId = req.requestId || req.headers['x-request-id'] || randomUUID();
   const { status, type, safeMessage } = resolveErrorMeta(err || {});
+
+  if (isSentryEnabled && err) {
+    Sentry.captureException(err);
+  }
 
   logger.error('Unhandled application error', {
     requestId,

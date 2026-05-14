@@ -2,10 +2,19 @@ const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth');
 const { logActivity, requirePermission } = require('../middleware/permissions');
+const { validate } = require('../validators/validate');
+const { createInvoiceSchema, updateInvoiceStatusSchema } = require('../validators/invoiceValidator');
 const {
   getAllInvoices, getInvoiceById, getInvoiceStats,
   createInvoice, updateInvoice, deleteInvoice,
 } = require('../controllers/invoiceController');
+
+/**
+ * @swagger
+ * tags:
+ *   - name: Invoices
+ *     description: Fatura yönetimi endpointleri
+ */
 
 /**
  * @openapi
@@ -28,6 +37,8 @@ router.get('/stats', authMiddleware, requirePermission('invoices.view'), getInvo
  *   get:
  *     tags: [Invoices]
  *     summary: Faturaları listele
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: status
@@ -49,9 +60,17 @@ router.get('/stats', authMiddleware, requirePermission('invoices.view'), getInvo
  *         content:
  *           application/json:
  *             schema: { $ref: '#/components/schemas/PaginatedResponse' }
+ *       400:
+ *         description: Geçersiz istek
+ *       401:
+ *         description: Yetkisiz
+ *       404:
+ *         description: Kayıt bulunamadı
  *   post:
  *     tags: [Invoices]
  *     summary: Yeni fatura oluştur
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -78,11 +97,19 @@ router.get('/stats', authMiddleware, requirePermission('invoices.view'), getInvo
  *                     quantity:    { type: number }
  *                     unit_price:  { type: number }
  *     responses:
+ *       200:
+ *         description: Başarılı
  *       201:
  *         description: Fatura oluşturuldu
+ *       400:
+ *         description: Geçersiz istek
+ *       401:
+ *         description: Yetkisiz
+ *       404:
+ *         description: Kayıt bulunamadı
  */
 router.get('/',  authMiddleware, requirePermission('invoices.view'), getAllInvoices);
-router.post('/', authMiddleware, requirePermission('invoices.create'), logActivity('create_invoice', 'invoices'), createInvoice);
+router.post('/', authMiddleware, requirePermission('invoices.create'), validate(createInvoiceSchema), logActivity('create_invoice', 'invoices'), createInvoice);
 
 /**
  * @openapi
@@ -90,6 +117,8 @@ router.post('/', authMiddleware, requirePermission('invoices.create'), logActivi
  *   get:
  *     tags: [Invoices]
  *     summary: Tekil fatura + kalemleri
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -101,6 +130,12 @@ router.post('/', authMiddleware, requirePermission('invoices.create'), logActivi
  *         content:
  *           application/json:
  *             schema: { $ref: '#/components/schemas/SuccessResponse' }
+ *       400:
+ *         description: Geçersiz istek
+ *       401:
+ *         description: Yetkisiz
+ *       404:
+ *         description: Fatura bulunamadı
  *   put:
  *     tags: [Invoices]
  *     summary: Fatura güncelle (durum değişikliği dahil)
@@ -119,6 +154,12 @@ router.post('/', authMiddleware, requirePermission('invoices.create'), logActivi
  *     responses:
  *       200:
  *         description: Güncellendi
+ *       400:
+ *         description: Geçersiz istek
+ *       401:
+ *         description: Yetkisiz
+ *       404:
+ *         description: Fatura bulunamadı
  *   delete:
  *     tags: [Invoices]
  *     summary: Fatura sil
@@ -130,9 +171,52 @@ router.post('/', authMiddleware, requirePermission('invoices.create'), logActivi
  *     responses:
  *       200:
  *         description: Silindi
+ *       400:
+ *         description: Geçersiz istek
+ *       401:
+ *         description: Yetkisiz
+ *       404:
+ *         description: Fatura bulunamadı
  */
 router.get('/:id',    authMiddleware, requirePermission('invoices.view'), getInvoiceById);
 router.put('/:id',    authMiddleware, requirePermission('invoices.edit'), logActivity('update_invoice', 'invoices'), updateInvoice);
+
+/**
+ * @swagger
+ * /api/invoices/{id}/status:
+ *   patch:
+ *     tags: [Invoices]
+ *     summary: Fatura durumu güncelle
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [status]
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [draft, sent, paid, overdue, cancelled]
+ *     responses:
+ *       200:
+ *         description: Başarılı
+ *       400:
+ *         description: Geçersiz istek
+ *       401:
+ *         description: Yetkisiz
+ *       404:
+ *         description: Fatura bulunamadı
+ */
+router.patch('/:id/status', authMiddleware, requirePermission('invoices.edit'), validate(updateInvoiceStatusSchema), logActivity('update_invoice_status', 'invoices'), updateInvoice);
 router.delete('/:id', authMiddleware, requirePermission('invoices.delete'), logActivity('delete_invoice', 'invoices'), deleteInvoice);
 
 module.exports = router;

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import usePermissionStore from './permissionStore';
+import { authService } from '../services/authService';
 
 const useAuthStore = create((set) => ({
   user: null,
@@ -7,6 +8,7 @@ const useAuthStore = create((set) => ({
   isAuthenticated: false,
   isAuthLoading: true,
   isAuthInitialized: false,
+  onboarding_completed: false,
 
   login: (user, company = null) => {
     set({
@@ -15,6 +17,7 @@ const useAuthStore = create((set) => ({
       isAuthenticated: true,
       isAuthLoading: false,
       isAuthInitialized: true,
+      onboarding_completed: Boolean(user?.onboarding_completed),
     });
   },
 
@@ -28,11 +31,16 @@ const useAuthStore = create((set) => ({
       isAuthenticated: false,
       isAuthLoading: false,
       isAuthInitialized: true,
+      onboarding_completed: false,
     });
   },
 
   setUser: (user) => {
-    set({ user, isAuthenticated: !!user });
+    set({
+      user,
+      isAuthenticated: !!user,
+      onboarding_completed: Boolean(user?.onboarding_completed)
+    });
   },
 
   setCompany: (company) => {
@@ -42,6 +50,14 @@ const useAuthStore = create((set) => ({
   setAuthLoading: (isAuthLoading) => set({ isAuthLoading }),
 
   setAuthInitialized: (isAuthInitialized) => set({ isAuthInitialized }),
+
+  completeOnboarding: async () => {
+    await authService.completeOnboarding();
+    set((state) => ({
+      onboarding_completed: true,
+      user: state.user ? { ...state.user, onboarding_completed: true } : state.user
+    }));
+  },
 }));
 
 export default useAuthStore;

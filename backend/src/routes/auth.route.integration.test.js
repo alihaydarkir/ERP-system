@@ -22,8 +22,11 @@ const mockAuthController = {
   logout: jest.fn((_req, res) => res.status(200).json({ success: true, message: 'Logout successful' })),
   getProfile: jest.fn((req, res) => res.status(200).json({ success: true, data: { userId: req.user?.id } })),
   updateProfile: jest.fn((_req, res) => res.status(200).json({ success: true, message: 'Profile updated' })),
+  forgotPassword: jest.fn((_req, res) => res.status(200).json({ success: true })),
   requestPasswordReset: jest.fn((_req, res) => res.status(200).json({ success: true })),
-  resetPassword: jest.fn((_req, res) => res.status(200).json({ success: true }))
+  resetPassword: jest.fn((_req, res) => res.status(200).json({ success: true })),
+  sendVerificationEmail: jest.fn((_req, res) => res.status(200).json({ success: true })),
+  verifyEmail: jest.fn((_req, res) => res.status(200).json({ success: true }))
 };
 
 jest.mock('../config/database', () => mockPool);

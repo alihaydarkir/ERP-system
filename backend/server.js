@@ -3,6 +3,7 @@ const http = require('http');
 const socketIo = require('socket.io');
 const helmet = require('helmet');
 const cors = require('cors');
+const Sentry = require('@sentry/node');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./src/config/swagger');
 const aiService = require('./src/services/aiService');
@@ -18,6 +19,15 @@ const {
 
 const app = express();
 const server = http.createServer(app);
+const isSentryEnabled = process.env.NODE_ENV === 'production' && Boolean(process.env.SENTRY_DSN);
+
+if (isSentryEnabled) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV,
+    tracesSampleRate: 0.2,
+  });
+}
 
 // Parse allowed CORS origins (validated in config/env.js)
 const corsOrigins = config.corsOrigins;
@@ -423,11 +433,17 @@ server.listen(PORT, () => {
 // Keep process alive and handle errors
 process.on('uncaughtException', (error) => {
   console.error('❌ Uncaught Exception:', error);
+  if (isSentryEnabled) {
+    Sentry.captureException(error);
+  }
   // Don't exit
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  if (isSentryEnabled) {
+    Sentry.captureException(reason instanceof Error ? reason : new Error(String(reason)));
+  }
   // Don't exit
 });
 

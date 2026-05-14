@@ -5,6 +5,23 @@ class RAGService {
   constructor() {
     this.topK = parseInt(process.env.RAG_TOP_K) || 5;
     this.threshold = parseFloat(process.env.RAG_THRESHOLD) || 0.7;
+    this.embeddingDimensions = parseInt(process.env.RAG_EMBEDDING_DIM, 10) || 768;
+  }
+
+  ensureValidEmbedding(embedding, context = 'embedding') {
+    if (!Array.isArray(embedding) || embedding.length === 0) {
+      throw new Error(`${context} geçersiz: embedding dizisi bekleniyor`);
+    }
+
+    if (embedding.length !== this.embeddingDimensions) {
+      throw new Error(
+        `${context} boyutu uyuşmuyor: beklenen ${this.embeddingDimensions}, gelen ${embedding.length}`
+      );
+    }
+
+    if (embedding.some((value) => !Number.isFinite(Number(value)))) {
+      throw new Error(`${context} geçersiz: embedding sayısal olmayan değer içeriyor`);
+    }
   }
 
   /**
@@ -12,30 +29,24 @@ class RAGService {
    */
   async addKnowledge(content, metadata = {}) {
     try {
-      // Generate embeddings for the content
       const embeddingResult = await aiService.generateEmbeddings(content);
 
       if (!embeddingResult.success) {
         throw new Error('Failed to generate embeddings');
       }
 
-      // Store in database
+      this.ensureValidEmbedding(embeddingResult.embeddings, 'Bilgi embedding');
+
       const knowledge = await RAGKnowledge.create({
         content,
         metadata,
         embedding: embeddingResult.embeddings
       });
 
-      return {
-        success: true,
-        knowledge
-      };
+      return { success: true, knowledge };
     } catch (error) {
       console.error('RAG add knowledge error:', error.message);
-      return {
-        success: false,
-        error: error.message
-      };
+      return { success: false, error: error.message };
     }
   }
 
@@ -50,6 +61,7 @@ class RAGService {
         const embeddingResult = await aiService.generateEmbeddings(entry.content);
 
         if (embeddingResult.success) {
+          this.ensureValidEmbedding(embeddingResult.embeddings, 'Toplu bilgi embedding');
           processedEntries.push({
             content: entry.content,
             metadata: entry.metadata || {},
@@ -60,17 +72,10 @@ class RAGService {
 
       const results = await RAGKnowledge.bulkCreate(processedEntries);
 
-      return {
-        success: true,
-        count: results.length,
-        results
-      };
+      return { success: true, count: results.length, results };
     } catch (error) {
       console.error('RAG bulk add error:', error.message);
-      return {
-        success: false,
-        error: error.message
-      };
+      return { success: false, error: error.message };
     }
   }
 
@@ -79,35 +84,27 @@ class RAGService {
    */
   async search(query, options = {}) {
     try {
-      // Generate embeddings for the query
       const embeddingResult = await aiService.generateEmbeddings(query);
 
       if (!embeddingResult.success) {
         throw new Error('Failed to generate query embeddings');
       }
 
-      const limit = options.limit || this.topK;
-      const threshold = options.threshold || this.threshold;
+      this.ensureValidEmbedding(embeddingResult.embeddings, 'Sorgu embedding');
 
-      // Search using vector similarity
+      const limit = Number.isFinite(Number(options.limit)) ? Number(options.limit) : this.topK;
+      const threshold = Number.isFinite(Number(options.threshold)) ? Number(options.threshold) : this.threshold;
+
       const results = await RAGKnowledge.searchBySimilarity(
         embeddingResult.embeddings,
         limit,
         threshold
       );
 
-      return {
-        success: true,
-        results,
-        count: results.length
-      };
+      return { success: true, results, count: results.length };
     } catch (error) {
       console.error('RAG search error:', error.message);
-      return {
-        success: false,
-        error: error.message,
-        results: []
-      };
+      return { success: false, error: error.message, results: [] };
     }
   }
 
@@ -116,28 +113,24 @@ class RAGService {
    */
   async generateAnswer(question, options = {}) {
     try {
-      // Search for relevant knowledge
       const searchResult = await this.search(question, options);
 
       if (!searchResult.success || searchResult.results.length === 0) {
-        // No relevant context found, use AI without RAG
         return await aiService.generateERPResponse(question);
       }
 
-      // Build context from search results
       const context = searchResult.results
         .map((result, index) => `${index + 1}. ${result.content} (similarity: ${result.similarity.toFixed(2)})`)
         .join('\n\n');
 
-      // Generate answer with context
-      const prompt = `Based on the following information, answer the user's question.
+      const prompt = `Aşağıdaki bilgilere dayanarak kullanıcının sorusunu yanıtla.
 
-Relevant Information:
+İlgili Bilgiler:
 ${context}
 
-User Question: ${question}
+Kullanıcı Sorusu: ${question}
 
-Answer (be concise and accurate):`;
+Yanıt (kısa ve doğru ol):`;
 
       const aiResponse = await aiService.generateCompletion(prompt);
 
@@ -156,7 +149,7 @@ Answer (be concise and accurate):`;
       return {
         success: false,
         error: error.message,
-        answer: 'Sorry, I could not generate an answer at this time.'
+        answer: 'Şu anda yanıt üretilemedi.'
       };
     }
   }
@@ -172,22 +165,18 @@ Answer (be concise and accurate):`;
         throw new Error('Failed to generate embeddings');
       }
 
+      this.ensureValidEmbedding(embeddingResult.embeddings, 'Güncelleme embedding');
+
       const updated = await RAGKnowledge.update(id, {
         content,
         metadata,
         embedding: embeddingResult.embeddings
       });
 
-      return {
-        success: true,
-        knowledge: updated
-      };
+      return { success: true, knowledge: updated };
     } catch (error) {
       console.error('RAG update error:', error.message);
-      return {
-        success: false,
-        error: error.message
-      };
+      return { success: false, error: error.message };
     }
   }
 
@@ -200,10 +189,7 @@ Answer (be concise and accurate):`;
       return { success: true };
     } catch (error) {
       console.error('RAG delete error:', error.message);
-      return {
-        success: false,
-        error: error.message
-      };
+      return { success: false, error: error.message };
     }
   }
 
@@ -215,20 +201,10 @@ Answer (be concise and accurate):`;
       const results = await RAGKnowledge.findAll(limit, offset);
       const count = await RAGKnowledge.count();
 
-      return {
-        success: true,
-        results,
-        count,
-        limit,
-        offset
-      };
+      return { success: true, results, count, limit, offset };
     } catch (error) {
       console.error('RAG get all error:', error.message);
-      return {
-        success: false,
-        error: error.message,
-        results: []
-      };
+      return { success: false, error: error.message, results: [] };
     }
   }
 
@@ -238,50 +214,11 @@ Answer (be concise and accurate):`;
   async searchByText(searchText, limit = 10) {
     try {
       const results = await RAGKnowledge.searchByContent(searchText, limit);
-
-      return {
-        success: true,
-        results,
-        count: results.length
-      };
+      return { success: true, results, count: results.length };
     } catch (error) {
       console.error('RAG text search error:', error.message);
-      return {
-        success: false,
-        error: error.message,
-        results: []
-      };
+      return { success: false, error: error.message, results: [] };
     }
-  }
-
-  /**
-   * Initialize knowledge base with default ERP knowledge
-   */
-  async initializeDefaultKnowledge() {
-    const defaultKnowledge = [
-      {
-        content: 'To check product stock, navigate to Products page and view the stock column. Low stock items are highlighted in red.',
-        metadata: { category: 'products', topic: 'stock_management' }
-      },
-      {
-        content: 'Orders can be created from the Orders page. Select products, enter quantities, and the system will automatically calculate totals.',
-        metadata: { category: 'orders', topic: 'order_creation' }
-      },
-      {
-        content: 'To generate reports, go to Reports page and select the time period. You can export reports as PDF or Excel.',
-        metadata: { category: 'reports', topic: 'report_generation' }
-      },
-      {
-        content: 'User roles include: Admin (full access), Manager (view and create), User (view only). Contact admin to change roles.',
-        metadata: { category: 'users', topic: 'roles_permissions' }
-      },
-      {
-        content: 'Dashboard shows real-time KPIs including total revenue, orders count, low stock alerts, and recent activities.',
-        metadata: { category: 'dashboard', topic: 'kpis' }
-      }
-    ];
-
-    return await this.bulkAddKnowledge(defaultKnowledge);
   }
 }
 

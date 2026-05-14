@@ -40,9 +40,42 @@ if (error) {
   process.exit(1);
 }
 
+const weakSecretMarkers = [
+  'secure_password',
+  'your_super_secret_key',
+  'change_in_production',
+  'changeme',
+  'password',
+  '123456',
+];
+
+const isWeakSecret = (value = '') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return true;
+  return weakSecretMarkers.some((marker) => normalized.includes(marker));
+};
+
+if (env.NODE_ENV === 'production') {
+  const productionErrors = [];
+
+  if (isWeakSecret(env.DB_PASSWORD)) {
+    productionErrors.push('DB_PASSWORD weak/default görünüyor. Üretimde güçlü bir parola zorunludur.');
+  }
+
+  if (isWeakSecret(env.JWT_SECRET) || String(env.JWT_SECRET || '').length < 32) {
+    productionErrors.push('JWT_SECRET zayıf/default görünüyor. Üretimde en az 32 karakter güçlü bir secret zorunludur.');
+  }
+
+  if (productionErrors.length > 0) {
+    console.error('❌ Insecure production environment configuration:');
+    productionErrors.forEach((msg) => console.error(`- ${msg}`));
+    process.exit(1);
+  }
+}
+
 const parseCorsOrigins = (origins) => {
   if (!origins) {
-    return ['http://localhost:3000', 'http://localhost:5173'];
+    return ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:5173', 'http://127.0.0.1:3000'];
   }
   return origins.split(',').map(origin => origin.trim()).filter(Boolean);
 };
