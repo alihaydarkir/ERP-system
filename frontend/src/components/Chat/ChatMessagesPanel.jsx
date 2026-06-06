@@ -1,6 +1,6 @@
 import ChatMessage from './ChatMessage';
 
-export default function ChatMessagesPanel({ messages, loading, approvalState, messagesEndRef, onApprove, onReject }) {
+export default function ChatMessagesPanel({ messages, loading, elapsed, timeoutSeconds, approvalState, messagesEndRef, onApprove, onReject }) {
   const lastAiMessageId = [...messages].reverse().find((m) => m.type === 'ai')?.id;
 
   return (
@@ -28,6 +28,11 @@ export default function ChatMessagesPanel({ messages, loading, approvalState, me
               <span key={i} className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: `${delay}s` }} />
             ))}
           </span>
+          {elapsed > 0 && (
+            <span className={`ml-1 tabular-nums ${elapsed >= timeoutSeconds - 5 ? 'text-red-500 font-semibold' : 'text-gray-400'}`}>
+              {elapsed}s / {timeoutSeconds}s
+            </span>
+          )}
         </div>
       )}
 

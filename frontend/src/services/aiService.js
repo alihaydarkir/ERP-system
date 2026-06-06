@@ -4,10 +4,11 @@ export const aiService = {
   /**
    * Agent AI ile sohbet — ERP verilerine erişebilir
    */
-  agentChat: async (message) => {
+  agentChat: async (message, { signal } = {}) => {
     try {
       const response = await api.post('/api/ai/chat', { message }, {
-        timeout: 180000, // 3 dakika
+        timeout: 180000,
+        signal,
       });
 
       // Backend formatSuccess(...) -> { success, message, data }
@@ -21,6 +22,16 @@ export const aiService = {
       normalizedError.responseData = error?.response?.data;
       throw normalizedError;
     }
+  },
+
+  approveAction: async (approvalId) => {
+    const response = await api.post(`/api/ai/approvals/${approvalId}/approve`);
+    return response.data;
+  },
+
+  rejectAction: async (approvalId) => {
+    const response = await api.post(`/api/ai/approvals/${approvalId}/reject`);
+    return response.data;
   },
 
   /**

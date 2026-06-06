@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { aiService } from '../services/aiService';
+
+const TIMEOUT_SECONDS = 45;
 import ChatInput from '../components/Chat/ChatInput';
 import ChatHeaderStatus from '../components/Chat/ChatHeaderStatus';
 import ChatQuickQuestions from '../components/Chat/ChatQuickQuestions';
@@ -45,7 +47,11 @@ export default function ChatPage() {
   const [aiStatus, setAiStatus] = useState({ available: null, model: '' });
   const [pendingConfirmation, setPendingConfirmation] = useState(null);
   const [approvalState, setApprovalState] = useState(null);
+  const [elapsed, setElapsed] = useState(0);
   const messagesEndRef = useRef(null);
+  const abortControllerRef = useRef(null);
+  const timeoutTimerRef = useRef(null);
+  const elapsedTimerRef = useRef(null);
 
   useEffect(() => {
     const checkAI = async () => {
@@ -106,6 +112,12 @@ export default function ChatPage() {
 
   useChatSocket({ onApprovalUpdate: handleApprovalUpdate });
 
+  const clearTimers = () => {
+    clearTimeout(timeoutTimerRef.current);
+    clearInterval(elapsedTimerRef.current);
+    setElapsed(0);
+  };
+
   const sendMessage = async (text) => {
     const messageText = text || inputMessage.trim();
     if (!messageText || loading) return;
@@ -120,8 +132,24 @@ export default function ChatPage() {
     setMessages(prev => [...prev, userMsg, thinkingMsg]);
     setLoading(true);
 
+    // Abort controller for cancel-on-timeout
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    // Elapsed counter shown in thinking bubble
+    let secs = 0;
+    elapsedTimerRef.current = setInterval(() => {
+      secs += 1;
+      setElapsed(secs);
+    }, 1000);
+
+    // Hard timeout — abort request and show error
+    timeoutTimerRef.current = setTimeout(() => {
+      controller.abort();
+    }, TIMEOUT_SECONDS * 1000);
+
     try {
-      const data = await aiService.agentChat(messageText);
+      const data = await aiService.agentChat(messageText, { signal: controller.signal });
       const agentMeta = data?.meta?.agent || {};
       const aiMsg = {
         id: thinkingId,
@@ -132,13 +160,6 @@ export default function ChatPage() {
         model: data?.model
       };
 
-      if (agentMeta.requires_confirmation) {
-        setPendingConfirmation({
-          preview: agentMeta.confirmation_preview || data?.answer || 'Onay gerekiyor',
-          tool: agentMeta.mutation_tool || null
-        });
-      }
-
       if (agentMeta.requires_approval || agentMeta.requires_human_approval) {
         setApprovalState({
           approvalId: agentMeta.approval_id || null,
@@ -148,41 +169,68 @@ export default function ChatPage() {
         });
       }
 
-      if (agentMeta.mutation_executed || agentMeta.cancelled_pending_mutation || agentMeta.confirmation_expired) {
+      if (agentMeta.mutation_executed || agentMeta.cancelled_pending_mutation) {
         setPendingConfirmation(null);
         setApprovalState(null);
       }
 
       setMessages(prev => prev.map(m => m.id === thinkingId ? aiMsg : m));
     } catch (error) {
-      const isTimeout = error.code === 'ECONNABORTED' || error.message?.includes('timeout');
+      const isAborted = error.name === 'AbortError' || error.code === 'ERR_CANCELED';
+      const isTimeout = isAborted || error.code === 'ECONNABORTED' || error.message?.includes('timeout');
       const is503 = error.status === 503;
+
       const errText = isTimeout
-        ? '⏳ AI yanıt verme süresi doldu. Model meşgul olabilir, lütfen tekrar deneyin.'
+        ? `⏳ AI ${TIMEOUT_SECONDS} saniyede yanıt veremedi. "Tekrar Dene" butonuna basın.`
         : is503
-        ? '⚠️ AI servisi şu an çevrimdışı.\n\nOllama\'yı başlatmak için: `ollama serve`'
+        ? '⚠️ AI servisi şu an çevrimdışı.'
         : `❌ Hata: ${error.responseData?.message || error.message || 'Bilinmeyen hata'}`;
-      setChatError(error.responseData?.message || error.message || 'AI yanıt üretilemedi.');
-      const errMsg = {
-        id: thinkingId,
-        type: 'ai',
-        text: errText,
-        timestamp: new Date(),
-        steps: []
-      };
-      setMessages(prev => prev.map(m => m.id === thinkingId ? errMsg : m));
+
+      setChatError(isTimeout ? 'timeout' : error.responseData?.message || error.message || 'AI yanıt üretilemedi.');
+      setMessages(prev => prev.map(m => m.id === thinkingId ? { ...m, type: 'ai', text: errText, steps: [] } : m));
     } finally {
+      clearTimers();
       setLoading(false);
+      abortControllerRef.current = null;
     }
   };
 
-  const handleConfirmMutation = () => {
-    if (!loading) sendMessage('onaylıyorum');
+  const handleConfirmMutation = async () => {
+    if (!approvalState?.approvalId) return;
+    try {
+      await aiService.approveAction(approvalState.approvalId);
+      setApprovalState(null);
+      setMessages(prev => [...prev, {
+        id: Date.now(),
+        type: 'ai',
+        text: '✅ İşlem onaylandı.',
+        timestamp: new Date(),
+        steps: []
+      }]);
+    } catch {
+      setMessages(prev => [...prev, {
+        id: Date.now(),
+        type: 'ai',
+        text: '❌ Onaylama sırasında hata oluştu.',
+        timestamp: new Date(),
+        steps: []
+      }]);
+    }
   };
 
-  const handleCancelMutation = () => {
-    if (!loading) sendMessage('vazgeç');
+  const handleCancelMutation = async () => {
+    if (approvalState?.approvalId) {
+      try { await aiService.rejectAction(approvalState.approvalId); } catch { /* ignore */ }
+    }
+    setApprovalState(null);
     setPendingConfirmation(null);
+    setMessages(prev => [...prev, {
+      id: Date.now(),
+      type: 'ai',
+      text: '❌ İşlem iptal edildi.',
+      timestamp: new Date(),
+      steps: []
+    }]);
   };
 
   return (
@@ -190,8 +238,8 @@ export default function ChatPage() {
       <ChatHeaderStatus aiStatus={aiStatus} approvalState={approvalState} />
 
       <ChatErrorBanner
-        chatError={chatError}
-        onRetry={() => lastMessage && sendMessage(lastMessage)}
+        chatError={chatError === 'timeout' ? `AI ${TIMEOUT_SECONDS} saniyede yanıt veremedi.` : chatError}
+        onRetry={() => { setChatError(''); lastMessage && sendMessage(lastMessage); }}
         canRetry={Boolean(lastMessage)}
         loading={loading}
       />
@@ -205,6 +253,8 @@ export default function ChatPage() {
       <ChatMessagesPanel
         messages={messages}
         loading={loading}
+        elapsed={elapsed}
+        timeoutSeconds={TIMEOUT_SECONDS}
         approvalState={approvalState}
         messagesEndRef={messagesEndRef}
         onApprove={handleConfirmMutation}
