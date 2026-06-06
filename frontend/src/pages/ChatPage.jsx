@@ -92,13 +92,15 @@ export default function ChatPage() {
         };
       });
 
-      if (payload.status === 'approved' || payload.status === 'rejected' || payload.status === 'failed') {
+      if (['approved', 'executed', 'rejected', 'failed'].includes(payload.status)) {
         setApprovalState(null);
-        const text = payload.status === 'approved'
-          ? `✅ ${payload.agent_tool || 'İşlem'} başarıyla tamamlandı.`
-          : payload.status === 'failed'
-          ? `❌ İşlem yürütülemedi: ${payload.error || 'Bilinmeyen hata'}`
-          : `❌ ${payload.agent_tool || 'İşlem'} reddedildi.`;
+        const tool = payload.agent_tool || 'İşlem';
+        const text =
+          payload.status === 'approved' || payload.status === 'executed'
+            ? `✅ ${tool} başarıyla tamamlandı.`
+            : payload.status === 'failed'
+            ? `❌ ${tool} yürütülemedi: ${payload.execution_error || payload.error || 'Bilinmeyen hata'}`
+            : `❌ ${tool} reddedildi.`;
 
         setMessages((prev) => ([
           ...prev,

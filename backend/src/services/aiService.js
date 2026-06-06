@@ -57,6 +57,9 @@ class AIService {
       create_warehouse: 'warehouses.create',
       update_warehouse: 'warehouses.edit',
       create_cheque: 'cheques.create',
+      create_order: 'orders.create',
+      activate_product: 'products.edit',
+      update_order_status: 'orders.edit',
       set_order_status: 'orders.edit',
       set_invoice_status: 'invoices.edit'
     };

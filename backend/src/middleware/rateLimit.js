@@ -106,7 +106,8 @@ const createRateLimiter = ({
           redisLimiter = rateLimit({
             ...baseOptions,
             store,
-            passOnStoreError: true
+            passOnStoreError: true,
+            validate: false  // suppress ERR_ERL_CREATED_IN_REQUEST_HANDLER — Redis store lazy-init is intentional
           });
         }
       }
