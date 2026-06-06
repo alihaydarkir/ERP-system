@@ -66,7 +66,9 @@ Kurallar:
 - "tool" alanına SADECE yukarıdaki listede birebir geçen bir isim yaz. Listede olmayan/uydurma isim üretme
 - En fazla 5 adım
 - [YAZMA/DEĞİŞİKLİK] etiketli araçları SADECE kullanıcı açıkça bir kayıt oluşturmak/güncellemek/silmek/iptal etmek/durum değiştirmek istediğinde seç (ör. "oluştur", "ekle", "güncelle", "sil", "iptal et", "durumunu ... yap"). Kullanıcı sadece bilgi/durum/liste soruyorsa SADECE [SADECE OKUMA] araçlarını kullan
-- Belirsiz veya eksik bilgiyle (ör. hangi kayıt olduğu belli değilken) asla bir [YAZMA/DEĞİŞİKLİK] aracı önerme`;
+- Belirsiz veya eksik bilgiyle (ör. hangi kayıt olduğu belli değilken) asla bir [YAZMA/DEĞİŞİKLİK] aracı önerme
+- Kullanıcı bir işlem yapmak istiyorsa ama gerekli bilgiler (müşteri adı, ürün adı vb.) belirtilmemişse, steps boş bırak: {"steps":[],"strategy":"ask_for_info"}
+- Örnek: "sipariş ekle" → müşteri adı bilinmiyor → {"steps":[],"strategy":"ask_for_info"}`;
 
     const userPrompt = `Kullanıcı mesajı: ${String(userMessage || '').slice(0, 1000)}`;
 
@@ -168,9 +170,8 @@ Kurallar:
 
   isGreeting(message) {
     const msg = String(message || '').toLowerCase().trim();
-    if (/^(merhaba|selam|hi|hello|hey|nasılsın|naber|günaydın|iyi günler|iyi akşamlar|teşekkür|sağ ol|tamam|ok)\s*[!.?]?$/.test(msg)) return true;
-    if (msg.length < 12 && !/ürün|sipariş|müşteri|çek|fatura|stok|tedarikçi|depo|rapor/.test(msg)) return true;
-    return false;
+    // Only match explicit standalone greetings — never contextual short questions
+    return /^(merhaba|selam|hi|hello|hey|günaydın|iyi günler|iyi akşamlar)\s*[!.?]?$/.test(msg);
   }
 
   toPositiveNumber(value) {
@@ -211,16 +212,32 @@ Kurallar:
       payload: item.result
     }));
 
+    // Annotate empty results so model won't hallucinate
+    const annotatedBlocks = (toolContexts || []).map((item) => {
+      const r = item.result;
+      const isEmpty =
+        !r ||
+        (Array.isArray(r) && r.length === 0) ||
+        (typeof r === 'object' && !Array.isArray(r) &&
+          Object.values(r).every((v) => {
+            if (Array.isArray(v)) return v.length === 0;
+            const n = Number(v);
+            return (Number.isFinite(n) && n === 0) || v === null || v === undefined;
+          }));
+      return { tool: item.tool, payload: isEmpty ? '__BOŞ_SONUÇ__' : r };
+    });
+
     // Data in system role — never masked by PII filter, never corrupted
     const systemPrompt = `Sen Türkçe ERP asistanısın. Aşağıdaki veriyi kullanarak kullanıcının sorusunu kısa ve net yanıtla.
 Kurallar:
-- Sadece verilen veriyi kullan, kesinlikle uydurma
+- Sadece verilen veriyi kullan, kesinlikle uydurma yapma
+- "__BOŞ_SONUÇ__" olan araç veri içermiyor demektir — o konuda "kayıt yok" veya "bu kategori boş" de
 - JSON, kod bloğu veya teknik format yazma
 - Sayıları, isimleri ve tarihleri düz Türkçe metin olarak yaz
 - Gereksiz açıklama yapma, doğrudan cevap ver
 
 VERİ:
-${JSON.stringify(dataBlocks, null, 2)}`;
+${JSON.stringify(annotatedBlocks, null, 2)}`;
 
     const completion = await this.gateway.chat([
       { role: 'system', content: systemPrompt },
@@ -241,6 +258,16 @@ ${JSON.stringify(dataBlocks, null, 2)}`;
     }
 
     const plan = await this.plan({ userMessage, fallbackTools });
+
+    if (plan.strategy === 'ask_for_info' || !plan.steps?.length) {
+      return {
+        success: true,
+        answer: 'Bu işlemi yapabilmem için biraz daha bilgiye ihtiyacım var. Lütfen gerekli detayları belirtin (örn. müşteri adı, ürün adı, miktar).',
+        steps: [],
+        meta: { orchestrator_mode: this.mode, ask_for_info: true }
+      };
+    }
+
     const execution = await this.execute({
       plan,
       context,

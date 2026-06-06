@@ -93,9 +93,10 @@ export default function ChatPage() {
       });
 
       if (payload.status === 'approved' || payload.status === 'rejected') {
+        setApprovalState(null);
         const text = payload.status === 'approved'
-          ? `✅ Onaylandı: ${payload.agent_tool || 'işlem'} işlemi onaylandı.`
-          : `❌ Reddedildi: ${payload.agent_tool || 'işlem'} işlemi reddedildi.`;
+          ? `✅ ${payload.agent_tool || 'İşlem'} onaylandı ve yürütüldü.`
+          : `❌ ${payload.agent_tool || 'İşlem'} reddedildi.`;
 
         setMessages((prev) => ([
           ...prev,
@@ -197,21 +198,17 @@ export default function ChatPage() {
 
   const handleConfirmMutation = async () => {
     if (!approvalState?.approvalId) return;
+    // Optimistically clear approval buttons — WebSocket will add the result message
+    setApprovalState(null);
     try {
       await aiService.approveAction(approvalState.approvalId);
-      setApprovalState(null);
+      // Success message comes via WebSocket (handleApprovalUpdate)
+    } catch (err) {
+      const reason = err?.responseData?.message || err?.message || 'Bilinmeyen hata';
       setMessages(prev => [...prev, {
         id: Date.now(),
         type: 'ai',
-        text: '✅ İşlem onaylandı.',
-        timestamp: new Date(),
-        steps: []
-      }]);
-    } catch {
-      setMessages(prev => [...prev, {
-        id: Date.now(),
-        type: 'ai',
-        text: '❌ Onaylama sırasında hata oluştu.',
+        text: `❌ Onay işlemi başarısız: ${reason}`,
         timestamp: new Date(),
         steps: []
       }]);
@@ -219,11 +216,12 @@ export default function ChatPage() {
   };
 
   const handleCancelMutation = async () => {
-    if (approvalState?.approvalId) {
-      try { await aiService.rejectAction(approvalState.approvalId); } catch { /* ignore */ }
-    }
+    const id = approvalState?.approvalId;
     setApprovalState(null);
     setPendingConfirmation(null);
+    if (id) {
+      try { await aiService.rejectAction(id); } catch { /* ignore */ }
+    }
     setMessages(prev => [...prev, {
       id: Date.now(),
       type: 'ai',
