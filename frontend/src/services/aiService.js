@@ -24,6 +24,11 @@ export const aiService = {
     }
   },
 
+  executeTool: async (tool, args) => {
+    const response = await api.post('/api/ai/execute-tool', { tool, args });
+    return response.data?.data ?? response.data;
+  },
+
   approveAction: async (approvalId) => {
     const response = await api.post(`/api/ai/approvals/${approvalId}/approve`);
     return response.data;

@@ -9,7 +9,8 @@ const {
 	getModels,
 	getMyApprovals,
 	approveAIAction,
-	rejectAIAction
+	rejectAIAction,
+	executeTool
 } = require('../controllers/aiController');
 
 const mutationIntentRegex = /\b(oluştur|ekle|güncelle|düzenle|sil|iptal|stok|durum|onayla|create|update|delete|cancel|set)\b/i;
@@ -31,5 +32,6 @@ router.get('/models', authMiddleware, getModels);
 router.get('/approvals/my', authMiddleware, getMyApprovals);
 router.post('/approvals/:id/approve', authMiddleware, aiMutationLimiter, approveAIAction);
 router.post('/approvals/:id/reject', authMiddleware, aiMutationLimiter, rejectAIAction);
+router.post('/execute-tool', authMiddleware, aiMutationLimiter, executeTool);
 
 module.exports = router;

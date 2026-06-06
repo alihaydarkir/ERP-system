@@ -242,11 +242,38 @@ const rejectAIAction = async (req, res) => {
   }
 };
 
+/**
+ * POST /api/ai/execute-tool
+ * Direkt olarak bir tool'u form verisiyle çalıştırır — LLM planning atlayarak
+ */
+const executeTool = async (req, res) => {
+  try {
+    const { tool, args } = req.body;
+    if (!tool || typeof tool !== 'string') {
+      return res.status(400).json(formatError('tool adı zorunlu', null, 'VALIDATION_ERROR'));
+    }
+    if (!args || typeof args !== 'object') {
+      return res.status(400).json(formatError('args nesnesi zorunlu', null, 'VALIDATION_ERROR'));
+    }
+
+    const result = await aiService.runDirectTool(tool, args, {
+      company_id: req.user.company_id,
+      user_id: req.user.userId,
+      role: req.user.role
+    });
+
+    return res.json(formatSuccess(result, result.answer));
+  } catch (error) {
+    return res.status(500).json(formatError(error.message, null, 'TOOL_EXECUTION_ERROR'));
+  }
+};
+
 module.exports = {
   agentChat,
   getHealth,
   getModels,
   getMyApprovals,
   approveAIAction,
-  rejectAIAction
+  rejectAIAction,
+  executeTool
 };

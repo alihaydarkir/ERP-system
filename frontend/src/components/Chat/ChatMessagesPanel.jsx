@@ -1,13 +1,15 @@
 import ChatMessage from './ChatMessage';
 
-export default function ChatMessagesPanel({ messages, loading, elapsed, timeoutSeconds, approvalState, messagesEndRef, onApprove, onReject }) {
+export default function ChatMessagesPanel({ messages, loading, elapsed, timeoutSeconds, approvalState, messagesEndRef, onApprove, onReject, onFormSubmit, onFormCancel }) {
   const lastAiMessageId = [...messages].reverse().find((m) => m.type === 'ai')?.id;
+  const lastFormMessageId = [...messages].reverse().find((m) => m.formTool)?.id;
 
   return (
     <div className="flex-1 bg-gray-50 dark:bg-gray-800/50 rounded-2xl overflow-y-auto p-4 space-y-4" style={{ maxHeight: '50vh' }}>
       {messages.map((message) => {
         const isLastAi = message.id === lastAiMessageId;
         const showApproval = isLastAi && approvalState?.requiresApproval;
+        const isActiveForm = message.id === lastFormMessageId && message.formTool;
         return (
           <ChatMessage
             key={message.id}
@@ -16,6 +18,8 @@ export default function ChatMessagesPanel({ messages, loading, elapsed, timeoutS
             onApprove={showApproval ? onApprove : undefined}
             onReject={showApproval ? onReject : undefined}
             approvalLoading={loading}
+            onFormSubmit={isActiveForm ? onFormSubmit : undefined}
+            onFormCancel={isActiveForm ? onFormCancel : undefined}
           />
         );
       })}

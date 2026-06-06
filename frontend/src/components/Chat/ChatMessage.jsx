@@ -1,4 +1,5 @@
 import ChatToolCallDisplay from './ChatToolCallDisplay';
+import ChatInlineForm from './ChatInlineForm';
 import { CheckCircle, XCircle } from 'lucide-react';
 
 const TOOL_CALL_BLOCK_REGEX = /```tool_call\s*([\s\S]*?)```/gi;
@@ -37,7 +38,7 @@ function ToolStep({ step }) {
   return null;
 }
 
-export default function ChatMessage({ message, showApprovalBadge = false, onApprove, onReject, approvalLoading }) {
+export default function ChatMessage({ message, showApprovalBadge = false, onApprove, onReject, approvalLoading, onFormSubmit, onFormCancel }) {
   const isUser = message.type === 'user';
   const isThinking = message.type === 'thinking';
   const { cleanText, toolCards } = extractToolCardsFromText(message.text || '');
@@ -75,6 +76,16 @@ export default function ChatMessage({ message, showApprovalBadge = false, onAppr
         )}
 
         {cleanText && <p className="whitespace-pre-wrap text-sm leading-relaxed">{cleanText}</p>}
+
+        {/* Inline form — shown when AI detected a create intent but needs user input */}
+        {message.formTool && (
+          <ChatInlineForm
+            toolName={message.formTool}
+            onSubmit={onFormSubmit}
+            onCancel={onFormCancel}
+            loading={approvalLoading}
+          />
+        )}
 
         {/* Inline approval buttons — shown on the last AI message when approval is pending */}
         {showApprovalBadge && onApprove && (

@@ -1293,6 +1293,40 @@ class AIService {
   }
 
   /**
+   * Directly execute a known tool by name with provided args — skips LLM planning.
+   * Used by the inline chat form when user fills in fields manually.
+   */
+  async runDirectTool(toolName, args, context) {
+    const { company_id, user_id, role } = context;
+
+    const secureContext = this.buildSecureToolExecutionContext(context);
+    const hasMutationPermission = async ({ user_id: uid, role: r, toolName: tn }) =>
+      this.hasMutationPermission({ user_id: uid, role: r, toolName: tn });
+
+    const requestApproval = async ({ tool, args: a, risk }) => {
+      const approval = await aiApprovalService.createRequest({
+        company_id,
+        requested_by_user_id: user_id,
+        agent_tool: tool,
+        agent_input: a,
+        risk_level: risk.level,
+        required_role: risk.requiredRole,
+        summary: `${tool} form aracılığıyla onaya gönderildi`
+      });
+      notifyAIApprovalRequested({ approval, requester: { user_id, role } });
+      return approval;
+    };
+
+    return this.orchestrator.runDirect({
+      toolName,
+      args,
+      context: secureContext,
+      hasMutationPermission,
+      requestApproval
+    });
+  }
+
+  /**
    * Generate text completion via AI gateway
    */
   async generateCompletion(prompt, options = {}) {

@@ -161,6 +161,14 @@ export default function ChatPage() {
         model: data?.model
       };
 
+      if (agentMeta.form_tool) {
+        setMessages(prev => prev.map(m => m.id === thinkingId
+          ? { ...aiMsg, formTool: agentMeta.form_tool }
+          : m
+        ));
+        return;
+      }
+
       if (agentMeta.requires_approval || agentMeta.requires_human_approval) {
         setApprovalState({
           approvalId: agentMeta.approval_id || null,
@@ -194,6 +202,62 @@ export default function ChatPage() {
       setLoading(false);
       abortControllerRef.current = null;
     }
+  };
+
+  const handleFormSubmit = async (args) => {
+    // Find the message with the active form to get the toolName
+    const formMsg = messages.slice().reverse().find((m) => m.formTool);
+    if (!formMsg) return;
+    const toolName = formMsg.formTool;
+
+    // Remove form from the message (close it)
+    setMessages(prev => prev.map(m => m.id === formMsg.id ? { ...m, formTool: null } : m));
+    setLoading(true);
+
+    try {
+      const result = await aiService.executeTool(toolName, args);
+      const agentMeta = result?.meta || {};
+      const text = result?.answer || '✅ İşlem tamamlandı.';
+
+      if (agentMeta.requires_human_approval) {
+        setApprovalState({
+          approvalId: agentMeta.approval_id,
+          status: 'pending',
+          tool: toolName,
+          requiresApproval: true
+        });
+      }
+
+      setMessages(prev => [...prev, {
+        id: Date.now(),
+        type: 'ai',
+        text,
+        timestamp: new Date(),
+        steps: result?.steps || []
+      }]);
+    } catch (err) {
+      const reason = err?.responseData?.message || err?.message || 'Bilinmeyen hata';
+      setMessages(prev => [...prev, {
+        id: Date.now(),
+        type: 'ai',
+        text: `❌ İşlem başarısız: ${reason}`,
+        timestamp: new Date(),
+        steps: []
+      }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFormCancel = () => {
+    setMessages(prev => prev.map(m => m.formTool ? { ...m, formTool: null } : m));
+    setMessages(prev => [...prev, {
+      id: Date.now(),
+      type: 'ai',
+      text: 'Form iptal edildi.',
+      timestamp: new Date(),
+      steps: []
+    }]);
   };
 
   const handleConfirmMutation = async () => {
@@ -257,6 +321,8 @@ export default function ChatPage() {
         messagesEndRef={messagesEndRef}
         onApprove={handleConfirmMutation}
         onReject={handleCancelMutation}
+        onFormSubmit={handleFormSubmit}
+        onFormCancel={handleFormCancel}
       />
 
       <ChatInput

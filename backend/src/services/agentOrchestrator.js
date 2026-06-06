@@ -247,6 +247,50 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
     return completion.content || 'Kayıt bulunamadı.';
   }
 
+  detectFormTool(message) {
+    const msg = String(message || '').toLowerCase();
+    if (/çek.*(ekle|oluştur|yeni|kaydet|gir)|yeni.*çek/.test(msg)) return 'create_cheque';
+    if (/(ürün|urun).*(ekle|oluştur|yeni|kaydet)|yeni.*(ürün|urun)/.test(msg)) return 'create_product';
+    if (/sipariş.*(ekle|oluştur|yeni|aç)|yeni.*sipariş/.test(msg)) return 'create_order';
+    if (/müşteri.*(ekle|oluştur|yeni|kaydet)|yeni.*müşteri/.test(msg)) return 'create_customer';
+    return null;
+  }
+
+  async runDirect({ toolName, args, context, hasMutationPermission, requestApproval }) {
+    const validation = this.tools.validateToolArgs(toolName, args);
+    if (!validation.valid) {
+      return { success: false, answer: `Geçersiz parametreler: ${validation.error}`, steps: [], meta: {} };
+    }
+
+    const risk = this.getRisk(toolName);
+    const permission = await hasMutationPermission({ user_id: context.user_id, role: context.role, toolName });
+    if (!permission.allowed) {
+      return { success: false, answer: 'Bu işlem için yetkiniz yok.', steps: [], meta: { permission_denied: true } };
+    }
+
+    if (this.shouldRequireApproval({ toolName, risk })) {
+      const approval = await requestApproval({ tool: toolName, args: validation.sanitizedArgs, risk });
+      return {
+        success: true,
+        answer: `⏳ İşlem onay bekliyor (Onay ID: ${approval.id}, risk: ${risk.level}).`,
+        steps: [{ type: 'approval_required', tool: toolName, approval_id: approval.id, risk_level: risk.level }],
+        meta: { requires_human_approval: true, approval_id: approval.id }
+      };
+    }
+
+    try {
+      const result = await this.tools.execute(toolName, validation.sanitizedArgs, context);
+      return {
+        success: true,
+        answer: `✅ İşlem başarıyla tamamlandı.`,
+        steps: [{ type: 'tool_result', tool: toolName, result }],
+        meta: { direct_execution: true, result }
+      };
+    } catch (error) {
+      return { success: false, answer: `❌ Hata: ${error.message}`, steps: [], meta: {} };
+    }
+  }
+
   async run({ userMessage, context, fallbackTools, hasMutationPermission, requestApproval }) {
     if (this.isGreeting(userMessage)) {
       return {
@@ -260,11 +304,14 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
     const plan = await this.plan({ userMessage, fallbackTools });
 
     if (plan.strategy === 'ask_for_info' || !plan.steps?.length) {
+      const formTool = this.detectFormTool(userMessage);
       return {
         success: true,
-        answer: 'Bu işlemi yapabilmem için biraz daha bilgiye ihtiyacım var. Lütfen gerekli detayları belirtin (örn. müşteri adı, ürün adı, miktar).',
+        answer: formTool
+          ? 'Aşağıdaki formu doldurun:'
+          : 'Bu işlemi yapabilmem için daha fazla bilgiye ihtiyacım var. Lütfen detayları belirtin.',
         steps: [],
-        meta: { orchestrator_mode: this.mode, ask_for_info: true }
+        meta: { orchestrator_mode: this.mode, ask_for_info: true, form_tool: formTool }
       };
     }
 

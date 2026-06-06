@@ -15,7 +15,9 @@
       "Bash(grep -o \"CREATE TABLE\\\\|model\\\\|TABLE_NAME\\\\|table:\" backend/src/models/*.js)",
       "Bash(head -20 grep -r \"userProfile\\\\|/api/users\" 'c:/Users/Ali Haydar Kır/Desktop/ErpFinaly/backend/src/' --include=*.js -l)",
       "Bash(/dev/null grep:*)",
-      "Bash(grep -v \"console\\\\|comment\\\\|//\")"
+      "Bash(grep -v \"console\\\\|comment\\\\|//\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Ali Haydar Kır\\\\Desktop\\\\ErpFinaly\")",
+      "Bash(Select-Object Name, PSIsContainer)"
     ]
   }
 }
