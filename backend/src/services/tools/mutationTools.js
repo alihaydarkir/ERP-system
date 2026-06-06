@@ -418,6 +418,43 @@ const mutationTools = {
     };
   },
 
+  async create_order({ customer_identifier, notes = null, company_id, user_id }) {
+    const customerResult = await pool.query(`
+      SELECT id, full_name, company_name
+      FROM customers
+      WHERE company_id = $1
+        AND (id::text = $2 OR company_name ILIKE $3 OR full_name ILIKE $3)
+      LIMIT 1
+    `, [company_id, customer_identifier, `%${customer_identifier}%`]);
+
+    if (!customerResult.rows.length) throw new Error('Müşteri bulunamadı');
+    const customer = customerResult.rows[0];
+
+    const orderNumber = 'ORD-' + Date.now();
+    const result = await pool.query(`
+      INSERT INTO orders (order_number, customer_id, status, total_amount, notes, company_id, user_id)
+      VALUES ($1, $2, 'pending', 0, $3, $4, $5)
+      RETURNING id, order_number, status, total_amount, notes, created_at
+    `, [orderNumber, customer.id, notes, company_id, user_id || null]);
+
+    return {
+      created: true,
+      order: { ...result.rows[0], customer_name: customer.full_name, customer_company: customer.company_name }
+    };
+  },
+
+  async activate_product({ product_identifier, company_id }) {
+    const result = await pool.query(`
+      UPDATE products
+      SET is_active = true, updated_at = NOW()
+      WHERE company_id = $1 AND (sku = $2 OR name ILIKE $3)
+      RETURNING id, name, sku, is_active
+    `, [company_id, product_identifier, `%${product_identifier}%`]);
+
+    if (!result.rows.length) throw new Error('Ürün bulunamadı');
+    return { updated: true, products: result.rows };
+  },
+
   async set_invoice_status({ invoice_identifier, status, company_id }) {
     const result = await pool.query(`
       UPDATE invoices

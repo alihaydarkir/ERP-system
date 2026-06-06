@@ -1,7 +1,9 @@
 const MUTATION_TOOLS = new Set([
   'set_product_stock',
   'deactivate_product',
+  'activate_product',
   'cancel_order',
+  'create_order',
   'set_cheque_status',
   'create_customer',
   'update_customer',
@@ -19,6 +21,8 @@ const MUTATION_TOOLS = new Set([
 const DEFAULT_MUTATION_PERMISSION_MAP = {
   set_product_stock: 'products.edit',
   deactivate_product: 'products.delete',
+  activate_product: 'products.edit',
+  create_order: 'orders.create',
   cancel_order: 'orders.cancel',
   set_cheque_status: 'cheques.change_status',
   create_customer: 'customers.create',
@@ -260,6 +264,42 @@ function sanitizeToolArgs(toolName, args = {}) {
         currency: cleanOptionalString(input.currency, { max: 10, field: 'currency' }),
         status: input.status ? cleanEnum(input.status, CHEQUE_STATUS, 'status') : 'pending',
         notes: cleanOptionalString(input.notes, { max: 1000, field: 'notes' })
+      };
+    case 'get_orders_list':
+      return {
+        status: input.status ? cleanEnum(input.status, ORDER_STATUS, 'status') : undefined,
+        limit: cleanInteger(input.limit ?? 15, { min: 1, max: 50, field: 'limit' })
+      };
+    case 'search_orders':
+      return {
+        search: cleanOptionalString(input.search, { max: 120, field: 'search' }),
+        status: input.status ? cleanEnum(input.status, ORDER_STATUS, 'status') : undefined,
+        limit: cleanInteger(input.limit ?? 10, { min: 1, max: 50, field: 'limit' })
+      };
+    case 'get_suppliers_list':
+      return {
+        search: cleanOptionalString(input.search, { max: 120, field: 'search' }),
+        limit: cleanInteger(input.limit ?? 20, { min: 1, max: 50, field: 'limit' })
+      };
+    case 'get_invoices_summary':
+      return {
+        status: input.status ? cleanEnum(input.status, INVOICE_STATUS, 'status') : undefined,
+        limit: cleanInteger(input.limit ?? 15, { min: 1, max: 50, field: 'limit' })
+      };
+    case 'get_warehouse_stock':
+      return {};
+    case 'get_top_customers':
+      return { limit: cleanInteger(input.limit ?? 10, { min: 1, max: 20, field: 'limit' }) };
+    case 'get_top_products':
+      return { limit: cleanInteger(input.limit ?? 10, { min: 1, max: 20, field: 'limit' }) };
+    case 'create_order':
+      return {
+        customer_identifier: cleanString(input.customer_identifier, { max: 120, field: 'customer_identifier' }),
+        notes: cleanOptionalString(input.notes, { max: 500, field: 'notes' })
+      };
+    case 'activate_product':
+      return {
+        product_identifier: cleanString(input.product_identifier, { max: 120, field: 'product_identifier' })
       };
     case 'set_order_status':
       return {
@@ -579,6 +619,95 @@ const definitions = [
         notes: { type: 'string' }
       },
       required: ['check_serial_no', 'check_issuer', 'customer_identifier', 'bank_name', 'due_date', 'amount']
+    }
+  },
+  {
+    name: 'get_orders_list',
+    description: 'Son siparişleri listeler. Duruma göre filtrele (pending, completed, cancelled).',
+    parameters: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', enum: ['pending', 'processing', 'completed', 'cancelled'], description: 'Sipariş durumu filtresi' },
+        limit: { type: 'integer', description: 'Maksimum sonuç sayısı (varsayılan: 15)' }
+      }
+    }
+  },
+  {
+    name: 'search_orders',
+    description: 'Sipariş ara: sipariş numarası, müşteri adı veya duruma göre.',
+    parameters: {
+      type: 'object',
+      properties: {
+        search: { type: 'string', description: 'Sipariş no veya müşteri adı' },
+        status: { type: 'string', enum: ['pending', 'processing', 'completed', 'cancelled'] },
+        limit: { type: 'integer' }
+      }
+    }
+  },
+  {
+    name: 'get_suppliers_list',
+    description: 'Tedarikçileri listeler veya arar.',
+    parameters: {
+      type: 'object',
+      properties: {
+        search: { type: 'string', description: 'Tedarikçi adı ile arama' },
+        limit: { type: 'integer' }
+      }
+    }
+  },
+  {
+    name: 'get_invoices_summary',
+    description: 'Fatura özeti ve listesi: ödenen, vadesi geçmiş, bekleyen faturalar.',
+    parameters: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', enum: ['draft', 'sent', 'paid', 'overdue', 'cancelled'] },
+        limit: { type: 'integer' }
+      }
+    }
+  },
+  {
+    name: 'get_warehouse_stock',
+    description: 'Depo bazında stok durumunu gösterir.',
+    parameters: { type: 'object', properties: {} }
+  },
+  {
+    name: 'get_top_customers',
+    description: 'En fazla alışveriş yapan müşterileri gelire göre sıralar.',
+    parameters: {
+      type: 'object',
+      properties: { limit: { type: 'integer', description: 'Kaç müşteri gösterileceği' } }
+    }
+  },
+  {
+    name: 'get_top_products',
+    description: 'En çok satan ürünleri listeler.',
+    parameters: {
+      type: 'object',
+      properties: { limit: { type: 'integer', description: 'Kaç ürün gösterileceği' } }
+    }
+  },
+  {
+    name: 'create_order',
+    description: 'Yeni sipariş oluşturur. Müşteri adı veya ID ile sipariş açar.',
+    parameters: {
+      type: 'object',
+      properties: {
+        customer_identifier: { type: 'string', description: 'Müşteri adı, şirket adı veya ID' },
+        notes: { type: 'string', description: 'Sipariş notu (opsiyonel)' }
+      },
+      required: ['customer_identifier']
+    }
+  },
+  {
+    name: 'activate_product',
+    description: 'Pasif durumdaki ürünü yeniden aktif yapar.',
+    parameters: {
+      type: 'object',
+      properties: {
+        product_identifier: { type: 'string', description: 'Ürün adı veya SKU' }
+      },
+      required: ['product_identifier']
     }
   },
   {
