@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { orderService } from '../services/orderService';
 import OrderDrawer from '../components/Orders/OrderDrawer';
 import OrderDetailModal from '../components/Orders/OrderDetailModal';
@@ -10,34 +10,18 @@ import useUIStore from '../store/uiStore';
 import { exportOrdersToPDF, exportOrdersToExcel } from '../utils/exportUtils';
 import { FileDown, FileSpreadsheet, Plus, Search, X } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useOrders, useUpdateOrderStatus, useCancelOrder } from '../hooks/useOrders';
 
 export default function OrdersPage() {
   const { showSuccess, showError, showWarning, showConfirm } = useUIStore();
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [showOrderDrawer, setShowOrderDrawer] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [ordersError, setOrdersError] = useState('');
 
-  useEffect(() => {
-    fetchOrders();
-  }, []);
-
-  const fetchOrders = async () => {
-    try {
-      setLoading(true);
-      setOrdersError('');
-      const response = await orderService.getAll({ limit: 100 });
-      setOrders(response.data || []);
-    } catch (error) {
-      console.error('Orders fetch error:', error);
-      setOrdersError(error?.response?.data?.message || 'Siparişler yüklenemedi.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: orders = [], isLoading, isError, error, refetch } = useOrders({ limit: 100 });
+  const updateStatus = useUpdateOrderStatus();
+  const cancelOrder = useCancelOrder();
 
   const handleCompleteOrder = async (orderOrId) => {
     const orderId = typeof orderOrId === 'object' ? orderOrId?.id : orderOrId;
@@ -49,7 +33,7 @@ export default function OrdersPage() {
 
     if (currentStatus === 'completed') {
       showWarning('Sipariş zaten tamamlanmış. Liste güncelleniyor...');
-      await fetchOrders();
+      refetch();
       return;
     }
 
@@ -61,15 +45,12 @@ export default function OrdersPage() {
       type: 'info',
       onConfirm: async () => {
         try {
-          await orderService.updateStatus(orderId, 'completed');
+          await updateStatus.mutateAsync({ id: orderId, status: 'completed' });
           showSuccess('Sipariş tamamlandı!');
-          await fetchOrders();
-        } catch (error) {
-          console.error('Complete order error:', error);
-          const message = error?.response?.data?.message || '';
+        } catch (err) {
+          const message = err?.response?.data?.message || '';
 
-          // Fallback: some environments may enforce step-wise transitions
-          if (message.includes('Cannot change status') || error?.response?.status === 400) {
+          if (message.includes('Cannot change status') || err?.response?.status === 400) {
             try {
               const transitionFlow = ['confirmed', 'processing', 'shipped', 'delivered', 'completed'];
               for (const nextStatus of transitionFlow) {
@@ -77,21 +58,21 @@ export default function OrdersPage() {
                 await orderService.updateStatus(orderId, nextStatus);
               }
               showSuccess('Sipariş tamamlandı!');
-              await fetchOrders();
+              refetch();
               return;
             } catch (fallbackError) {
               console.error('Complete order fallback error:', fallbackError);
             }
           }
 
-          if (error?.response?.status === 403) {
+          if (err?.response?.status === 403) {
             showError('Bu işlem için yetkiniz yok.');
             return;
           }
 
           showError(message || 'Sipariş tamamlanamadı');
         }
-      }
+      },
     });
   };
 
@@ -105,7 +86,7 @@ export default function OrdersPage() {
 
     if (currentStatus === 'cancelled') {
       showWarning('Sipariş zaten iptal edilmiş. Liste güncelleniyor...');
-      await fetchOrders();
+      refetch();
       return;
     }
 
@@ -117,73 +98,60 @@ export default function OrdersPage() {
       type: 'danger',
       onConfirm: async () => {
         try {
-          await orderService.cancel(orderId, '');
+          await cancelOrder.mutateAsync({ id: orderId, reason: '' });
           showSuccess('Sipariş iptal edildi!');
-          await fetchOrders();
-        } catch (error) {
-          console.error('Cancel order error:', error);
-          const message = error?.response?.data?.message || '';
+        } catch (err) {
+          const message = err?.response?.data?.message || '';
 
-          // Fallback for setups where /cancel endpoint policy differs
-          if (message.includes('Cannot cancel') || error?.response?.status === 400) {
+          if (message.includes('Cannot cancel') || err?.response?.status === 400) {
             try {
               await orderService.updateStatus(orderId, 'cancelled');
               showSuccess('Sipariş iptal edildi!');
-              await fetchOrders();
+              refetch();
               return;
             } catch (fallbackError) {
               console.error('Cancel order fallback error:', fallbackError);
             }
           }
 
-          if (error?.response?.status === 403) {
+          if (err?.response?.status === 403) {
             showError('Bu işlem için yetkiniz yok.');
             return;
           }
 
           showError(message || 'Sipariş iptal edilemedi');
         }
-      }
+      },
     });
   };
 
   const handleViewOrder = async (order) => {
     try {
-      // Fetch full order details with items
       const response = await orderService.getById(order.id);
       setSelectedOrder(response.data);
       setShowDetailModal(true);
-    } catch (error) {
-      console.error('Failed to fetch order details:', error);
+    } catch (err) {
+      console.error('Failed to fetch order details:', err);
       showError('Sipariş detayları yüklenemedi');
     }
   };
 
-  // Filter orders by search term
-  const filteredOrders = orders.filter(order => {
+  const filteredOrders = orders.filter((order) => {
     if (!searchTerm) return true;
-
     const searchLower = searchTerm.toLowerCase();
-    const orderId = order.id?.toString() || '';
-    const orderNumber = order.order_number?.toLowerCase() || '';
-    const userName = order.user_name?.toLowerCase() || '';
-    const userEmail = order.user_email?.toLowerCase() || '';
-
     return (
-      orderId.includes(searchLower) ||
-      orderNumber.includes(searchLower) ||
-      userName.includes(searchLower) ||
-      userEmail.includes(searchLower)
+      order.id?.toString().includes(searchLower) ||
+      order.order_number?.toLowerCase().includes(searchLower) ||
+      order.user_name?.toLowerCase().includes(searchLower) ||
+      order.user_email?.toLowerCase().includes(searchLower)
     );
   });
 
-  // Filter orders by status
-  const pendingOrders = filteredOrders.filter(order => order.status === 'pending');
-  const completedOrders = filteredOrders.filter(order => order.status === 'completed');
+  const pendingOrders = filteredOrders.filter((o) => o.status === 'pending');
+  const completedOrders = filteredOrders.filter((o) => o.status === 'completed');
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200 p-6 space-y-6">
-      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Siparişler</h1>
@@ -216,9 +184,14 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {ordersError && <ErrorState title="Sipariş verisi yüklenemedi" message={ordersError} onRetry={fetchOrders} />}
+      {isError && (
+        <ErrorState
+          title="Sipariş verisi yüklenemedi"
+          message={error?.response?.data?.message || 'Siparişler yüklenemedi.'}
+          onRetry={refetch}
+        />
+      )}
 
-      {/* Search Bar */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 transition-colors duration-200">
         <div className="relative">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -247,33 +220,29 @@ export default function OrdersPage() {
         )}
       </div>
 
-      {/* Pending Orders Section */}
       <PendingOrdersSection
         orders={pendingOrders}
         onComplete={handleCompleteOrder}
         onCancel={handleCancelOrder}
         onView={handleViewOrder}
-        loading={loading}
+        loading={isLoading}
       />
 
-      {/* Completed Orders Section */}
       <CompletedOrdersSection
         orders={completedOrders}
         onView={handleViewOrder}
-        loading={loading}
+        loading={isLoading}
       />
 
-      {/* Order Drawer */}
       <OrderDrawer
         isOpen={showOrderDrawer}
         onClose={() => setShowOrderDrawer(false)}
         onSuccess={() => {
-          fetchOrders();
+          refetch();
           setShowOrderDrawer(false);
         }}
       />
 
-      {/* Order Detail Modal */}
       <OrderDetailModal
         order={selectedOrder}
         isOpen={showDetailModal}

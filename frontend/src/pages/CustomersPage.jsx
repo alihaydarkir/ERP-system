@@ -1,83 +1,47 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import CustomerForm from '../components/Customers/CustomerForm';
 import CustomerList from '../components/Customers/CustomerList';
 import ImportCustomersDialog from '../components/Customers/ImportCustomersDialog';
-import { customerService } from '../services/customerService';
 import useUIStore from '../store/uiStore';
 import { exportCustomersToPDF, exportCustomersToExcel } from '../utils/exportUtils';
 import { FileDown, FileSpreadsheet, Plus, Upload } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useCustomers, useCreateCustomer, useUpdateCustomer, useDeleteCustomer } from '../hooks/useCustomers';
 
 export default function CustomersPage() {
   const { showSuccess, showError, showConfirm } = useUIStore();
-  const [customers, setCustomers] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    fetchCustomers();
-  }, []);
-
-  const fetchCustomers = async () => {
-    try {
-      setIsLoading(true);
-      const response = await customerService.getAll({ limit: 100 });
-      setCustomers(response.data || []);
-    } catch (error) {
-      console.error('Fetch customers error:', error);
-      showError('Müşteriler yüklenirken bir hata oluştu');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSearch = async () => {
-    if (!searchTerm.trim()) {
-      fetchCustomers();
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      const response = await customerService.search(searchTerm);
-      setCustomers(response.data || []);
-    } catch (error) {
-      console.error('Search error:', error);
-      showError('Arama sırasında bir hata oluştu');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const { data: customers = [], isLoading, refetch } = useCustomers({ limit: 100 });
+  const createCustomer = useCreateCustomer();
+  const updateCustomer = useUpdateCustomer();
+  const deleteCustomer = useDeleteCustomer();
 
   const handleCreateCustomer = async (formData) => {
     try {
-      await customerService.create(formData);
+      await createCustomer.mutateAsync(formData);
       showSuccess('Müşteri başarıyla eklendi!');
       setShowModal(false);
-      fetchCustomers();
     } catch (error) {
-      console.error('Create customer error:', error);
       const errorMessage = error.response?.data?.message || 'Müşteri eklenirken bir hata oluştu';
       showError(errorMessage);
-      throw error; // Re-throw to let form handle it
+      throw error;
     }
   };
 
   const handleUpdateCustomer = async (formData) => {
     try {
-      await customerService.update(selectedCustomer.id, formData);
+      await updateCustomer.mutateAsync({ id: selectedCustomer.id, data: formData });
       showSuccess('Müşteri başarıyla güncellendi!');
       setShowModal(false);
       setSelectedCustomer(null);
-      fetchCustomers();
     } catch (error) {
-      console.error('Update customer error:', error);
       const errorMessage = error.response?.data?.message || 'Müşteri güncellenirken bir hata oluştu';
       showError(errorMessage);
-      throw error; // Re-throw to let form handle it
+      throw error;
     }
   };
 
@@ -86,7 +50,7 @@ export default function CustomersPage() {
     setShowModal(true);
   };
 
-  const handleDelete = async (customer) => {
+  const handleDelete = (customer) => {
     showConfirm({
       title: 'Müşteriyi Sil',
       message: `${customer.company_name} adlı müşteriyi silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`,
@@ -95,14 +59,12 @@ export default function CustomersPage() {
       type: 'danger',
       onConfirm: async () => {
         try {
-          await customerService.delete(customer.id);
+          await deleteCustomer.mutateAsync(customer.id);
           showSuccess('Müşteri başarıyla silindi');
-          fetchCustomers();
         } catch (error) {
-          console.error('Delete customer error:', error);
           showError('Müşteri silinirken bir hata oluştu');
         }
-      }
+      },
     });
   };
 
@@ -124,7 +86,6 @@ export default function CustomersPage() {
 
   return (
     <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header */}
       <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">Müşteri Yönetimi</h1>
@@ -163,7 +124,6 @@ export default function CustomersPage() {
         </div>
       </div>
 
-      {/* Search Input */}
       <div className="mb-6">
         <div className="relative max-w-md w-full">
           <input
@@ -171,18 +131,16 @@ export default function CustomersPage() {
             placeholder="Müşteri ara (ad, şirket, vergi no, telefon)..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           />
           <div className="absolute top-2.5 left-3 text-gray-400 dark:text-gray-400">
-             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-             </svg>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
           </div>
         </div>
       </div>
 
-      {/* Customer List */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden transition-all duration-300">
         <CustomerList
           customers={filteredCustomers}
@@ -192,14 +150,13 @@ export default function CustomersPage() {
         />
       </div>
 
-      {/* Modal for Add/Edit Customer */}
       {showModal && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-             <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-               <div className="absolute inset-0 bg-gray-50 dark:bg-gray-800/500 dark:bg-black opacity-75 backdrop-blur-sm"></div>
-             </div>
-             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div className="absolute inset-0 bg-gray-50 dark:bg-gray-800/500 dark:bg-black opacity-75 backdrop-blur-sm"></div>
+            </div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
             <div className="inline-block w-full max-w-2xl p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white dark:bg-gray-800 shadow-xl rounded-2xl border border-gray-200 dark:border-gray-700">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -212,7 +169,6 @@ export default function CustomersPage() {
                   <span className="text-2xl">&times;</span>
                 </button>
               </div>
-
               <CustomerForm
                 customer={selectedCustomer}
                 onSave={selectedCustomer ? handleUpdateCustomer : handleCreateCustomer}
@@ -223,11 +179,10 @@ export default function CustomersPage() {
         </div>
       )}
 
-      {/* Import Dialog */}
       <ImportCustomersDialog
         isOpen={showImportDialog}
         onClose={() => setShowImportDialog(false)}
-        onSuccess={fetchCustomers}
+        onSuccess={refetch}
       />
     </div>
   );
