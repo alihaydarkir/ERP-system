@@ -211,18 +211,21 @@ Kurallar:
       payload: item.result
     }));
 
-    const systemPrompt = `Sen Türkçe ERP asistanısın. Verilen bilgileri kullanarak kullanıcıya kısa ve net cevap ver.
+    // Data in system role — never masked by PII filter, never corrupted
+    const systemPrompt = `Sen Türkçe ERP asistanısın. Aşağıdaki veriyi kullanarak kullanıcının sorusunu kısa ve net yanıtla.
 Kurallar:
-- Sadece verilen veriyi kullan, uydurma
+- Sadece verilen veriyi kullan, kesinlikle uydurma
 - JSON, kod bloğu veya teknik format yazma
-- Sayıları ve isimleri düz metin olarak yaz`;
+- Sayıları, isimleri ve tarihleri düz Türkçe metin olarak yaz
+- Gereksiz açıklama yapma, doğrudan cevap ver
 
-    const userPrompt = `Soru: ${userMessage}\nVeri: ${JSON.stringify(dataBlocks)}`;
+VERİ:
+${JSON.stringify(dataBlocks, null, 2)}`;
 
     const completion = await this.gateway.chat([
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt }
-    ], { temperature: 0.2 });
+      { role: 'user', content: String(userMessage || '').slice(0, 500) }
+    ], { temperature: 0.1, max_tokens: 400 });
 
     return completion.content || 'Kayıt bulunamadı.';
   }

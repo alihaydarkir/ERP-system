@@ -89,7 +89,8 @@ class AIGateway {
   buildMessages(messages = []) {
     return messages.map((m) => ({
       role: m.role,
-      content: this.maskPII(m.content || '')
+      // Only mask user input — tool results / system prompts must not be altered
+      content: m.role === 'user' ? this.maskPII(m.content || '') : this.sanitizeText(m.content || '')
     }));
   }
 

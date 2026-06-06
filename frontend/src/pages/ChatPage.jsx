@@ -1,12 +1,31 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { aiService } from '../services/aiService';
 import ChatInput from '../components/Chat/ChatInput';
-import ChatApprovalBanner from '../components/Chat/ChatApprovalBanner';
 import ChatHeaderStatus from '../components/Chat/ChatHeaderStatus';
 import ChatQuickQuestions from '../components/Chat/ChatQuickQuestions';
 import ChatErrorBanner from '../components/Chat/ChatErrorBanner';
 import ChatMessagesPanel from '../components/Chat/ChatMessagesPanel';
 import useChatSocket from '../hooks/useChatSocket';
+
+const CHAT_STORAGE_KEY = 'erp_chat_history';
+const INITIAL_MESSAGE = {
+  id: 1,
+  type: 'ai',
+  text: 'Merhaba! Ben ERP sisteminizin AI asistanıyım. 🤖\n\nÇeklerinizi, siparişlerinizi, müşterilerinizi ve finansal verilerinizi analiz edebilirim. Ne öğrenmek istersiniz?',
+  timestamp: new Date(),
+  steps: []
+};
+
+function loadMessages() {
+  try {
+    const raw = sessionStorage.getItem(CHAT_STORAGE_KEY);
+    if (!raw) return [INITIAL_MESSAGE];
+    const parsed = JSON.parse(raw);
+    return parsed.map((m) => ({ ...m, timestamp: new Date(m.timestamp) }));
+  } catch {
+    return [INITIAL_MESSAGE];
+  }
+}
 
 const QUICK_QUESTIONS = [
   { icon: '⚠️', label: 'Vadesi geçmiş çekler', text: 'Vadesi geçmiş çeklerimi göster ve toplam tutarını söyle' },
@@ -18,15 +37,7 @@ const QUICK_QUESTIONS = [
 ];
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      type: 'ai',
-      text: 'Merhaba! Ben ERP sisteminizin AI asistanıyım. 🤖\n\nÇeklerinizi, siparişlerinizi, müşterilerinizi ve finansal verilerinizi analiz edebilirim. Ne öğrenmek istersiniz?',
-      timestamp: new Date(),
-      steps: []
-    }
-  ]);
+  const [messages, setMessages] = useState(loadMessages);
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [chatError, setChatError] = useState('');
@@ -50,6 +61,15 @@ export default function ChatPage() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  useEffect(() => {
+    try {
+      // Keep last 30 messages to avoid storage bloat
+      sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages.slice(-30)));
+    } catch {
+      // storage full — ignore
+    }
   }, [messages]);
 
   const handleApprovalUpdate = useCallback((payload) => {
@@ -167,13 +187,6 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-full max-w-4xl mx-auto p-4 gap-4">
-      <ChatApprovalBanner
-        pendingConfirmation={pendingConfirmation}
-        loading={loading}
-        onApprove={handleConfirmMutation}
-        onReject={handleCancelMutation}
-      />
-
       <ChatHeaderStatus aiStatus={aiStatus} approvalState={approvalState} />
 
       <ChatErrorBanner
@@ -194,6 +207,8 @@ export default function ChatPage() {
         loading={loading}
         approvalState={approvalState}
         messagesEndRef={messagesEndRef}
+        onApprove={handleConfirmMutation}
+        onReject={handleCancelMutation}
       />
 
       <ChatInput

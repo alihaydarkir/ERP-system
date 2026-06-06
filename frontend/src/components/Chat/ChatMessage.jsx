@@ -1,4 +1,5 @@
 import ChatToolCallDisplay from './ChatToolCallDisplay';
+import { CheckCircle, XCircle } from 'lucide-react';
 
 const TOOL_CALL_BLOCK_REGEX = /```tool_call\s*([\s\S]*?)```/gi;
 
@@ -36,7 +37,7 @@ function ToolStep({ step }) {
   return null;
 }
 
-export default function ChatMessage({ message, showApprovalBadge = false }) {
+export default function ChatMessage({ message, showApprovalBadge = false, onApprove, onReject, approvalLoading }) {
   const isUser = message.type === 'user';
   const isThinking = message.type === 'thinking';
   const { cleanText, toolCards } = extractToolCardsFromText(message.text || '');
@@ -74,6 +75,30 @@ export default function ChatMessage({ message, showApprovalBadge = false }) {
         )}
 
         {cleanText && <p className="whitespace-pre-wrap text-sm leading-relaxed">{cleanText}</p>}
+
+        {/* Inline approval buttons — shown on the last AI message when approval is pending */}
+        {showApprovalBadge && onApprove && (
+          <div className="mt-3 flex items-center gap-2 border-t border-amber-200 dark:border-amber-800 pt-3">
+            <span className="text-xs text-amber-700 dark:text-amber-300 flex-1">Bu işlem onayınızı bekliyor</span>
+            <button
+              type="button"
+              onClick={onReject}
+              disabled={approvalLoading}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"
+            >
+              <XCircle size={13} /> Reddet
+            </button>
+            <button
+              type="button"
+              onClick={onApprove}
+              disabled={approvalLoading}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+            >
+              <CheckCircle size={13} /> Onayla
+            </button>
+          </div>
+        )}
+
         <p className={`text-xs mt-1.5 ${isUser ? 'text-blue-100' : 'text-gray-400 dark:text-gray-400'}`}>
           {message.timestamp.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
         </p>

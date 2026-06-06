@@ -54,8 +54,8 @@ const LISTENED_EVENTS = [
   'order:status_changed',
   'product:low_stock',
   'product:created',
-  'ai:approval_requested',
   'notification',
+  // ai:approval_requested is handled inline in ChatPage, not as a bell notification
 ];
 
 export default function useNotifications() {

@@ -1,15 +1,24 @@
 import ChatMessage from './ChatMessage';
 
-export default function ChatMessagesPanel({ messages, loading, approvalState, messagesEndRef }) {
+export default function ChatMessagesPanel({ messages, loading, approvalState, messagesEndRef, onApprove, onReject }) {
+  const lastAiMessageId = [...messages].reverse().find((m) => m.type === 'ai')?.id;
+
   return (
     <div className="flex-1 bg-gray-50 dark:bg-gray-800/50 rounded-2xl overflow-y-auto p-4 space-y-4" style={{ maxHeight: '50vh' }}>
-      {messages.map((message) => (
-        <ChatMessage
-          key={message.id}
-          message={message}
-          showApprovalBadge={message.type === 'ai' ? approvalState?.requiresApproval : false}
-        />
-      ))}
+      {messages.map((message) => {
+        const isLastAi = message.id === lastAiMessageId;
+        const showApproval = isLastAi && approvalState?.requiresApproval;
+        return (
+          <ChatMessage
+            key={message.id}
+            message={message}
+            showApprovalBadge={showApproval}
+            onApprove={showApproval ? onApprove : undefined}
+            onReject={showApproval ? onReject : undefined}
+            approvalLoading={loading}
+          />
+        );
+      })}
 
       {loading && (
         <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
