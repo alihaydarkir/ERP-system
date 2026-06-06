@@ -131,6 +131,7 @@ class AIGateway {
     const builtMessages = this.buildMessages(messages);
 
     if (this.provider === 'ollama') {
+      const numGpuLayers = parseInt(process.env.OLLAMA_NUM_GPU_LAYERS, 10) || undefined;
       const response = await axios.post(
         `${this.ollamaUrl}/api/chat`,
         {
@@ -140,7 +141,8 @@ class AIGateway {
           options: {
             temperature: options.temperature ?? 0.3,
             top_p: options.top_p ?? 0.9,
-            max_tokens: options.max_tokens
+            max_tokens: options.max_tokens,
+            ...(numGpuLayers !== undefined && { num_gpu: numGpuLayers }),
           }
         },
         { timeout }
@@ -228,6 +230,7 @@ class AIGateway {
 
     if (this.provider === 'ollama') {
       const selectedModel = options.model || this.defaultModel;
+      const numGpuLayers = parseInt(process.env.OLLAMA_NUM_GPU_LAYERS, 10) || undefined;
       const response = await axios.post(`${this.ollamaUrl}/api/generate`, {
         model: selectedModel,
         prompt: this.maskPII(prompt),
@@ -235,7 +238,8 @@ class AIGateway {
         options: {
           temperature: options.temperature ?? 0.7,
           top_p: options.top_p ?? 0.9,
-          max_tokens: options.max_tokens
+          max_tokens: options.max_tokens,
+          ...(numGpuLayers !== undefined && { num_gpu: numGpuLayers }),
         }
       }, {
         timeout: options.timeout || this.timeout
