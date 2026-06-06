@@ -1,4 +1,5 @@
-import { CheckCheck, Trash2, BellOff } from 'lucide-react';
+import { CheckCheck, Trash2, BellOff, ExternalLink } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 function timeAgo(date) {
   const diff = Math.floor((Date.now() - new Date(date)) / 1000);
@@ -10,6 +11,7 @@ function timeAgo(date) {
 
 export default function NotificationDropdown({ notifications, onMarkAllRead, onMarkRead, onClear, onClose }) {
   const hasUnread = notifications.some((n) => !n.read);
+  const navigate = useNavigate();
 
   return (
     <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 z-50 overflow-hidden">
@@ -50,7 +52,11 @@ export default function NotificationDropdown({ notifications, onMarkAllRead, onM
           notifications.map((n) => (
             <button
               key={n.id}
-              onClick={() => { onMarkRead(n.id); onClose(); }}
+              onClick={() => {
+                onMarkRead(n.id);
+                onClose();
+                if (n.link) navigate(n.link);
+              }}
               className={`w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors flex gap-3 items-start ${
                 !n.read ? 'bg-blue-50/40 dark:bg-blue-900/10' : ''
               }`}
@@ -61,9 +67,10 @@ export default function NotificationDropdown({ notifications, onMarkAllRead, onM
                   <p className={`text-xs font-semibold truncate ${!n.read ? 'text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'}`}>
                     {n.title}
                   </p>
-                  {!n.read && (
-                    <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
-                  )}
+                  <div className="flex items-center gap-1 shrink-0">
+                    {n.link && <ExternalLink size={10} className="text-gray-400" />}
+                    {!n.read && <span className="w-2 h-2 rounded-full bg-blue-500" />}
+                  </div>
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">{n.message}</p>
                 <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">{timeAgo(n.timestamp)}</p>

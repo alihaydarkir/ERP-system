@@ -13,6 +13,16 @@ const LABELS = {
   notification:             { title: 'Bildirim',             icon: '🔔' },
 };
 
+function resolveLink(eventType, payload) {
+  if (eventType === 'order:created' || eventType === 'order:updated' || eventType === 'order:status_changed')
+    return '/orders';
+  if (eventType === 'product:low_stock' || eventType === 'product:created')
+    return '/products';
+  if (eventType === 'ai:approval_requested')
+    return '/chat';
+  return null;
+}
+
 function makeNotification(eventType, payload) {
   const meta = LABELS[eventType] || { title: 'Bildirim', icon: '🔔' };
   return {
@@ -21,6 +31,7 @@ function makeNotification(eventType, payload) {
     title: meta.title,
     icon: meta.icon,
     message: payload.message || payload.summary || buildMessage(eventType, payload),
+    link: resolveLink(eventType, payload),
     payload,
     timestamp: new Date(),
     read: false,
