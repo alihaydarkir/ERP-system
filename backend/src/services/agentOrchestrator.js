@@ -301,17 +301,25 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
       };
     }
 
+    // Detect create-intents before LLM — always show form, never let LLM pick wrong tool
+    const formTool = this.detectFormTool(userMessage);
+    if (formTool) {
+      return {
+        success: true,
+        answer: 'Aşağıdaki formu doldurun:',
+        steps: [],
+        meta: { orchestrator_mode: this.mode, ask_for_info: true, form_tool: formTool }
+      };
+    }
+
     const plan = await this.plan({ userMessage, fallbackTools });
 
     if (plan.strategy === 'ask_for_info' || !plan.steps?.length) {
-      const formTool = this.detectFormTool(userMessage);
       return {
         success: true,
-        answer: formTool
-          ? 'Aşağıdaki formu doldurun:'
-          : 'Bu işlemi yapabilmem için daha fazla bilgiye ihtiyacım var. Lütfen detayları belirtin.',
+        answer: 'Bu konuda size yardımcı olabilmem için daha fazla bilgiye ihtiyacım var. Lütfen detayları belirtin.',
         steps: [],
-        meta: { orchestrator_mode: this.mode, ask_for_info: true, form_tool: formTool }
+        meta: { orchestrator_mode: this.mode, ask_for_info: true }
       };
     }
 

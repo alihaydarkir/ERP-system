@@ -168,17 +168,31 @@ const approveAIAction = async (req, res) => {
       return res.status(404).json(formatError('Bekleyen onay kaydı bulunamadı', null, 'NOT_FOUND'));
     }
 
+    let executionResult;
+    try {
+      executionResult = await aiService.executeApprovedAction(approvalId, {
+        user_id: req.user.userId,
+        role: req.user.role,
+        company_id: req.user.company_id
+      });
+    } catch (execError) {
+      // Tool execution failed — notify frontend with failed status so it shows the real error
+      notifyAIApprovalUpdated({
+        approval: approved,
+        status: 'failed',
+        error: execError.message,
+        actor_user_id: req.user.userId,
+        actor_role: req.user.role
+      });
+      return res.status(500).json(formatError(execError.message, null, 'AI_APPROVAL_EXECUTION_FAILED'));
+    }
+
+    // Only notify success after tool actually ran
     notifyAIApprovalUpdated({
       approval: approved,
       status: 'approved',
       actor_user_id: req.user.userId,
       actor_role: req.user.role
-    });
-
-    const executionResult = await aiService.executeApprovedAction(approvalId, {
-      user_id: req.user.userId,
-      role: req.user.role,
-      company_id: req.user.company_id
     });
 
     return res.json(formatSuccess({

@@ -92,10 +92,12 @@ export default function ChatPage() {
         };
       });
 
-      if (payload.status === 'approved' || payload.status === 'rejected') {
+      if (payload.status === 'approved' || payload.status === 'rejected' || payload.status === 'failed') {
         setApprovalState(null);
         const text = payload.status === 'approved'
-          ? `✅ ${payload.agent_tool || 'İşlem'} onaylandı ve yürütüldü.`
+          ? `✅ ${payload.agent_tool || 'İşlem'} başarıyla tamamlandı.`
+          : payload.status === 'failed'
+          ? `❌ İşlem yürütülemedi: ${payload.error || 'Bilinmeyen hata'}`
           : `❌ ${payload.agent_tool || 'İşlem'} reddedildi.`;
 
         setMessages((prev) => ([
@@ -266,16 +268,9 @@ export default function ChatPage() {
     setApprovalState(null);
     try {
       await aiService.approveAction(approvalState.approvalId);
-      // Success message comes via WebSocket (handleApprovalUpdate)
-    } catch (err) {
-      const reason = err?.responseData?.message || err?.message || 'Bilinmeyen hata';
-      setMessages(prev => [...prev, {
-        id: Date.now(),
-        type: 'ai',
-        text: `❌ Onay işlemi başarısız: ${reason}`,
-        timestamp: new Date(),
-        steps: []
-      }]);
+      // Success/failure message comes via WebSocket (handleApprovalUpdate) — no extra message here
+    } catch {
+      // WebSocket already sent the failure notification via 'failed' status — suppress duplicate
     }
   };
 
