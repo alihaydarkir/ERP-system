@@ -3,11 +3,12 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
 import { authService } from '../services/authService';
 import CurrencyTicker from './CurrencyTicker';
-import { 
-  LayoutDashboard, Package, Warehouse, ShoppingCart, Users, Truck, 
-  CreditCard, FileText, Activity, MessageSquare, BarChart3, 
+import NotificationBell from './Notifications/NotificationBell';
+import {
+  LayoutDashboard, Package, Warehouse, ShoppingCart, Users, Truck,
+  CreditCard, FileText, Activity, MessageSquare, BarChart3,
   Settings, Shield, ChevronLeft, ChevronRight, LogOut, User,
-  Menu, Bell, Search, Factory, Moon, Sun
+  Menu, Search, Factory, Moon, Sun
 } from 'lucide-react';
 
 export default function Layout({ children }) {
@@ -200,8 +201,11 @@ export default function Layout({ children }) {
                  <CurrencyTicker />
               </div>
 
+              {/* Notifications */}
+              <NotificationBell />
+
               {/* Theme Toggle */}
-              <button 
+              <button
                 onClick={toggleTheme}
                 className="p-2.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 transition-all hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
                 title={theme === 'dark' ? 'Aydınlık Mod' : 'Karanlık Mod'}

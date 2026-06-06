@@ -45,15 +45,23 @@ class WebSocketHandlers {
    */
   async handleAuthentication(socket, data) {
     try {
-      const { token } = data;
+      const { token: dataToken } = data || {};
+
+      // Try cookie fallback if no token passed explicitly
+      const cookieHeader = socket.handshake.headers.cookie || '';
+      const cookieToken = cookieHeader
+        .split('; ')
+        .find((c) => c.startsWith('access_token='))
+        ?.split('=')[1];
+
+      const token = dataToken || cookieToken;
 
       if (!token) {
         socket.emit(events.AUTHENTICATION_ERROR, { error: 'No token provided' });
         return;
       }
 
-      // Verify JWT token
-        const decoded = jwt.verify(token, config.jwt.secret);
+      const decoded = jwt.verify(token, config.jwt.secret);
 
       // Store user information
       socket.userId = decoded.userId;

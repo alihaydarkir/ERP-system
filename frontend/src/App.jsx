@@ -14,6 +14,7 @@ import useAuthStore from './store/authStore';
 import useUIStore from './store/uiStore';
 import usePermissionStore from './store/permissionStore';
 import { authService } from './services/authService';
+import { connectSocket, disconnectSocket } from './services/socket';
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
@@ -108,10 +109,13 @@ function App() {
     };
   }, [isAuthInitialized, setAuthLoading, setAuthInitialized, setUser, setCompany, logout]);
 
-  // Load permissions when authenticated
+  // Load permissions + connect socket when authenticated
   useEffect(() => {
     if (isAuthenticated) {
       fetchMyPermissions();
+      connectSocket();
+    } else {
+      disconnectSocket();
     }
   }, [isAuthenticated, fetchMyPermissions]);
 
