@@ -88,7 +88,7 @@ const getHistory = async (req, res) => {
  */
 const ragRetrieval = async (req, res) => {
   try {
-    const { query, limit = 5, threshold = 0.7 } = req.body;
+    const { query, limit = 5, threshold = parseFloat(process.env.RAG_THRESHOLD) || 0.4 } = req.body;
 
     if (!query || query.trim().length === 0) {
       return res.status(400).json(formatError('Query cannot be empty'));

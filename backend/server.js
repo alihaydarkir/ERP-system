@@ -88,6 +88,15 @@ app.use(sqlInjectionProtection);
 app.use(detectSuspiciousActivity);
 app.use(hostHeaderCheck);
 app.use(originCheck);
+app.use((req, _res, next) => {
+  if (!['GET','HEAD','OPTIONS'].includes(req.method)) {
+    const hasCsrf = !!req.headers['x-csrf-token'];
+    const hasCookie = String(req.headers.cookie || '').includes('csrf_token');
+    const hasBearer = !!req.headers.authorization;
+    console.log(`[REQ] ${req.method} ${req.path} | bearer:${hasBearer} | csrf_header:${hasCsrf} | csrf_cookie:${hasCookie}`);
+  }
+  next();
+});
 app.use(csrfProtection);
 
 // Rate limiting

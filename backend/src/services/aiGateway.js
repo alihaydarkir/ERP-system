@@ -76,11 +76,14 @@ class AIGateway {
   }
 
   maskPII(text = '') {
+    // (?<!\d[.,]) ve (?![.,]\d): tutar gibi ondalıklı sayıların (ör. 1244612931.98)
+    // tam kısmını TCKN/vergi no sanıp maskelememek için - sadece bağımsız 10/11 haneli
+    // tam sayı dizilerini (gerçek kimlik/vergi numaralarını) maskele
     return this.sanitizeText(text)
-      .replace(/\b\d{11}\b/g, '[masked_tckn]')
-      .replace(/\b\d{10}\b/g, '[masked_tax]')
+      .replace(/(?<!\d[.,])\b\d{11}\b(?![.,]\d)/g, '[masked_tckn]')
+      .replace(/(?<!\d[.,])\b\d{10}\b(?![.,]\d)/g, '[masked_tax]')
       .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[masked_email]')
-      .replace(/\+?\d[\d\s()-]{7,}\d/g, '[masked_phone]');
+      .replace(/(?<!\d[.,])\+?\d[\d\s()-]{7,}\d(?!\d|[.,]\d)/g, '[masked_phone]');
   }
 
   buildMessages(messages = []) {

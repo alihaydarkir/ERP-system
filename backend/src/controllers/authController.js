@@ -56,6 +56,15 @@ const buildCookieOptions = (maxAge) => ({
 const setAuthCookies = (res, { accessToken, refreshToken }) => {
   res.cookie('access_token', accessToken, buildCookieOptions(accessTtlMs));
   res.cookie('refresh_token', refreshToken, buildCookieOptions(refreshTtlMs));
+  // CSRF token: JS tarafından okunabilmesi için httpOnly=false
+  const csrfToken = crypto.randomBytes(32).toString('hex');
+  res.cookie('csrf_token', csrfToken, {
+    httpOnly: false,
+    secure: config.nodeEnv === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: accessTtlMs,
+  });
 };
 
 const clearAuthCookies = (res) => {
@@ -68,6 +77,7 @@ const clearAuthCookies = (res) => {
 
   res.clearCookie('access_token', clearOptions);
   res.clearCookie('refresh_token', clearOptions);
+  res.clearCookie('csrf_token', { path: '/' });
 };
 
 const signAccessToken = (user) => jwt.sign(

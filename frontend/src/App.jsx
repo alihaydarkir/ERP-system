@@ -7,6 +7,7 @@ import ToastContainer from './components/UI/Toast';
 import ConfirmDialog from './components/UI/ConfirmDialog';
 import PageLoader from './components/UI/PageLoader';
 import CookieBanner from './components/CookieBanner';
+import FloatingChatWidget from './components/Chat/FloatingChatWidget';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
 import useAuthStore from './store/authStore';
@@ -359,6 +360,7 @@ function App() {
         </Routes>
       </Suspense>
       <CookieBanner />
+      {isAuthenticated && <FloatingChatWidget />}
 
       {/* React Hot Toast */}
       <Toaster

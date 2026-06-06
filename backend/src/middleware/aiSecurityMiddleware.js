@@ -86,7 +86,20 @@ const filterAIOutput = (response) => {
     }
   }
 
-  return response;
+  const cleaned = text
+    // Satır başı veya metin içindeki SYSTEM DATA: [...] bloklarını kaldır
+    .replace(/SYSTEM\s+DATA\s*:\s*\[[\s\S]*?\]/gi, '')
+    // VERIFY: {...} bloklarını kaldır (iç içe parantezlere karşı dayanıklı)
+    .replace(/VERIFY\s*:\s*\{[\s\S]*?\}/gi, '')
+    // [SYSTEM_DATA_START]...[SYSTEM_DATA_END] bloklarını kaldır
+    .replace(/\[SYSTEM_DATA_START\][\s\S]*?\[SYSTEM_DATA_END\]/gi, '')
+    // Satır başındaki "Komut:" etiketini kaldır
+    .replace(/^Komut\s*:\s*/gim, '')
+    // "SYSTEM DATA dışındaki..." gibi meta yorumları kaldır
+    .replace(/^SYSTEM\s+DATA\s+dışındaki\s+metni\s+yorumlayarak\s*:?\s*/gim, '')
+    .trim();
+
+  return cleaned || 'Sistemde bu konuyla ilgili kayıt bulunamadı.';
 };
 
 const validateAIRequest = (req, res, next) => {

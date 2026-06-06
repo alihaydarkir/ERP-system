@@ -35,10 +35,14 @@ class AIService {
     this.pendingMutations = new Map();
     this.userRateCounters = new Map();
     this.mutationKeywords = [
-      'oluştur', 'ekle', 'yarat', 'güncelle', 'düzenle', 'değiştir', 'sil', 'iptal', 'kapat',
-      'tamamla', 'onayla', 'gönder', 'ödendi', 'öde', 'bekleyen', 'stok düş', 'stok ekle',
-      'status', 'durum', 'cancel', 'create', 'update', 'delete', 'set', 'mark as'
+      'oluştur', 'yarat', 'güncelle', 'düzenle', 'değiştir', 'iptal et', 'kapat',
+      'tamamla', 'onayla', 'gönder', 'ödendi', 'stok düş', 'stok ekle',
+      'cancel', 'create', 'update', 'delete', 'mark as'
     ];
+    // Türkçe kısa mutation kelimeleri: kelime başında/sonunda boşluk/noktalama gerektirir
+    this.mutationKeywordsStrict = ['ekle', 'sil', 'öde'];
+    // İngilizce mutation kelimeleri: tam kelime eşleşmesi (\b)
+    this.mutationKeywordsExact = ['set', 'iptal'];
     this.mutationPermissionMap = {
       set_product_stock: 'products.edit',
       deactivate_product: 'products.delete',
@@ -380,8 +384,26 @@ class AIService {
 
   detectMutationIntent(message) {
     const msg = String(message || '').toLowerCase();
-    const keywordPattern = new RegExp(`(${this.mutationKeywords.join('|')})`, 'i');
-    return keywordPattern.test(msg);
+
+    // Genel mutation kelimeleri (substring eşleşmesi)
+    if (this.mutationKeywords.length) {
+      const p = new RegExp(`(${this.mutationKeywords.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'i');
+      if (p.test(msg)) return true;
+    }
+
+    // Kısa Türkçe kelimeler: başında boşluk/başlangıç, sonunda boşluk/noktalama/bitiş
+    if (this.mutationKeywordsStrict.length) {
+      const p = new RegExp(`(^|[\\s,;.!?])(${ this.mutationKeywordsStrict.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})([\\s,;.!?]|$)`, 'i');
+      if (p.test(msg)) return true;
+    }
+
+    // İngilizce tam kelime eşleşmesi
+    if (this.mutationKeywordsExact.length) {
+      const p = new RegExp(`\\b(${this.mutationKeywordsExact.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\b`, 'i');
+      if (p.test(msg)) return true;
+    }
+
+    return false;
   }
 
   isConfirmationMessage(message) {
@@ -992,9 +1014,24 @@ class AIService {
     if (this.detectMutationIntent(sanitizedUserMessage)) {
       const action = this.detectMutationAction(sanitizedUserMessage);
       if (!action) {
+        const msg = sanitizedUserMessage.toLowerCase();
+        let guide;
+        if (/müşteri|customer/.test(msg)) {
+          guide = 'Müşteri eklemek için şu formatı kullanın:\n\nmüşteri oluştur full_name:"Ad Soyad" company_name:"Firma" tax_office:"Vergi Dairesi" tax_number:"1234567890"';
+        } else if (/ürün|product/.test(msg)) {
+          guide = 'Ürün eklemek için şu formatı kullanın:\n\nürün oluştur name:"Ürün Adı" sku:"URUN-001" price:100 stock_quantity:50';
+        } else if (/çek/.test(msg)) {
+          guide = 'Çek eklemek için şu formatı kullanın:\n\nçek oluştur check_serial_no:"SN123" check_issuer:"Kesideci" customer:"Müşteri Adı" bank_name:"Banka" due_date:"2025-12-31" amount:5000';
+        } else if (/tedarikçi|supplier/.test(msg)) {
+          guide = 'Tedarikçi eklemek için şu formatı kullanın:\n\ntedarikçi oluştur supplier_name:"Firma Adı" contact_person:"Yetkili" email:"email@firma.com" phone:"05551234567"';
+        } else if (/sipariş|order/.test(msg)) {
+          guide = 'Sipariş işlemi için sipariş numarası ve işlem belirtin:\n\nsipariş iptal et order_id:"ORD-12345"\nsipariş güncelle order_id:"ORD-12345" status:"completed"';
+        } else {
+          guide = 'Lütfen işlemi ve gerekli bilgileri belirtin.\nÖrnek: ürün oluştur name:"Kalem" sku:"KLM-001" price:10';
+        }
         return {
           success: true,
-          answer: 'Yazma işlemi için formatı netleştirin. Örnek: müşteri oluştur full_name:"Ali Veli", company_name:"ABC", tax_office:"Kadıköy", tax_number:"1234567890"',
+          answer: guide,
           steps,
           meta: { mutation_parse_failed: true }
         };
