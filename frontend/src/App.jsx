@@ -37,6 +37,7 @@ const EmployeeApprovalsPage = lazy(() => import('./pages/EmployeeApprovalsPage')
 const ActivityLogsPage = lazy(() => import('./pages/ActivityLogsPage'));
 const InvoicesPage = lazy(() => import('./pages/InvoicesPage'));
 const CurrentAccountPage = lazy(() => import('./pages/CurrentAccountPage'));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 function App() {
   const {
@@ -361,6 +362,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>
       <CookieBanner />

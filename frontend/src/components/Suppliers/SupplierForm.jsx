@@ -99,8 +99,6 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
 
     setIsSubmitting(true);
 
-    console.log('Submitting supplier data:', formData);
-
     try {
       await onSave(formData);
     } catch (error) {
