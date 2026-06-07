@@ -411,12 +411,12 @@ class AIService {
 
   isConfirmationMessage(message) {
     const msg = String(message || '').toLowerCase().trim();
-    return /^(onaylıyorum|evet onay|onay veriyorum|evet)$/i.test(msg);
+    return /^(onaylıyorum|evet onay|onay veriyorum|evet|tamam|tamamdır|olur|ok|okay|kabul|devam|ilerle|onayla)$/i.test(msg);
   }
 
   isCancelMessage(message) {
     const msg = String(message || '').toLowerCase().trim();
-    return /^(vazgeç|iptal|hayır|hayır iptal)$/i.test(msg);
+    return /^(vazgeç|iptal|hayır|hayır iptal|dur|kes|bırak|stop|istemiyorum|kaldır|geri|geri al)$/i.test(msg);
   }
 
   extractQuotedText(message) {
@@ -1013,30 +1013,29 @@ class AIService {
       }
     }
 
-    // 1) Yazma/silme niyeti varsa önce onay iste
+    // 1) Create intents → show inline form immediately (bypasses old guide-string system)
+    const formTool = this.orchestrator.detectFormTool(sanitizedUserMessage);
+    if (formTool) {
+      return {
+        success: true,
+        answer: 'Aşağıdaki formu doldurun:',
+        steps,
+        meta: { form_tool: formTool }
+      };
+    }
+
+    // 2) Yazma/silme niyeti varsa önce onay iste
     if (this.detectMutationIntent(sanitizedUserMessage)) {
       const action = this.detectMutationAction(sanitizedUserMessage);
       if (!action) {
-        const msg = sanitizedUserMessage.toLowerCase();
-        let guide;
-        if (/müşteri|customer/.test(msg)) {
-          guide = 'Müşteri eklemek için şu formatı kullanın:\n\nmüşteri oluştur full_name:"Ad Soyad" company_name:"Firma" tax_office:"Vergi Dairesi" tax_number:"1234567890"';
-        } else if (/ürün|product/.test(msg)) {
-          guide = 'Ürün eklemek için şu formatı kullanın:\n\nürün oluştur name:"Ürün Adı" sku:"URUN-001" price:100 stock_quantity:50';
-        } else if (/çek/.test(msg)) {
-          guide = 'Çek eklemek için şu formatı kullanın:\n\nçek oluştur check_serial_no:"SN123" check_issuer:"Kesideci" customer:"Müşteri Adı" bank_name:"Banka" due_date:"2025-12-31" amount:5000';
-        } else if (/tedarikçi|supplier/.test(msg)) {
-          guide = 'Tedarikçi eklemek için şu formatı kullanın:\n\ntedarikçi oluştur supplier_name:"Firma Adı" contact_person:"Yetkili" email:"email@firma.com" phone:"05551234567"';
-        } else if (/sipariş|order/.test(msg)) {
-          guide = 'Sipariş işlemi için sipariş numarası ve işlem belirtin:\n\nsipariş iptal et order_id:"ORD-12345"\nsipariş güncelle order_id:"ORD-12345" status:"completed"';
-        } else {
-          guide = 'Lütfen işlemi ve gerekli bilgileri belirtin.\nÖrnek: ürün oluştur name:"Kalem" sku:"KLM-001" price:10';
-        }
+        const selectionResponse = await this._buildSelectionResponse(sanitizedUserMessage, context);
         return {
           success: true,
-          answer: guide,
+          answer: selectionResponse.answer,
           steps,
-          meta: { mutation_parse_failed: true }
+          meta: selectionResponse.selection
+            ? { selection_required: selectionResponse.selection }
+            : { mutation_parse_failed: true }
         };
       }
 
@@ -1504,6 +1503,77 @@ Provide:
 Insights:`;
 
     return await this.generateCompletion(prompt);
+  }
+
+  async _buildSelectionResponse(message, context) {
+    const msg = String(message || '').toLowerCase();
+    const { company_id } = context;
+
+    // Detect intended target status for orders
+    let targetStatus = null;
+    if (/tamamla|tamam|complet/.test(msg)) targetStatus = 'completed';
+    else if (/işleme al|process/.test(msg)) targetStatus = 'processing';
+    else if (/beklemede|pending/.test(msg)) targetStatus = 'pending';
+    else if (/iptal|cancel/.test(msg)) targetStatus = 'cancelled';
+
+    if (/(sipariş|order)/.test(msg)) {
+      try {
+        const data = await agentTools.execute('get_orders_list', { limit: 10 }, { company_id });
+        const orders = data?.orders || [];
+        if (orders.length === 0) {
+          return { answer: 'Sistemde sipariş bulunamadı.' };
+        }
+        const action = targetStatus === 'cancelled' ? 'cancel_order' : 'set_order_status';
+        const actionArgs = action === 'set_order_status' && targetStatus ? { status: targetStatus } : {};
+        const verb = targetStatus === 'cancelled' ? 'iptal etmek'
+          : targetStatus === 'completed' ? 'tamamlamak'
+          : targetStatus === 'processing' ? 'işleme almak'
+          : 'güncellemek';
+        return {
+          answer: `Hangi siparişi ${verb} istiyorsunuz?`,
+          selection: {
+            action,
+            action_args: actionArgs,
+            id_field: 'order_identifier',
+            items: orders.map((o) => ({
+              id: o.order_number || String(o.id),
+              label: `${o.order_number} — ${o.customer_name || o.customer_company || 'Bilinmiyor'} — ${Number(o.total_amount || 0).toLocaleString('tr-TR')} TL (${o.status})`
+            }))
+          }
+        };
+      } catch (_) {
+        return { answer: 'Sipariş listesi alınamadı. Lütfen tekrar deneyin.' };
+      }
+    }
+
+    if (/çek/.test(msg)) {
+      try {
+        const rows = await agentTools.execute('search_cheques', { limit: 10 }, { company_id });
+        const cheques = Array.isArray(rows) ? rows : [];
+        if (cheques.length === 0) {
+          return { answer: 'Sistemde çek bulunamadı.' };
+        }
+        let chequeTargetStatus = null;
+        if (/öde|paid/.test(msg)) chequeTargetStatus = 'paid';
+        else if (/iptal|cancel/.test(msg)) chequeTargetStatus = 'cancelled';
+        return {
+          answer: `Hangi çekin durumunu değiştirmek istiyorsunuz?`,
+          selection: {
+            action: 'set_cheque_status',
+            action_args: chequeTargetStatus ? { status: chequeTargetStatus } : {},
+            id_field: 'cheque_identifier',
+            items: cheques.map((c) => ({
+              id: c.check_serial_no || String(c.id),
+              label: `${c.check_serial_no} — ${c.check_issuer || ''} — ${Number(c.amount || 0).toLocaleString('tr-TR')} TL (${c.status})`
+            }))
+          }
+        };
+      } catch (_) {
+        return { answer: 'Çek listesi alınamadı. Lütfen tekrar deneyin.' };
+      }
+    }
+
+    return { answer: 'Bu işlem için hangi kaydı seçmek istediğinizi belirtin. (Örn: "ORD-001 siparişini iptal et")' };
   }
 }
 

@@ -402,11 +402,11 @@ const mutationTools = {
       UPDATE orders
       SET status = $1,
           updated_at = NOW(),
-          completed_at = CASE WHEN $1 = 'completed' THEN NOW() ELSE completed_at END
+          completed_at = CASE WHEN $4 = 'completed' THEN NOW() ELSE completed_at END
       WHERE company_id = $2
         AND (order_number = $3 OR id::text = $3)
       RETURNING id, order_number, status, total_amount
-    `, [status, company_id, order_identifier]);
+    `, [status, company_id, order_identifier, status]);
 
     if (!result.rows.length) {
       throw new Error('Sipariş bulunamadı');
@@ -418,7 +418,7 @@ const mutationTools = {
     };
   },
 
-  async create_order({ customer_identifier, notes = null, company_id, user_id }) {
+  async create_order({ customer_identifier, product_identifier, quantity = 1, unit_price = null, company_id, user_id }) {
     const customerResult = await pool.query(`
       SELECT id, full_name, company_name
       FROM customers
@@ -430,16 +430,44 @@ const mutationTools = {
     if (!customerResult.rows.length) throw new Error('Müşteri bulunamadı');
     const customer = customerResult.rows[0];
 
+    // Ürün ara (zorunlu değil — boş sipariş de oluşturulabilir)
+    let productRow = null;
+    if (product_identifier) {
+      const prodResult = await pool.query(`
+        SELECT id, name, sku, price FROM products
+        WHERE company_id = $1 AND is_active = true
+          AND (sku = $2 OR id::text = $2 OR name ILIKE $3)
+        LIMIT 1
+      `, [company_id, product_identifier, `%${product_identifier}%`]);
+      productRow = prodResult.rows[0] || null;
+    }
+
+    const qty = Math.max(1, parseInt(quantity, 10) || 1);
+    const price = unit_price != null ? parseFloat(unit_price) : (productRow ? parseFloat(productRow.price) : 0);
+    const totalAmount = parseFloat((qty * price).toFixed(2));
     const orderNumber = 'ORD-' + Date.now();
+
+    const items = productRow
+      ? [{ product_id: productRow.id, name: productRow.name, sku: productRow.sku, quantity: qty, price: price }]
+      : [];
+
     const result = await pool.query(`
-      INSERT INTO orders (order_number, customer_id, status, total_amount, notes, company_id, user_id)
-      VALUES ($1, $2, 'pending', 0, $3, $4, $5)
-      RETURNING id, order_number, status, total_amount, notes, created_at
-    `, [orderNumber, customer.id, notes, company_id, user_id || null]);
+      INSERT INTO orders (order_number, customer_id, status, total_amount, items, company_id, user_id)
+      VALUES ($1, $2, 'pending', $3, $4, $5, $6)
+      RETURNING id, order_number, status, total_amount, created_at
+    `, [orderNumber, customer.id, totalAmount, JSON.stringify(items), company_id, user_id || null]);
+
+    // order_items tablosuna da ekle
+    if (productRow) {
+      await pool.query(`
+        INSERT INTO order_items (order_id, product_id, quantity, price, company_id)
+        VALUES ($1, $2, $3, $4, $5)
+      `, [result.rows[0].id, productRow.id, qty, price, company_id]);
+    }
 
     return {
       created: true,
-      order: { ...result.rows[0], customer_name: customer.full_name, customer_company: customer.company_name }
+      order: { ...result.rows[0], customer_name: customer.full_name, customer_company: customer.company_name, product: productRow?.name }
     };
   },
 

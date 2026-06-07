@@ -39,7 +39,9 @@ const DEFAULT_MUTATION_PERMISSION_MAP = {
 };
 
 const ORDER_STATUS = new Set(['pending', 'processing', 'completed', 'cancelled']);
-const CHEQUE_STATUS = new Set(['pending', 'paid', 'cancelled']);
+// DB CHECK: pending|paid|cancelled|beklemede|odendi|iptal|teminat|musteriye_verildi
+const CHEQUE_STATUS = new Set(['pending', 'paid', 'cancelled', 'beklemede', 'odendi', 'iptal', 'teminat', 'musteriye_verildi']);
+// invoices.status has no CHECK constraint; 'overdue' is explicitly stored by the app
 const INVOICE_STATUS = new Set(['draft', 'sent', 'paid', 'overdue', 'cancelled']);
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -115,7 +117,7 @@ function sanitizeToolArgs(toolName, args = {}) {
   switch (toolName) {
     case 'search_cheques':
       return {
-        status: input.status ? cleanEnum(input.status, new Set(['pending', 'paid', 'overdue', 'cancelled']), 'status') : undefined,
+        status: input.status ? cleanEnum(input.status, CHEQUE_STATUS, 'status') : undefined,
         limit: cleanInteger(input.limit ?? 10, { min: 1, max: 50, field: 'limit' })
       };
     case 'search_products':
@@ -295,7 +297,9 @@ function sanitizeToolArgs(toolName, args = {}) {
     case 'create_order':
       return {
         customer_identifier: cleanString(input.customer_identifier, { max: 120, field: 'customer_identifier' }),
-        notes: cleanOptionalString(input.notes, { max: 500, field: 'notes' })
+        product_identifier: cleanOptionalString(input.product_identifier, { max: 120, field: 'product_identifier' }),
+        quantity: input.quantity != null ? cleanInteger(input.quantity, { min: 1, max: 100000, field: 'quantity' }) : 1,
+        unit_price: input.unit_price != null ? parseFloat(input.unit_price) || null : null
       };
     case 'activate_product':
       return {
@@ -339,8 +343,8 @@ const definitions = [
       properties: {
         status: {
           type: 'string',
-          enum: ['pending', 'paid', 'overdue', 'cancelled'],
-          description: 'Çek durumu filtresi'
+          enum: ['pending', 'paid', 'cancelled', 'beklemede', 'odendi', 'iptal', 'teminat', 'musteriye_verildi'],
+          description: 'Çek durumu filtresi. Vadesi geçmiş çekler için status belirtme; get_overdue_cheques kullan.'
         },
         limit: { type: 'integer', description: 'Maksimum sonuç sayısı (varsayılan: 10)' }
       }

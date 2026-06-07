@@ -55,6 +55,7 @@ class AgentOrchestrator {
   }
 
   async plan({ userMessage, fallbackTools = [] }) {
+    const toolNames = (this.tools.definitions || []).map(d => d.name).join(', ');
     const systemPrompt = `Sen bir ERP ajan planlayıcısısın.
 Sadece JSON döndür. Format:
 {"steps":[{"tool":"tool_name","args":{}}],"strategy":"short"}
@@ -62,12 +63,18 @@ Sadece JSON döndür. Format:
 Kullanabileceğin araçlar (SADECE bu listedeki "tool_name" değerlerini kullan):
 ${this.buildToolCatalog()}
 
+GEÇERLİ ARAÇ İSİMLERİ (tam liste): ${toolNames}
+
 Kurallar:
-- "tool" alanına SADECE yukarıdaki listede birebir geçen bir isim yaz. Listede olmayan/uydurma isim üretme
+- "tool" alanına SADECE yukarıdaki GEÇERLİ ARAÇ İSİMLERİ listesinde birebir geçen bir isim yaz
+- Bu listede OLMAYAN hiçbir araç ismi yazma — uydurma isim kesinlikle yasak
+- Emin değilsen o adımı atlat, uydurma
 - En fazla 5 adım
-- [YAZMA/DEĞİŞİKLİK] etiketli araçları SADECE kullanıcı açıkça bir kayıt oluşturmak/güncellemek/silmek/iptal etmek/durum değiştirmek istediğinde seç (ör. "oluştur", "ekle", "güncelle", "sil", "iptal et", "durumunu ... yap"). Kullanıcı sadece bilgi/durum/liste soruyorsa SADECE [SADECE OKUMA] araçlarını kullan
-- Belirsiz veya eksik bilgiyle (ör. hangi kayıt olduğu belli değilken) asla bir [YAZMA/DEĞİŞİKLİK] aracı önerme
-- Kullanıcı bir işlem yapmak istiyorsa ama gerekli bilgiler (müşteri adı, ürün adı vb.) belirtilmemişse, steps boş bırak: {"steps":[],"strategy":"ask_for_info"}
+- Müşteri sayısı, liste veya arama için: search_customers (tüm müşteri bilgileri döner, sayısı da çıkarılabilir)
+- [YAZMA/DEĞİŞİKLİK] etiketli araçları SADECE kullanıcı açıkça bir kayıt oluşturmak/güncellemek/silmek/iptal etmek/durum değiştirmek istediğinde seç
+- Kullanıcı sadece bilgi/durum/liste soruyorsa SADECE [SADECE OKUMA] araçlarını kullan
+- Belirsiz veya eksik bilgiyle asla [YAZMA/DEĞİŞİKLİK] aracı önerme
+- Kullanıcı işlem yapmak istiyor ama gerekli bilgiler belirtilmemişse: {"steps":[],"strategy":"ask_for_info"}
 - Örnek: "sipariş ekle" → müşteri adı bilinmiyor → {"steps":[],"strategy":"ask_for_info"}`;
 
     const userPrompt = `Kullanıcı mesajı: ${String(userMessage || '').slice(0, 1000)}`;
@@ -228,13 +235,19 @@ Kurallar:
     });
 
     // Data in system role — never masked by PII filter, never corrupted
-    const systemPrompt = `Sen Türkçe ERP asistanısın. Aşağıdaki veriyi kullanarak kullanıcının sorusunu kısa ve net yanıtla.
+    const systemPrompt = `Sen Türkçe konuşan bir ERP asistanısın. Aşağıdaki veriyi kullanarak kullanıcının sorusunu yanıtla.
+
 Kurallar:
 - Sadece verilen veriyi kullan, kesinlikle uydurma yapma
-- "__BOŞ_SONUÇ__" olan araç veri içermiyor demektir — o konuda "kayıt yok" veya "bu kategori boş" de
+- "__BOŞ_SONUÇ__" olan araç veri içermiyor demektir — o konuda "kayıt bulunamadı" veya "bu kategori boş" de
 - JSON, kod bloğu veya teknik format yazma
-- Sayıları, isimleri ve tarihleri düz Türkçe metin olarak yaz
-- Gereksiz açıklama yapma, doğrudan cevap ver
+- Sayıları Türkçe formatında yaz: 172600 → "172.600 TL" (nokta binlik ayırıcı, TL para birimi)
+- Tarihleri Türkçe yaz: "15 Ocak 2026" gibi
+- Yanıtı kısa ve net tut, gereksiz açıklama ekleme
+- Doğal Türkçe kullan — "para kredisiz", "ödersiz" gibi ifadeler kullanma
+- Sayısal verilerden yorum çıkar: "7 bekleyen sipariş, toplam 172.600 TL" gibi bütünleşik cevap ver
+- Birden fazla araçtan veri geliyorsa hepsini tek yanıtta birleştir
+- Listelemede madde işareti (-) kullan, numaralı liste değil
 
 VERİ:
 ${JSON.stringify(annotatedBlocks, null, 2)}`;
@@ -242,17 +255,19 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
     const completion = await this.gateway.chat([
       { role: 'system', content: systemPrompt },
       { role: 'user', content: String(userMessage || '').slice(0, 500) }
-    ], { temperature: 0.1, max_tokens: 400 });
+    ], { temperature: 0.1, max_tokens: 600 });
 
     return completion.content || 'Kayıt bulunamadı.';
   }
 
   detectFormTool(message) {
     const msg = String(message || '').toLowerCase();
-    if (/çek.*(ekle|oluştur|yeni|kaydet|gir)|yeni.*çek/.test(msg)) return 'create_cheque';
-    if (/(ürün|urun).*(ekle|oluştur|yeni|kaydet)|yeni.*(ürün|urun)/.test(msg)) return 'create_product';
-    if (/sipariş.*(ekle|oluştur|yeni|aç)|yeni.*sipariş/.test(msg)) return 'create_order';
-    if (/müşteri.*(ekle|oluştur|yeni|kaydet)|yeni.*müşteri/.test(msg)) return 'create_customer';
+    if (/çek.*\s(ekle|oluştur|yeni|kaydet|gir)(?:\s|$)|yeni\s+çek/.test(msg)) return 'create_cheque';
+    if (/(ürün|urun).*\s(ekle|oluştur|yeni|kaydet)(?:\s|$)|yeni\s+(ürün|urun)/.test(msg)) return 'create_product';
+    if (/sipariş.*\s(ekle|oluştur|yeni|aç)(?:\s|$)|yeni\s+sipariş/.test(msg)) return 'create_order';
+    if (/müşteri.*\s(ekle|oluştur|yeni|kaydet)(?:\s|$)|yeni\s+müşteri/.test(msg)) return 'create_customer';
+    if (/(tedarikçi|tedarikci).*\s(ekle|oluştur|yeni|kaydet)(?:\s|$)|yeni\s+(tedarikçi|tedarikci)/.test(msg)) return 'create_supplier';
+    if (/(depo|warehouse).*\s(ekle|oluştur|yeni|kaydet|aç)(?:\s|$)|yeni\s+(depo|warehouse)/.test(msg)) return 'create_warehouse';
     return null;
   }
 

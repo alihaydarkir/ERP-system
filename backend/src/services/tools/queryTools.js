@@ -9,8 +9,8 @@ const queryTools = {
         (SELECT COUNT(*) FROM products WHERE company_id = $1) AS total_products,
         (SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE company_id = $1 AND status = 'completed') AS total_revenue,
         (SELECT COUNT(*) FROM products WHERE stock_quantity <= low_stock_threshold AND company_id = $1) AS low_stock_count,
-        (SELECT COUNT(*) FROM cheques WHERE status = 'overdue' AND company_id = $1) AS overdue_cheques_count,
-        (SELECT COALESCE(SUM(amount), 0) FROM cheques WHERE status = 'overdue' AND company_id = $1) AS overdue_cheques_amount,
+        (SELECT COUNT(*) FROM cheques WHERE status = 'pending' AND due_date < CURRENT_DATE AND company_id = $1) AS overdue_cheques_count,
+        (SELECT COALESCE(SUM(amount), 0) FROM cheques WHERE status = 'pending' AND due_date < CURRENT_DATE AND company_id = $1) AS overdue_cheques_amount,
         (SELECT COUNT(*) FROM orders WHERE status = 'pending' AND company_id = $1) AS pending_orders
     `, [company_id]);
     return result.rows[0];
@@ -62,7 +62,7 @@ const queryTools = {
         (CURRENT_DATE - ch.due_date) AS days_overdue
       FROM cheques ch
       LEFT JOIN customers c ON ch.customer_id = c.id
-      WHERE ch.company_id = $1 AND ch.status = 'overdue'
+      WHERE ch.company_id = $1 AND ch.status = 'pending' AND ch.due_date < CURRENT_DATE
       ORDER BY ch.due_date ASC
       LIMIT 20
     `, [company_id]);
@@ -76,8 +76,8 @@ const queryTools = {
       SELECT
         (SELECT COALESCE(SUM(amount), 0) FROM cheques WHERE status = 'pending' AND company_id = $1) AS pending_cheques_amount,
         (SELECT COUNT(*)               FROM cheques WHERE status = 'pending' AND company_id = $1) AS pending_cheques_count,
-        (SELECT COALESCE(SUM(amount), 0) FROM cheques WHERE status = 'overdue' AND company_id = $1) AS overdue_cheques_amount,
-        (SELECT COUNT(*)               FROM cheques WHERE status = 'overdue' AND company_id = $1) AS overdue_cheques_count,
+        (SELECT COALESCE(SUM(amount), 0) FROM cheques WHERE status = 'pending' AND due_date < CURRENT_DATE AND company_id = $1) AS overdue_cheques_amount,
+        (SELECT COUNT(*)               FROM cheques WHERE status = 'pending' AND due_date < CURRENT_DATE AND company_id = $1) AS overdue_cheques_count,
         (SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE status = 'completed' AND company_id = $1 AND created_at >= DATE_TRUNC('month', NOW())) AS this_month_revenue,
         (SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE status = 'completed' AND company_id = $1 AND created_at >= DATE_TRUNC('year', NOW())) AS this_year_revenue,
         (SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE status = 'pending' AND company_id = $1) AS pending_orders_amount,
@@ -148,6 +148,8 @@ const queryTools = {
         COUNT(CASE WHEN status = 'pending'   THEN 1 END)           AS pending_orders,
         COUNT(CASE WHEN status = 'completed' THEN 1 END)           AS completed_orders,
         COUNT(CASE WHEN status = 'cancelled' THEN 1 END)           AS cancelled_orders,
+        COALESCE(SUM(CASE WHEN status = 'pending' THEN total_amount END), 0)   AS pending_amount,
+        COALESCE(SUM(CASE WHEN status = 'completed' THEN total_amount END), 0) AS completed_amount,
         COALESCE(AVG(total_amount), 0)                             AS avg_order_amount
       FROM orders
       WHERE company_id = $1
@@ -283,7 +285,7 @@ const queryTools = {
       SELECT
         p.id, p.name, p.category, p.price, p.stock_quantity,
         COALESCE(SUM(oi.quantity), 0) AS total_sold,
-        COALESCE(SUM(oi.quantity * oi.unit_price), 0) AS total_revenue
+        COALESCE(SUM(oi.quantity * oi.price), 0) AS total_revenue
       FROM products p
       LEFT JOIN order_items oi ON oi.product_id = p.id
       LEFT JOIN orders o ON o.id = oi.order_id AND o.status = 'completed' AND o.company_id = $1

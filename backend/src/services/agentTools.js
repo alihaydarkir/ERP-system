@@ -127,7 +127,7 @@ const agentTools = {
     switch (toolName) {
       case 'search_cheques':
         return {
-          status: input.status ? cleanEnum(input.status, new Set(['pending', 'paid', 'overdue', 'cancelled']), 'status') : undefined,
+          status: input.status ? cleanEnum(input.status, new Set(['pending', 'paid', 'cancelled', 'beklemede', 'odendi', 'iptal', 'teminat', 'musteriye_verildi']), 'status') : undefined,
           limit: cleanInteger(input.limit ?? 10, { min: 1, max: 50, field: 'limit' })
         };
       case 'search_products':
@@ -406,7 +406,7 @@ const agentTools = {
         type: 'object',
         properties: {
           cheque_identifier: { type: 'string', description: 'Çek seri no veya ID' },
-          status: { type: 'string', enum: ['pending', 'paid', 'cancelled'] }
+          status: { type: 'string', enum: ['pending', 'paid', 'cancelled', 'beklemede', 'odendi', 'iptal', 'teminat', 'musteriye_verildi'] }
         },
         required: ['cheque_identifier', 'status']
       }
@@ -583,7 +583,7 @@ const agentTools = {
           amount: { type: 'number' },
           received_date: { type: 'string', description: 'YYYY-MM-DD' },
           currency: { type: 'string' },
-          status: { type: 'string', enum: ['pending', 'paid', 'cancelled'] },
+          status: { type: 'string', enum: ['pending', 'paid', 'cancelled', 'beklemede', 'odendi', 'iptal', 'teminat', 'musteriye_verildi'] },
           notes: { type: 'string' }
         },
         required: ['check_serial_no', 'check_issuer', 'customer_identifier', 'bank_name', 'due_date', 'amount']
@@ -625,8 +625,8 @@ const agentTools = {
         (SELECT COUNT(*) FROM products WHERE company_id = $1) AS total_products,
         (SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE company_id = $1 AND status = 'completed') AS total_revenue,
         (SELECT COUNT(*) FROM products WHERE stock_quantity <= low_stock_threshold AND company_id = $1) AS low_stock_count,
-        (SELECT COUNT(*) FROM cheques WHERE status = 'overdue' AND company_id = $1) AS overdue_cheques_count,
-        (SELECT COALESCE(SUM(amount), 0) FROM cheques WHERE status = 'overdue' AND company_id = $1) AS overdue_cheques_amount,
+        (SELECT COUNT(*) FROM cheques WHERE status = 'pending' AND due_date < CURRENT_DATE AND company_id = $1) AS overdue_cheques_count,
+        (SELECT COALESCE(SUM(amount), 0) FROM cheques WHERE status = 'pending' AND due_date < CURRENT_DATE AND company_id = $1) AS overdue_cheques_amount,
         (SELECT COUNT(*) FROM orders WHERE status = 'pending' AND company_id = $1) AS pending_orders
     `, [company_id]);
     return result.rows[0];
@@ -678,7 +678,7 @@ const agentTools = {
         (CURRENT_DATE - ch.due_date) AS days_overdue
       FROM cheques ch
       LEFT JOIN customers c ON ch.customer_id = c.id
-      WHERE ch.company_id = $1 AND ch.status = 'overdue'
+      WHERE ch.company_id = $1 AND ch.status = 'pending' AND ch.due_date < CURRENT_DATE
       ORDER BY ch.due_date ASC
       LIMIT 20
     `, [company_id]);
@@ -692,8 +692,8 @@ const agentTools = {
       SELECT
         (SELECT COALESCE(SUM(amount), 0) FROM cheques WHERE status = 'pending' AND company_id = $1) AS pending_cheques_amount,
         (SELECT COUNT(*)               FROM cheques WHERE status = 'pending' AND company_id = $1) AS pending_cheques_count,
-        (SELECT COALESCE(SUM(amount), 0) FROM cheques WHERE status = 'overdue' AND company_id = $1) AS overdue_cheques_amount,
-        (SELECT COUNT(*)               FROM cheques WHERE status = 'overdue' AND company_id = $1) AS overdue_cheques_count,
+        (SELECT COALESCE(SUM(amount), 0) FROM cheques WHERE status = 'pending' AND due_date < CURRENT_DATE AND company_id = $1) AS overdue_cheques_amount,
+        (SELECT COUNT(*)               FROM cheques WHERE status = 'pending' AND due_date < CURRENT_DATE AND company_id = $1) AS overdue_cheques_count,
         (SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE status = 'completed' AND company_id = $1 AND created_at >= DATE_TRUNC('month', NOW())) AS this_month_revenue,
         (SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE status = 'completed' AND company_id = $1 AND created_at >= DATE_TRUNC('year', NOW())) AS this_year_revenue,
         (SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE status = 'pending' AND company_id = $1) AS pending_orders_amount,
