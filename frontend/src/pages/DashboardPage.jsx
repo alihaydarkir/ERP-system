@@ -411,6 +411,43 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* ── Top Müşteriler ─────────────────────────────────── */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
+        <h2 className="font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2 mb-4">
+          <Users size={16} className="text-orange-500" />
+          En İyi Müşteriler
+          <span className="text-xs text-gray-500 dark:text-gray-400 font-normal">(toplam ciro)</span>
+        </h2>
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+            {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-20" />)}
+          </div>
+        ) : summary?.topCustomers?.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+            {summary.topCustomers.map((c, i) => {
+              const medals = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
+              const gradients = [
+                'from-yellow-50 to-amber-50 border-yellow-200 dark:from-yellow-900/20 dark:to-amber-900/20 dark:border-yellow-700',
+                'from-gray-50 to-slate-50 border-gray-200 dark:from-gray-800 dark:to-slate-800 dark:border-gray-600',
+                'from-orange-50 to-amber-50 border-orange-200 dark:from-orange-900/20 dark:to-amber-900/20 dark:border-orange-700',
+                'from-white to-gray-50 border-gray-100 dark:from-gray-800 dark:to-gray-800 dark:border-gray-700',
+                'from-white to-gray-50 border-gray-100 dark:from-gray-800 dark:to-gray-800 dark:border-gray-700',
+              ];
+              return (
+                <div key={c.id} className={`rounded-xl border p-3 bg-gradient-to-br ${gradients[i]} flex flex-col items-center text-center gap-1`}>
+                  <span className="text-2xl">{medals[i]}</span>
+                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate w-full">{c.name}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{fmtN(c.total_orders)} sipariş</p>
+                  <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400">₺{fmt(c.total_revenue)}</p>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-center text-gray-400 text-sm py-6">Müşteri verisi yok</p>
+        )}
+      </div>
+
       {/* ── Sistem Durumu ──────────────────────────────────── */}
       <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl p-5 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>

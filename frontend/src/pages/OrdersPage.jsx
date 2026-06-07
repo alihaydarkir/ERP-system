@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { orderService } from '../services/orderService';
 import OrderDrawer from '../components/Orders/OrderDrawer';
 import OrderDetailModal from '../components/Orders/OrderDetailModal';
@@ -22,6 +22,15 @@ export default function OrdersPage() {
   const { data: orders = [], isLoading, isError, error, refetch } = useOrders({ limit: 100 });
   const updateStatus = useUpdateOrderStatus();
   const cancelOrder = useCancelOrder();
+
+  useEffect(() => {
+    const handler = (e) => {
+      const tool = e.detail?.tool || '';
+      if (/order|sipariş/.test(tool)) refetch();
+    };
+    window.addEventListener('erp:data_changed', handler);
+    return () => window.removeEventListener('erp:data_changed', handler);
+  }, [refetch]);
 
   const handleCompleteOrder = async (orderOrId) => {
     const orderId = typeof orderOrId === 'object' ? orderOrId?.id : orderOrId;

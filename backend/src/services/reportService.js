@@ -120,6 +120,24 @@ class ReportService {
       `;
 
       // ── 6. Son 6 ay aylık trend ─────────────────────────────────────────
+      const topCustomersQuery = `
+        SELECT
+          c.id,
+          COALESCE(c.company_name, c.full_name) AS name,
+          c.full_name,
+          COALESCE(COUNT(o.id), 0)              AS total_orders,
+          COALESCE(SUM(o.total_amount), 0)      AS total_revenue
+        FROM customers c
+        LEFT JOIN orders o
+          ON c.id = o.customer_id
+          AND o.status != 'cancelled'
+          AND o.company_id = $1
+        WHERE c.company_id = $1
+        GROUP BY c.id, c.company_name, c.full_name
+        ORDER BY total_revenue DESC
+        LIMIT 5
+      `;
+
       const monthlyTrendQuery = `
         SELECT
           TO_CHAR(gs.month, 'Mon YY')                                          AS label,
@@ -139,14 +157,15 @@ class ReportService {
       `;
 
       // Tüm sorguları paralel çalıştır
-      const [kpiRes, lowStockRes, recentOrdersRes, topProductsRes, weeklyRes, monthlyRes] =
+      const [kpiRes, lowStockRes, recentOrdersRes, topProductsRes, weeklyRes, monthlyRes, topCustomersRes] =
         await Promise.all([
-          pool.query(kpiQuery,         [cid]),
-          pool.query(lowStockQuery,    [cid]),
-          pool.query(recentOrdersQuery,[cid]),
-          pool.query(topProductsQuery, [cid]),
-          pool.query(weeklyChartQuery, [cid]),
-          pool.query(monthlyTrendQuery,[cid]),
+          pool.query(kpiQuery,          [cid]),
+          pool.query(lowStockQuery,     [cid]),
+          pool.query(recentOrdersQuery, [cid]),
+          pool.query(topProductsQuery,  [cid]),
+          pool.query(weeklyChartQuery,  [cid]),
+          pool.query(monthlyTrendQuery, [cid]),
+          pool.query(topCustomersQuery, [cid]),
         ]);
 
       const kpi = kpiRes.rows[0];
@@ -176,6 +195,13 @@ class ReportService {
           lowStockProducts: lowStockRes.rows,
           recentOrders:     recentOrdersRes.rows,
           topProducts:      topProductsRes.rows,
+          topCustomers:     topCustomersRes.rows.map(r => ({
+            id:            r.id,
+            name:          r.name,
+            full_name:     r.full_name,
+            total_orders:  parseInt(r.total_orders),
+            total_revenue: parseFloat(r.total_revenue),
+          })),
           weeklyChart:      weeklyRes.rows.map(r => ({
             date:    r.date,
             label:   r.label,

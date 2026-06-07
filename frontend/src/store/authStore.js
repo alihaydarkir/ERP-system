@@ -22,8 +22,8 @@ const useAuthStore = create((set) => ({
   },
 
   logout: () => {
-    // Clear permissions on logout
     usePermissionStore.getState().clearPermissions();
+    sessionStorage.removeItem('erp_chat_history');
 
     set({
       user: null,

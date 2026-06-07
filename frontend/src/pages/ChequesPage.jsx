@@ -43,6 +43,19 @@ const ChequesPage = () => {
     loadDueSoon();
   }, []);
 
+  // Reload when AI chatbot creates/updates a cheque
+  useEffect(() => {
+    const handler = (e) => {
+      const tool = e.detail?.tool || '';
+      if (/cheque|çek/.test(tool)) {
+        loadCheques();
+        loadStatistics();
+      }
+    };
+    window.addEventListener('erp:data_changed', handler);
+    return () => window.removeEventListener('erp:data_changed', handler);
+  }, []);
+
   // Reload cheques when filters or pagination change
   const store = useChequeStore();
   useEffect(() => {

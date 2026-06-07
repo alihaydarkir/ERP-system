@@ -1,5 +1,6 @@
 import ChatToolCallDisplay from './ChatToolCallDisplay';
 import ChatInlineForm from './ChatInlineForm';
+import ChatSelectionList from './ChatSelectionList';
 import { CheckCircle, XCircle } from 'lucide-react';
 
 const TOOL_CALL_BLOCK_REGEX = /```tool_call\s*([\s\S]*?)```/gi;
@@ -38,7 +39,7 @@ function ToolStep({ step }) {
   return null;
 }
 
-export default function ChatMessage({ message, showApprovalBadge = false, onApprove, onReject, approvalLoading, onFormSubmit, onFormCancel }) {
+export default function ChatMessage({ message, showApprovalBadge = false, onApprove, onReject, approvalLoading, onFormSubmit, onFormCancel, onSelectionPick }) {
   const isUser = message.type === 'user';
   const isThinking = message.type === 'thinking';
   const { cleanText, toolCards } = extractToolCardsFromText(message.text || '');
@@ -83,6 +84,15 @@ export default function ChatMessage({ message, showApprovalBadge = false, onAppr
             toolName={message.formTool}
             onSubmit={onFormSubmit}
             onCancel={onFormCancel}
+            loading={approvalLoading}
+          />
+        )}
+
+        {/* Selection list — shown when AI needs user to pick a record to act on */}
+        {message.selectionRequired && onSelectionPick && (
+          <ChatSelectionList
+            selection={message.selectionRequired}
+            onSelect={onSelectionPick}
             loading={approvalLoading}
           />
         )}

@@ -29,14 +29,6 @@ function loadMessages() {
   }
 }
 
-const QUICK_QUESTIONS = [
-  { icon: '⚠️', label: 'Vadesi geçmiş çekler', text: 'Vadesi geçmiş çeklerimi göster ve toplam tutarını söyle' },
-  { icon: '📊', label: 'Genel özet', text: 'Sistemin genel durumunu özetle: siparişler, müşteriler, stok uyarıları' },
-  { icon: '💰', label: 'Finansal durum', text: 'Bu ay finansal durumumu analiz et' },
-  { icon: '📦', label: 'Düşük stok', text: 'Hangi ürünlerin stoğu azaldı?' },
-  { icon: '🛒', label: 'Bu ay siparişler', text: 'Bu ay sipariş durumumu özetle' },
-  { icon: '📋', label: 'Bekleyen çekler', text: 'Bekleyen çeklerimi listele' }
-];
 
 export default function ChatPage() {
   const [messages, setMessages] = useState(loadMessages);
@@ -95,6 +87,9 @@ export default function ChatPage() {
       if (['approved', 'executed', 'rejected', 'failed'].includes(payload.status)) {
         setApprovalState(null);
         const tool = payload.agent_tool || 'İşlem';
+        if (['approved', 'executed'].includes(payload.status)) {
+          window.dispatchEvent(new CustomEvent('erp:data_changed', { detail: { tool } }));
+        }
         const text =
           payload.status === 'approved' || payload.status === 'executed'
             ? `✅ ${tool} başarıyla tamamlandı.`
@@ -173,6 +168,14 @@ export default function ChatPage() {
         return;
       }
 
+      if (agentMeta.selection_required) {
+        setMessages(prev => prev.map(m => m.id === thinkingId
+          ? { ...aiMsg, selectionRequired: agentMeta.selection_required }
+          : m
+        ));
+        return;
+      }
+
       if (agentMeta.requires_approval || agentMeta.requires_human_approval) {
         setApprovalState({
           approvalId: agentMeta.approval_id || null,
@@ -230,6 +233,55 @@ export default function ChatPage() {
           tool: toolName,
           requiresApproval: true
         });
+      } else {
+        window.dispatchEvent(new CustomEvent('erp:data_changed', { detail: { tool: toolName } }));
+      }
+
+      setMessages(prev => [...prev, {
+        id: Date.now(),
+        type: 'ai',
+        text,
+        timestamp: new Date(),
+        steps: result?.steps || []
+      }]);
+    } catch (err) {
+      const reason = err?.responseData?.message || err?.message || 'Bilinmeyen hata';
+      setMessages(prev => [...prev, {
+        id: Date.now(),
+        type: 'ai',
+        text: `❌ İşlem başarısız: ${reason}`,
+        timestamp: new Date(),
+        steps: []
+      }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSelectionPick = async (item, selection) => {
+    // Remove the selection list from the triggering message
+    setMessages(prev => prev.map(m => m.selectionRequired ? { ...m, selectionRequired: null } : m));
+
+    // Show what the user picked as a user message
+    const userPickMsg = { id: Date.now(), type: 'user', text: item.label, timestamp: new Date() };
+    setMessages(prev => [...prev, userPickMsg]);
+    setLoading(true);
+
+    const args = { [selection.id_field]: item.id, ...(selection.action_args || {}) };
+    try {
+      const result = await aiService.executeTool(selection.action, args);
+      const agentMeta = result?.meta || {};
+      const text = result?.answer || '✅ İşlem tamamlandı.';
+
+      if (agentMeta.requires_human_approval) {
+        setApprovalState({
+          approvalId: agentMeta.approval_id,
+          status: 'pending',
+          tool: selection.action,
+          requiresApproval: true
+        });
+      } else {
+        window.dispatchEvent(new CustomEvent('erp:data_changed', { detail: { tool: selection.action } }));
       }
 
       setMessages(prev => [...prev, {
@@ -304,7 +356,6 @@ export default function ChatPage() {
       />
 
       <ChatQuickQuestions
-        questions={QUICK_QUESTIONS}
         onSelect={sendMessage}
         disabled={loading || !aiStatus.available}
       />
@@ -320,6 +371,7 @@ export default function ChatPage() {
         onReject={handleCancelMutation}
         onFormSubmit={handleFormSubmit}
         onFormCancel={handleFormCancel}
+        onSelectionPick={handleSelectionPick}
       />
 
       <ChatInput

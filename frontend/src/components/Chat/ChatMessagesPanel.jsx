@@ -1,8 +1,9 @@
 import ChatMessage from './ChatMessage';
 
-export default function ChatMessagesPanel({ messages, loading, elapsed, timeoutSeconds, approvalState, messagesEndRef, onApprove, onReject, onFormSubmit, onFormCancel }) {
+export default function ChatMessagesPanel({ messages, loading, elapsed, timeoutSeconds, approvalState, messagesEndRef, onApprove, onReject, onFormSubmit, onFormCancel, onSelectionPick }) {
   const lastAiMessageId = [...messages].reverse().find((m) => m.type === 'ai')?.id;
   const lastFormMessageId = [...messages].reverse().find((m) => m.formTool)?.id;
+  const lastSelectionMessageId = [...messages].reverse().find((m) => m.selectionRequired)?.id;
 
   return (
     <div className="flex-1 bg-gray-50 dark:bg-gray-800/50 rounded-2xl overflow-y-auto p-4 space-y-4" style={{ maxHeight: '50vh' }}>
@@ -10,6 +11,7 @@ export default function ChatMessagesPanel({ messages, loading, elapsed, timeoutS
         const isLastAi = message.id === lastAiMessageId;
         const showApproval = isLastAi && approvalState?.requiresApproval;
         const isActiveForm = message.id === lastFormMessageId && message.formTool;
+        const isActiveSelection = message.id === lastSelectionMessageId && message.selectionRequired;
         return (
           <ChatMessage
             key={message.id}
@@ -20,6 +22,7 @@ export default function ChatMessagesPanel({ messages, loading, elapsed, timeoutS
             approvalLoading={loading}
             onFormSubmit={isActiveForm ? onFormSubmit : undefined}
             onFormCancel={isActiveForm ? onFormCancel : undefined}
+            onSelectionPick={isActiveSelection ? onSelectionPick : undefined}
           />
         );
       })}

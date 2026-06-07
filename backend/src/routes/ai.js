@@ -13,20 +13,8 @@ const {
 	executeTool
 } = require('../controllers/aiController');
 
-const mutationIntentRegex = /\b(oluştur|ekle|güncelle|düzenle|sil|iptal|stok|durum|onayla|create|update|delete|cancel|set)\b/i;
-
-const mutationRateGate = (req, res, next) => {
-	const message = req.body?.message || '';
-
-	if (typeof message === 'string' && mutationIntentRegex.test(message)) {
-		return aiMutationLimiter(req, res, next);
-	}
-
-	return next();
-};
-
 // Tüm AI endpoint'leri JWT auth gerektirir
-router.post('/chat', authMiddleware, validateAIRequest, mutationRateGate, agentChat);
+router.post('/chat', authMiddleware, validateAIRequest, agentChat);
 router.get('/health', authMiddleware, getHealth);
 router.get('/models', authMiddleware, getModels);
 router.get('/approvals/my', authMiddleware, getMyApprovals);

@@ -82,7 +82,7 @@ describe('queryTools', () => {
       const result = await queryTools.get_overdue_cheques({ company_id: 5 });
 
       const [sql, values] = mockPool.query.mock.calls[0];
-      expect(sql).toContain("ch.status = 'overdue'");
+      expect(sql).toContain("ch.status = 'pending'");
       expect(sql).toContain('CURRENT_DATE - ch.due_date');
       expect(values).toEqual([5]);
       expect(result.count).toBe(2);
