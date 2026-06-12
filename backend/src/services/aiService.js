@@ -370,6 +370,33 @@ class AIService {
       tools.push({ name: 'get_dashboard_summary', args: {} });
     }
 
+    // Müşteri detayı / 360° profil
+    if (/(müşteri.*detay|detay.*müşteri|360|profil.*müşteri|müşteri.*profil|borç.*durum|durum.*borç)/.test(msg)) {
+      const nameMatch = msg.match(/[""]([^""]+)[""]/) || msg.match(/(\w[\w\s]+(?:a\.ş\.|ltd\.?|şti\.?)?)\s*(müşteri|firması|şirketi)/i);
+      const cname = nameMatch ? (nameMatch[1] || nameMatch[0]).trim() : '';
+      if (cname.length > 2) {
+        tools.push({ name: 'get_customer_detail', args: { customer_name: cname } });
+      } else {
+        tools.push({ name: 'get_customer_detail', args: { customer_name: '' } });
+      }
+    }
+    // Borç yaşlandırma
+    if (/(yaşlandırma|aging|yaş.grup|borç.*rapor|vade.*grup|gecikme.*rapor)/.test(msg)) {
+      tools.push({ name: 'get_debt_aging_report', args: {} });
+    }
+    // Aylık karşılaştırma / trend
+    if (/(aylık.*karşılaştır|karşılaştır.*ay|bu ay.*geçen ay|geçen.*ay.*karşılaştır|trend|ay.*fark|büyüme|gelişim)/.test(msg)) {
+      tools.push({ name: 'get_monthly_comparison', args: {} });
+    }
+    // Reorder / sipariş önerisi
+    if (/(sipariş.*öner|öner.*sipariş|reorder|ne kadar sipariş|sipariş.*ver.*öner|hangi ürün.*sipariş|stok.*plan)/.test(msg)) {
+      tools.push({ name: 'recommend_reorder', args: {} });
+    }
+    // Ödeme riski
+    if (/(ödeme.*risk|risk.*ödeme|risk.*analiz|analiz.*risk|riskli.*müşteri|müşteri.*risk|gecikme.*müşteri|müşteri.*gecikme)/.test(msg)) {
+      tools.push({ name: 'get_payment_risk_assessment', args: {} });
+    }
+
     // Hiç araç eşleşmediyse genel özet getir
     if (tools.length === 0) {
       tools.push({ name: 'get_dashboard_summary', args: {} });

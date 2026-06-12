@@ -157,6 +157,93 @@ const RAG_ENTRIES = [
     content:
       'Planlı bakım penceresi pazar günleri 02:00-04:00 arasıdır. Bu süreçte sürüm güncellemeleri, performans optimizasyonları ve güvenlik yamaları uygulanır; kullanıcılar önceden bilgilendirilir.',
   },
+
+  // ── Finansal KPI ve Analiz ────────────────────────────────────────────
+  {
+    title: 'Sağlıklı çek/ciro oranı ve likidite hedefleri',
+    category: 'finansal_kpi',
+    source: 'erp_finance_guide_tr_v1',
+    content:
+      'Sağlıklı bir işletmede vadeli çek tutarının aylık ciroya oranı %30\'u geçmemelidir. Vadesi 30 günden uzun gecikmiş çekler likit varlık kabul edilmez. Aylık nakit akışının en az 3 aylık gideri karşılaması önerilir. Vadesi 60 günü aşan çekler için hukuki takip başlatılmalıdır.',
+  },
+  {
+    title: 'Temel finansal oran analizi ve ERP takibi',
+    category: 'finansal_kpi',
+    source: 'erp_finance_guide_tr_v1',
+    content:
+      'Brüt kâr marjı = (Satış geliri - Satılan malın maliyeti) / Satış geliri. Hedef brüt marj sektöre göre değişir; elektronik için %15-25, gıda için %20-35 tipiktir. Ay sonu envanter değeri ile başlangıç değerinin karşılaştırılması stok devir hızını verir. Stok devir hızı düşükse aşırı stok veya talep düşüşü sinyali olabilir.',
+  },
+  {
+    title: 'Aylık gelir tahmin ve sapma analizi',
+    category: 'finansal_kpi',
+    source: 'erp_finance_guide_tr_v1',
+    content:
+      'Aylık gelir hedefinden ±%10 sapma normal kabul edilir. ±%20 sapma yönetim dikkatini gerektiren alarm seviyesidir. Sapma tespitinde geçen yılın aynı ayı ve önceki 3 ay ortalaması referans alınır. Mevsimsel etkiler (tatil dönemleri, ekonomik konjonktür) normalizasyon hesaplamasında dikkate alınmalıdır.',
+  },
+
+  // ── Müşteri Segmentasyonu ─────────────────────────────────────────────
+  {
+    title: 'ABC müşteri segmentasyonu kriterleri',
+    category: 'müşteri_yönetimi',
+    source: 'erp_customer_guide_tr_v1',
+    content:
+      'A segmenti: yıllık 100.000 TL ve üzeri alışveriş, öncelikli hizmet, özel fiyatlandırma. B segmenti: 30.000-100.000 TL arası alışveriş, standart hizmet. C segmenti: 30.000 TL altı alışveriş, otomatik süreçler. Her segmentin iletişim sıklığı farklıdır: A için haftalık, B için aylık, C için üç aylık takip önerilir.',
+  },
+  {
+    title: 'Müşteri churn (kayıp) risk uyarı kriterleri',
+    category: 'müşteri_yönetimi',
+    source: 'erp_customer_guide_tr_v1',
+    content:
+      'Son 3 ayda sipariş vermemiş müşteriler churn riski taşır. Son 6 ayda sipariş vermeyen müşteriler pasif kabul edilir. Risk uyarı kriterleri: sipariş sıklığında %50 düşüş, ortalama sipariş tutarında %30 düşüş, veya son 2 faturada ödeme gecikmesi. Bu durumlarda proaktif müşteri iletişimi başlatılmalıdır.',
+  },
+
+  // ── Stok Optimizasyonu ────────────────────────────────────────────────
+  {
+    title: 'EOQ (Ekonomik sipariş miktarı) ve güvenlik stoğu hesabı',
+    category: 'stok_yönetimi',
+    source: 'erp_inventory_guide_tr_v1',
+    content:
+      'Güvenlik stoğu = Günlük ortalama tüketim × Tedarik süresi (gün) × Güvenlik katsayısı (genellikle 1.5). Kritik ürünler için minimum stok seviyesi güvenlik stoğunun 2 katı olarak belirlenir. EOQ formülü: √(2 × Yıllık talep × Sipariş maliyeti / Elde tutma maliyeti). Aylık satış hızının 2 katı stok bulundurmak genel kural olarak önerilir.',
+  },
+  {
+    title: 'Sezonluk stok planlaması ve kampanya öncesi hazırlık',
+    category: 'stok_yönetimi',
+    source: 'erp_inventory_guide_tr_v1',
+    content:
+      'Yoğun satış dönemlerinden (yılbaşı, okullar açılışı, bayramlar) 6-8 hafta önce kritik ürünlerde stok 2-3 katına çıkarılmalıdır. Geçen yılın aynı dönem satış verileri baz alınarak %20 büyüme payı hesaplanır. Tedarikçi teslim süresi mevsimsel dönemlerde uzayabilir, bu nedenle sipariş 2 hafta öne alınmalıdır.',
+  },
+
+  // ── Satış Politikaları ────────────────────────────────────────────────
+  {
+    title: 'İskonto yetki seviyeleri ve onay prosedürü',
+    category: 'satış_politikaları',
+    source: 'erp_sales_guide_tr_v1',
+    content:
+      'Satış temsilcisi (kullanıcı rolü): %5\'e kadar iskonto bağımsız uygulayabilir. Satış müdürü (yönetici rolü): %5-15 arası iskonto için onay verebilir. Genel müdür/admin: %15 ve üzeri iskontolar için onay gerektirir. Toplu alımlar (20+ adet) için ayrıca %5 ek indirim politikası mevcuttur. Tüm iskontolar faturaya yansıtılır ve raporlanır.',
+  },
+  {
+    title: 'Kredi limiti ve ödeme vadesi yönetimi',
+    category: 'satış_politikaları',
+    source: 'erp_sales_guide_tr_v1',
+    content:
+      'Yeni müşteriler ilk 3 ayda peşin ödeme ile çalışır. 3 ay düzenli alışveriş sonrası Net 30 vade açılabilir. Kredi limiti başlangıçta aylık ortalama alışverişin 2 katı olarak belirlenir. Vadesi geçmiş borçlar varken yeni vadeli sipariş alınmaz. Limit artışları için son 6 ay ödeme sicili temiz olmalı ve yönetici onayı gerekir.',
+  },
+
+  // ── Tedarikçi Yönetimi ────────────────────────────────────────────────
+  {
+    title: 'Tedarikçi değerlendirme kriterleri ve skor kartı',
+    category: 'tedarikçi_yönetimi',
+    source: 'erp_supplier_guide_tr_v1',
+    content:
+      'Tedarikçi skor kartı 5 boyutta değerlendirilir: (1) Zamanında teslimat oranı (%35 ağırlık), (2) Ürün kalitesi/fire oranı (%25), (3) Fiyat rekabetçiliği (%20), (4) İletişim/yanıt süresi (%10), (5) Belgeler ve uyumluluk (%10). 100 puan üzerinden 80+ puan alan tedarikçiler tercihli, 60-79 arası standart, 60 altı değerlendirme listesine alınır.',
+  },
+  {
+    title: 'Alternatif tedarikçi ve tedarik zinciri risk yönetimi',
+    category: 'tedarikçi_yönetimi',
+    source: 'erp_supplier_guide_tr_v1',
+    content:
+      'Kritik ürünler için en az 2 alternatif tedarikçi tanımlanmalıdır. Tek tedarikçiye bağımlılık oranı %60\'ı geçmemelidir. Tedarikçi değişikliği kararı: fiyat farkı %15 veya üzerinde ise veya son 6 ayda 3\'ten fazla gecikmiş teslimat durumunda gündeme gelir. Tedarikçi geçiş süreci minimum 30 gündür.',
+  },
 ];
 
 async function generateEmbedding(text) {

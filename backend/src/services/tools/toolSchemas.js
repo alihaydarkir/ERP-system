@@ -315,6 +315,18 @@ function sanitizeToolArgs(toolName, args = {}) {
         invoice_identifier: cleanString(input.invoice_identifier, { max: 80, field: 'invoice_identifier' }),
         status: cleanEnum(input.status, INVOICE_STATUS, 'status')
       };
+    case 'get_customer_detail':
+      return {
+        customer_name: cleanString(input.customer_name, { max: 120, field: 'customer_name' })
+      };
+    case 'get_debt_aging_report':
+      return {};
+    case 'get_monthly_comparison':
+      return {};
+    case 'recommend_reorder':
+      return {};
+    case 'get_payment_risk_assessment':
+      return {};
     default:
       return { ...input };
   }
@@ -737,6 +749,37 @@ const definitions = [
       },
       required: ['invoice_identifier', 'status']
     }
+  },
+  {
+    name: 'get_customer_detail',
+    description: 'Bir müşterinin 360° profili: tüm siparişleri, çekleri, borç durumu ve toplam harcaması. Müşteri analizi için kullan.',
+    parameters: {
+      type: 'object',
+      properties: {
+        customer_name: { type: 'string', description: 'Müşteri adı veya şirket adı' }
+      },
+      required: ['customer_name']
+    }
+  },
+  {
+    name: 'get_debt_aging_report',
+    description: 'Vadesi geçmiş çekleri yaş gruplarına ayırır: 0-30, 31-60, 61-90, 90+ gün. Borç yaşlandırma raporu.',
+    parameters: { type: 'object', properties: {} }
+  },
+  {
+    name: 'get_monthly_comparison',
+    description: 'Bu ayı geçen ayla karşılaştırır: sipariş sayısı, gelir, yeni müşteri. Trend analizi için kullan.',
+    parameters: { type: 'object', properties: {} }
+  },
+  {
+    name: 'recommend_reorder',
+    description: 'Kritik stoklu ürünleri tespit eder ve satış hızına göre sipariş miktarı önerir. Stok planlama için kullan.',
+    parameters: { type: 'object', properties: {} }
+  },
+  {
+    name: 'get_payment_risk_assessment',
+    description: 'Ödeme riski yüksek müşterileri listeler: gecikmiş çek sayısı, toplam borç, risk seviyesi (Yüksek/Orta/Düşük).',
+    parameters: { type: 'object', properties: {} }
   }
 ];
 

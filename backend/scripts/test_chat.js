@@ -14,6 +14,7 @@
  *   node scripts/test_chat.js --only=typos         → yazım hataları
  *   node scripts/test_chat.js --only=boundary      → sınır değer testleri
  *   node scripts/test_chat.js --only=ratelimit     → rate limit testi
+ *   node scripts/test_chat.js --only=demo         → sunum demo senaryoları
  *   node scripts/test_chat.js --msg="vadesi geçen çekler" → tek mesaj
  *   node scripts/test_chat.js --interactive        → serbest sohbet modu
  */
@@ -116,6 +117,50 @@ const SCENARIOS = {
     { msg: 'fatura ekle',                            label: 'Varyant: fatura ekle (form yok)' },
     { msg: 'fatura oluştur',                         label: 'Varyant: fatura oluştur (form yok)' },
     { msg: 'faturayı öde',                           label: 'Varyant: fatura öde → set_invoice_status' },
+  ],
+
+  // ── Sunum Demo Senaryoları ──
+  demo: [
+    {
+      msg: 'Bu ayı geçen ayla karşılaştır: sipariş sayısı, gelir ve yeni müşteriler',
+      label: 'Demo: Aylık trend karşılaştırma',
+      mustContainAny: ['ay', 'sipariş', 'gelir', 'TL', '₺', 'artış', 'düşüş', 'geçen', 'bu ay']
+    },
+    {
+      msg: 'Ödeme riski yüksek müşterilerimi analiz et',
+      label: 'Demo: Ödeme risk analizi',
+      mustContainAny: ['risk', 'müşteri', 'gecikmiş', 'çek', 'TL', '₺', 'yüksek', 'orta', 'bulunamadı']
+    },
+    {
+      msg: 'Vadesi geçmiş çeklerimi yaş gruplarına göre raporla',
+      label: 'Demo: Borç yaşlandırma raporu',
+      mustContainAny: ['gün', 'toplam', 'TL', '₺', 'çek', 'bulunamadı', 'yok']
+    },
+    {
+      msg: 'Hangi ürünler için sipariş vermeliyim? Stok ve satış hızına göre analiz yap',
+      label: 'Demo: Akıllı reorder önerisi',
+      mustContainAny: ['ürün', 'stok', 'sipariş', 'öneri', 'kritik', 'bulunamadı', 'yok']
+    },
+    {
+      msg: 'Sistemin genel durumunu özetle: siparişler, stok uyarıları, vadesi geçmiş çekler, finansal durum',
+      label: 'Demo: Kapsamlı genel özet',
+      mustContainAny: ['sipariş', 'stok', 'çek', 'TL', '₺', 'müşteri']
+    },
+    {
+      msg: 'Bu ay finansal durumumuzu analiz et ve önerilerini paylaş',
+      label: 'Demo: Finansal analiz + öneri',
+      mustContainAny: ['TL', '₺', 'gelir', 'çek', 'fatura', 'ay']
+    },
+    {
+      msg: 'En iyi müşterilerim kimler ve bu ay ne kadar harcadılar',
+      label: 'Demo: VIP müşteri listesi',
+      mustContainAny: ['müşteri', 'TL', '₺', 'sipariş', 'harcama', 'bulunamadı']
+    },
+    {
+      msg: 'Stok kritik ürünleri göster ve en çok satan ürünleri listele',
+      label: 'Demo: Multi-tool stok analizi',
+      mustContainAny: ['ürün', 'stok', 'satış', 'kritik', 'bulunamadı']
+    },
   ],
 
   // ── Multi-tool sorgular ──

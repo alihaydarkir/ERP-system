@@ -202,7 +202,7 @@ const ChequeExcelImport = ({ onClose, onImportComplete }) => {
               <button
                 onClick={handleValidate}
                 disabled={isValidating}
-                className="flex-1 px-6 py-3 bg-yellow-50 dark:bg-yellow-900/200 text-white rounded-lg hover:bg-yellow-600 transition disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                className="flex-1 px-6 py-3 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition disabled:opacity-50 disabled:cursor-not-allowed font-medium"
               >
                 {isValidating ? 'Doğrulanıyor...' : '🔍 Önizleme & Doğrula'}
               </button>

@@ -154,7 +154,7 @@ export default function Layout({ children }) {
           </div>
 
           {/* User Profile Summary in Sidebar Bottom */}
-          <div className="p-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50/50 dark:bg-gray-900/30 backdrop-blur-sm">
+          <div className="p-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/60 backdrop-blur-sm">
             <div className={`flex items-center ${sidebarOpen ? 'justify-between' : 'justify-center'}`}>
                {sidebarOpen ? (
                  <div className="flex items-center space-x-3 overflow-hidden">
@@ -188,7 +188,7 @@ export default function Layout({ children }) {
       <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${sidebarOpen ? 'pl-72' : 'pl-20'}`}>
         
         {/* Top Header */}
-        <header className="sticky top-0 z-40 bg-white dark:bg-gray-800/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-700/50 dark:border-gray-700/50 shadow-sm h-16 transition-colors duration-300">
+        <header className="sticky top-0 z-40 bg-white dark:bg-gray-900/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-700/50 shadow-sm h-16 transition-colors duration-300">
           <div className="h-full px-8 flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 tracking-tight">
@@ -235,7 +235,7 @@ export default function Layout({ children }) {
         </header>
 
         {/* Content */}
-        <main className="flex-1 p-8 overflow-x-hidden overflow-y-auto bg-gray-50 dark:bg-gray-800/50/50 dark:bg-gray-900 scroll-smooth">
+        <main className="flex-1 p-8 overflow-x-hidden overflow-y-auto bg-gray-50 dark:bg-gray-900 scroll-smooth">
           <div className="max-w-7xl mx-auto animate-fade-in space-y-6">
              {children}
           </div>
