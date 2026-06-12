@@ -233,6 +233,16 @@ const register = async (req, res) => {
 
     // For approved users, continue with normal flow
 
+    // Customer rolü: customers tablosuna otomatik kayıt oluştur
+    if (userRole === 'customer' && company_id) {
+      await pool.query(
+        `INSERT INTO customers (full_name, email, company_id, user_id, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, NOW(), NOW())
+         ON CONFLICT DO NOTHING`,
+        [username, email, company_id, user.id]
+      );
+    }
+
     // Log activity
     await AuditLog.create({
       user_id: user.id,

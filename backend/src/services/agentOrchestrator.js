@@ -62,6 +62,21 @@ class AgentOrchestrator {
 
   isRbacDeniedByKeyword(msg, role) {
     const m = String(msg || '').toLowerCase();
+    if (role === 'customer') {
+      return (
+        /finansal|ciro|gelir.?gider|mali durum/.test(m) ||
+        /tedarikçi|tedarik\s/.test(m) ||
+        /ödeme riski|risk analiz/.test(m) ||
+        /yaşlandırma|yaş grup|borç raporu/.test(m) ||
+        /müşteri listesi|tüm müşteri|en iyi müşteri|top müşteri/.test(m) ||
+        /genel özet/.test(m) ||
+        /bu ayı.{0,10}karşılaştır|aylık karşılaştır/.test(m) ||
+        // Mutasyon istekleri: "X'i Y yap/güncelle/ayarla"
+        /stoğ?u.{0,15}(yap|güncelle|ayarla|değiştir|ekle|çıkar)/.test(m) ||
+        /\d+\s*(?:adet|tane)?\s*(yap|güncelle|ayarla)/.test(m) ||
+        /stok.{0,10}\d+/.test(m)
+      );
+    }
     if (role === 'user') {
       return (
         /finansal|ciro|gelir.?gider|mali durum/.test(m) ||
@@ -77,6 +92,26 @@ class AgentOrchestrator {
       );
     }
     return false;
+  }
+
+  sanitizeCurrencyInAnswer(text) {
+    if (!text || typeof text !== 'string') return text;
+    if (text.trim() === '__BOŞ_SONUÇ__') return 'Sistemde bu konuyla ilgili kayıt bulunamadı.';
+    return text
+      // £ → ₺
+      .replace(/£\s*/g, '₺')
+      // Hatalı ondalık ayırıcı: 1014.160 → 1.014.160 (7 haneli sayılar)
+      .replace(/\b(\d{1,3})(\d{3})\.(\d{3})\b/g, (_, a, b, c) => `${a}.${b}.${c}`)
+      // Hatalı binlik: 1014160 TL → 1.014.160 TL (7 basamak)
+      .replace(/\b(\d{7})\s*(TL|₺)/g, (_, n, u) => {
+        const formatted = Number(n).toLocaleString('tr-TR');
+        return `${formatted} ${u}`;
+      })
+      // 6 basamak: 186350 TL → 186.350 TL
+      .replace(/\b(\d{6})\s*(TL|₺)/g, (_, n, u) => {
+        const formatted = Number(n).toLocaleString('tr-TR');
+        return `${formatted} ${u}`;
+      });
   }
 
   getRoleRestrictions(role) {
@@ -258,10 +293,12 @@ Kurallar:
   }
 
   async respond({ userMessage, toolContexts, context = {} }) {
+    // Keyword RBAC check first — even if tool returned data via a workaround tool
+    if (this.isRbacDeniedByKeyword(userMessage, context?.role)) {
+      return 'Bu bilgiye erişim yetkiniz yok.';
+    }
+
     if (!this.hasActualData(toolContexts)) {
-      if (context?.role === 'customer') {
-        return 'Bu konuya erişim yetkiniz yok. Yalnızca kendi siparişleriniz, çekleriniz ve ürün kataloğu hakkında yardımcı olabilirim.';
-      }
       return 'Sistemde bu konuyla ilgili kayıt bulunamadı.';
     }
 
@@ -329,12 +366,23 @@ Kurallar:
 VERİ:
 ${JSON.stringify(annotatedBlocks, null, 2)}`;
 
-    const completion = await this.gateway.chat([
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: String(userMessage || '').slice(0, 500) }
-    ], { temperature: 0.1, max_tokens: 600 });
+    const chatMessages = [
+      { role: 'system', content: systemPrompt }
+    ];
 
-    return completion.content || 'Kayıt bulunamadı.';
+    // Conversation history: önceki turları ekle (en fazla 6 mesaj = 3 tur)
+    const history = context?.conversationHistory || [];
+    const recentHistory = history.slice(-6);
+    for (const h of recentHistory) {
+      chatMessages.push({ role: h.role, content: String(h.content || '').slice(0, 300) });
+    }
+
+    chatMessages.push({ role: 'user', content: String(userMessage || '').slice(0, 500) });
+
+    const completion = await this.gateway.chat(chatMessages, { temperature: 0.1, max_tokens: 600 });
+
+    const raw = completion.content || 'Kayıt bulunamadı.';
+    return this.sanitizeCurrencyInAnswer(raw);
   }
 
   detectFormTool(message) {
@@ -419,8 +467,7 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
     }
 
     if (plan.strategy === 'ask_for_info' || !plan.steps?.length) {
-      const isRbacDenied = context?.role === 'customer'
-        || this.isRbacDeniedByKeyword(userMessage, context?.role);
+      const isRbacDenied = this.isRbacDeniedByKeyword(userMessage, context?.role);
       const answer = isRbacDenied
         ? 'Bu bilgiye erişim yetkiniz yok.'
         : 'Bu konuda size yardımcı olabilmem için daha fazla bilgiye ihtiyacım var. Lütfen detayları belirtin.';

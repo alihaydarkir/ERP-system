@@ -34,6 +34,10 @@ class AIService {
     }
     this.pendingMutations = new Map();
     this.userRateCounters = new Map();
+    // Conversation history: user_id → [{ role, content, ts }]
+    this.conversationHistories = new Map();
+    this.maxHistoryTurns = 6; // 3 soru-cevap turu
+    this.historyTtlMs = 30 * 60 * 1000; // 30 dakika hareketsizlikte sil
     this.mutationKeywords = [
       'oluştur', 'yarat', 'güncelle', 'düzenle', 'değiştir', 'iptal et', 'kapat',
       'tamamla', 'onayla', 'gönder', 'ödendi', 'stok düş', 'stok ekle',
@@ -1165,9 +1169,17 @@ class AIService {
 
     const toolsToRun = this.detectTools(sanitizedUserMessage);
     const secureContext = this.buildSecureToolExecutionContext(context);
+
+    // Conversation history yükle ve temizle (TTL)
+    // role dahil edilir — farklı roller arasında history karışmasın
+    const historyKey = `${company_id}:${user_id}:${role}`;
+    const now = Date.now();
+    let history = this.conversationHistories.get(historyKey) || [];
+    history = history.filter(h => (now - h.ts) < this.historyTtlMs);
+
     const orchestrated = await this.orchestrator.run({
       userMessage: sanitizedUserMessage,
-      context: secureContext,
+      context: { ...secureContext, conversationHistory: history },
       fallbackTools: toolsToRun,
       hasMutationPermission: async ({ user_id: requestedByUserId, role: requestedByRole, toolName }) => {
         return this.hasMutationPermission({
@@ -1219,9 +1231,20 @@ class AIService {
       return step;
     });
 
+    const finalAnswer = filterAIOutput(orchestrated.answer);
+
+    // Conversation history güncelle
+    if (finalAnswer && !orchestrated.meta?.ask_for_info && !orchestrated.meta?.rbac_denied) {
+      history.push({ role: 'user',      content: sanitizedUserMessage, ts: now });
+      history.push({ role: 'assistant', content: finalAnswer.slice(0, 400), ts: now });
+      // Son maxHistoryTurns * 2 mesajı sakla
+      const trimmed = history.slice(-(this.maxHistoryTurns * 2));
+      this.conversationHistories.set(historyKey, trimmed);
+    }
+
     return {
       success: true,
-      answer: filterAIOutput(orchestrated.answer),
+      answer: finalAnswer,
       steps: wrappedSteps,
       meta: {
         ...(orchestrated.meta || {}),

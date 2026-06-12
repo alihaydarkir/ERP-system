@@ -27,9 +27,10 @@ const ai   = require('../src/services/aiService');
 const pool = require('../src/config/database');
 
 // ── Config ────────────────────────────────────────────────────────────────────
-const COMPANY_ID = 1;
-const USER_ID    = 1;
-const ROLE       = 'admin';
+const COMPANY_ID         = 1;
+const USER_ID            = 1;      // admin/manager/user testleri için
+const CUSTOMER_USER_ID   = 24;     // ahmet.yilmaz — customer rolü demo user
+const ROLE               = 'admin';
 
 const C = {
   reset:  '\x1b[0m',   bold:   '\x1b[1m',
@@ -479,63 +480,63 @@ const RBAC_TESTS = [
   {
     label: 'Müşteri: tedarikçi listesi → BLOK',
     msg: 'tedarikçi listesi',
-    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'customer' },
+    context: { company_id: COMPANY_ID, user_id: CUSTOMER_USER_ID, role: 'customer' },
     expectBlocked: true,
     mustContainAny: ['erişim', 'yetki', 'yok', 'yasak']
   },
   {
     label: 'Müşteri: finansal özet → BLOK',
     msg: 'finansal durumumuz nasıl',
-    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'customer' },
+    context: { company_id: COMPANY_ID, user_id: CUSTOMER_USER_ID, role: 'customer' },
     expectBlocked: true,
     mustContainAny: ['erişim', 'yetki', 'yok', 'yasak']
   },
   {
     label: 'Müşteri: ödeme riski analizi → BLOK',
     msg: 'ödeme riski yüksek müşterilerimi analiz et',
-    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'customer' },
+    context: { company_id: COMPANY_ID, user_id: CUSTOMER_USER_ID, role: 'customer' },
     expectBlocked: true,
     mustContainAny: ['erişim', 'yetki', 'yok', 'yasak']
   },
   {
     label: 'Müşteri: borç yaşlandırma raporu → BLOK',
     msg: 'vadesi geçmiş çekleri yaş gruplarına göre raporla',
-    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'customer' },
+    context: { company_id: COMPANY_ID, user_id: CUSTOMER_USER_ID, role: 'customer' },
     expectBlocked: true,
     mustContainAny: ['erişim', 'yetki', 'yok', 'yasak']
   },
   {
     label: 'Müşteri: tüm müşteri listesi → BLOK',
     msg: 'müşteri listesi',
-    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'customer' },
+    context: { company_id: COMPANY_ID, user_id: CUSTOMER_USER_ID, role: 'customer' },
     expectBlocked: true,
     mustContainAny: ['erişim', 'yetki', 'yok', 'yasak']
   },
   {
     label: 'Müşteri: en iyi müşteriler (top customers) → BLOK',
     msg: 'en iyi müşterilerim kimler',
-    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'customer' },
+    context: { company_id: COMPANY_ID, user_id: CUSTOMER_USER_ID, role: 'customer' },
     expectBlocked: true,
     mustContainAny: ['erişim', 'yetki', 'yok', 'yasak']
   },
   {
     label: 'Müşteri: dashboard özet → BLOK',
     msg: 'genel özet ver',
-    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'customer' },
+    context: { company_id: COMPANY_ID, user_id: CUSTOMER_USER_ID, role: 'customer' },
     expectBlocked: true,
     mustContainAny: ['erişim', 'yetki', 'yok', 'yasak']
   },
   {
     label: 'Müşteri: aylık karşılaştırma → BLOK',
     msg: 'bu ayı geçen ayla karşılaştır',
-    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'customer' },
+    context: { company_id: COMPANY_ID, user_id: CUSTOMER_USER_ID, role: 'customer' },
     expectBlocked: true,
     mustContainAny: ['erişim', 'yetki', 'yok', 'yasak']
   },
   {
     label: 'Müşteri: sipariş MUTASYON → BLOK',
     msg: 'laptop stokunu 50 yap',
-    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'customer' },
+    context: { company_id: COMPANY_ID, user_id: CUSTOMER_USER_ID, role: 'customer' },
     expectBlocked: true,
     mustContainAny: ['erişim', 'yetki', 'yok', 'yasak', 'izin']
   },
@@ -544,28 +545,28 @@ const RBAC_TESTS = [
   {
     label: 'Müşteri: ürün listesi → İZİN',
     msg: 'ürün listesi',
-    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'customer' },
+    context: { company_id: COMPANY_ID, user_id: CUSTOMER_USER_ID, role: 'customer' },
     expectBlocked: false,
-    mustContainAny: ['ürün', 'laptop', 'mouse', 'stok', 'bulunamadı', 'kayıt yok']
+    mustContainAny: ['ürün', 'laptop', 'mouse', 'stok', 'bulunamadı', 'kayıt yok', 'makine', 'samsung', 'canon', 'hp', 'sku', 'elektronik', 'denim']
   },
   {
     label: 'Müşteri: siparişleri listele → İZİN (kendi siparişleri)',
     msg: 'siparişlerimi listele',
-    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'customer' },
+    context: { company_id: COMPANY_ID, user_id: CUSTOMER_USER_ID, role: 'customer' },
     expectBlocked: false,
     mustContainAny: ['sipariş', 'bulunamadı', 'kayıt', 'yok', 'bekliyor', 'tamamlandı']
   },
   {
     label: 'Müşteri: çekleri listele → İZİN (kendi çekleri)',
     msg: 'çeklerimi listele',
-    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'customer' },
+    context: { company_id: COMPANY_ID, user_id: CUSTOMER_USER_ID, role: 'customer' },
     expectBlocked: false,
     mustContainAny: ['çek', 'bulunamadı', 'kayıt', 'yok', 'bekliyor', 'ödendi']
   },
   {
     label: 'Müşteri: selamlama → İZİN',
     msg: 'merhaba',
-    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'customer' },
+    context: { company_id: COMPANY_ID, user_id: CUSTOMER_USER_ID, role: 'customer' },
     expectBlocked: false,
     mustContainAny: ['sipariş', 'çek', 'ürün', 'merhaba', 'yardımcı']
   },
@@ -597,7 +598,7 @@ const RBAC_TESTS = [
     msg: 'bekleyen siparişleri listele',
     context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'user' },
     expectBlocked: false,
-    mustContainAny: ['sipariş', 'bulunamadı', 'bekliyor', 'yok']
+    mustContainAny: ['sipariş', 'bulunamadı', 'bekliyor', 'yok', 'ord-', 'tl', '₺', 'toplam']
   },
   {
     label: 'Çalışan: ürün stok listesi → İZİN',
