@@ -81,7 +81,7 @@ const clearAuthCookies = (res) => {
 };
 
 const signAccessToken = (user) => jwt.sign(
-  { userId: user.id, username: user.username, role: user.role, company_id: user.company_id },
+  { jti: crypto.randomBytes(16).toString('hex'), userId: user.id, username: user.username, role: user.role, company_id: user.company_id },
   config.jwt.secret,
   { expiresIn: config.jwt.expiresIn }
 );
@@ -307,8 +307,9 @@ const login = async (req, res) => {
 
     const attemptCount = parseInt(failedAttempts.rows[0]?.count || 0);
 
-    // 5'ten fazla başarısız deneme varsa engelle
-    if (attemptCount >= 5) {
+    // Üretimde 5, geliştirmede 50 başarısız denemede engelle
+    const maxAttempts = config.nodeEnv === 'production' ? 5 : 50;
+    if (attemptCount >= maxAttempts) {
       console.warn(`⚠️ Too many failed login attempts from IP: ${clientIp}`);
       return res.status(429).json(formatError('Çok fazla başarısız giriş denemesi. Lütfen 15 dakika sonra tekrar deneyin.'));
     }

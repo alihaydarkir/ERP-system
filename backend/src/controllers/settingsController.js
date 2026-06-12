@@ -161,11 +161,11 @@ const testEmail = async (req, res) => {
 
     // Send test email
     const info = await transporter.sendMail({
-      from: `"${fromName?.value || 'ERP System'}" <${fromAddress.value}>`,
+      from: `"${fromName?.value || 'Helix-Ware ERP Pro'}" <${fromAddress.value}>`,
       to: to || req.user.email,
-      subject: 'ERP System - Test Email',
-      text: 'This is a test email from your ERP system. Email configuration is working correctly!',
-      html: '<h2>ERP System Test Email</h2><p>This is a test email from your ERP system.</p><p><strong>Email configuration is working correctly!</strong></p>'
+      subject: 'Helix-Ware ERP Pro - Test Email',
+      text: 'This is a test email from Helix-Ware ERP Pro. Email configuration is working correctly!',
+      html: '<h2>Helix-Ware ERP Pro Test Email</h2><p>This is a test email from Helix-Ware ERP Pro.</p><p><strong>Email configuration is working correctly!</strong></p>'
     });
 
     // Log the action

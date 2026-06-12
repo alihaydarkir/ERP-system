@@ -60,7 +60,11 @@ const getAllSuppliers = async (req, res) => {
 const getSupplierById = async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await db.query('SELECT * FROM suppliers WHERE id = $1', [id]);
+    const numId = parseInt(id, 10);
+    if (isNaN(numId) || numId <= 0 || String(numId) !== id) {
+      return res.status(400).json({ success: false, message: 'Geçersiz ID formatı' });
+    }
+    const result = await db.query('SELECT *, supplier_name AS name FROM suppliers WHERE id = $1', [id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Tedarikçi bulunamadı' });

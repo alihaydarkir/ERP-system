@@ -81,6 +81,10 @@ const getChequeById = async (req, res) => {
   try {
     const { id } = req.params;
     const companyId = req.user.company_id;
+    const numId = parseInt(id, 10);
+    if (isNaN(numId) || numId <= 0 || String(numId) !== id) {
+      return res.status(400).json({ success: false, message: 'Geçersiz ID formatı' });
+    }
 
     const cheque = await Cheque.findById(id, companyId);
 

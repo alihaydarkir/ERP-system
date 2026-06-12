@@ -10,7 +10,7 @@ const options = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'ERP System API',
+      title: 'Helix-Ware ERP Pro API',
       version: '2.0.0',
       description: `
 ## Kimlik Doğrulama

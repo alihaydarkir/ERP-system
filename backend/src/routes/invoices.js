@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth');
+const validateId = require('../middleware/validateId');
 const { logActivity, requirePermission } = require('../middleware/permissions');
 const { validate } = require('../validators/validate');
 const { createInvoiceSchema, updateInvoiceStatusSchema } = require('../validators/invoiceValidator');
@@ -178,8 +179,8 @@ router.post('/', authMiddleware, requirePermission('invoices.create'), validate(
  *       404:
  *         description: Fatura bulunamadı
  */
-router.get('/:id',    authMiddleware, requirePermission('invoices.view'), getInvoiceById);
-router.put('/:id',    authMiddleware, requirePermission('invoices.edit'), logActivity('update_invoice', 'invoices'), updateInvoice);
+router.get('/:id',    authMiddleware, validateId, requirePermission('invoices.view'), getInvoiceById);
+router.put('/:id',    authMiddleware, validateId, requirePermission('invoices.edit'), logActivity('update_invoice', 'invoices'), updateInvoice);
 
 /**
  * @swagger
@@ -216,8 +217,8 @@ router.put('/:id',    authMiddleware, requirePermission('invoices.edit'), logAct
  *       404:
  *         description: Fatura bulunamadı
  */
-router.patch('/:id/status', authMiddleware, requirePermission('invoices.edit'), validate(updateInvoiceStatusSchema), logActivity('update_invoice_status', 'invoices'), updateInvoice);
-router.delete('/:id', authMiddleware, requirePermission('invoices.delete'), logActivity('delete_invoice', 'invoices'), deleteInvoice);
+router.patch('/:id/status', authMiddleware, validateId, requirePermission('invoices.edit'), validate(updateInvoiceStatusSchema), logActivity('update_invoice_status', 'invoices'), updateInvoice);
+router.delete('/:id', authMiddleware, validateId, requirePermission('invoices.delete'), logActivity('delete_invoice', 'invoices'), deleteInvoice);
 
 module.exports = router;
 

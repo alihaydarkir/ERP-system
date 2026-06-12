@@ -190,15 +190,15 @@ class EmailService {
 
   static async sendWelcomeEmail(user) {
     const html = `
-      <h1>ERP Sistemine Hoş Geldiniz!</h1>
+      <h1>Helix-Ware ERP Pro'ya Hoş Geldiniz!</h1>
       <p>Merhaba ${user.username},</p>
       <p>Kayıt olduğunuz için teşekkür ederiz. Hesabınız başarıyla oluşturulmuştur.</p>
       <p>Şimdi sisteme giriş yapabilir ve kullanmaya başlayabilirsiniz.</p>
       <br>
-      <p>Saygılarımızla,<br>ERP Ekibi</p>
+      <p>Saygılarımızla,<br>Helix-Ware ERP Pro Ekibi</p>
     `;
 
-    return this.sendEmail(user.email, 'ERP Sistemine Hoş Geldiniz', html);
+    return this.sendEmail(user.email, 'Helix-Ware ERP Pro\'ya Hoş Geldiniz', html);
   }
 
   static async sendPasswordResetEmail(emailOrUser, resetUrlOrToken) {

@@ -43,8 +43,12 @@ const getInvoiceById = async (req, res) => {
   try {
     const { id } = req.params;
     const { company_id } = req.user;
+    const numId = parseInt(id, 10);
+    if (isNaN(numId) || numId <= 0 || String(numId) !== id) {
+      return res.status(400).json(formatError('Geçersiz ID formatı'));
+    }
 
-    const invoice = await Invoice.findById(parseInt(id), company_id);
+    const invoice = await Invoice.findById(numId, company_id);
     if (!invoice) {
       return res.status(404).json(formatError('Fatura bulunamadı'));
     }

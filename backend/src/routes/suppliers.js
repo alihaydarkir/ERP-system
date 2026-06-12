@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth');
+const validateId = require('../middleware/validateId');
 const { requirePermission } = require('../middleware/permissions');
 const { validate, supplierSchemas, querySchemas } = require('../utils/validators');
 const {
@@ -111,7 +112,7 @@ router.get(
  *       404:
  *         description: Tedarikçi bulunamadı
  */
-router.get('/:id', authMiddleware, requirePermission('suppliers.view'), getSupplierById);
+router.get('/:id', authMiddleware, validateId, requirePermission('suppliers.view'), getSupplierById);
 
 /**
  * @route   POST /api/suppliers
@@ -200,6 +201,7 @@ router.post(
 router.put(
   '/:id',
   authMiddleware,
+  validateId,
   requirePermission('suppliers.edit'),
   validate(supplierSchemas.update),
   updateSupplier
@@ -234,6 +236,6 @@ router.put(
  *       404:
  *         description: Tedarikçi bulunamadı
  */
-router.delete('/:id', authMiddleware, requirePermission('suppliers.delete'), deleteSupplier);
+router.delete('/:id', authMiddleware, validateId, requirePermission('suppliers.delete'), deleteSupplier);
 
 module.exports = router;

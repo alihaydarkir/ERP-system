@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
+const validateId = require('../middleware/validateId');
 const { upload, handleUploadError } = require('../middleware/fileUpload');
 const { requirePermission, requireAnyPermission, logActivity } = require('../middleware/permissions');
 const { validate } = require('../validators/validate');
@@ -126,7 +127,7 @@ router.get('/', requirePermission('cheques.view'), getAllCheques);
  *       404:
  *         description: Çek bulunamadı
  */
-router.get('/:id', requirePermission('cheques.view'), getChequeById);
+router.get('/:id', validateId, requirePermission('cheques.view'), getChequeById);
 
 /**
  * @swagger
@@ -164,8 +165,8 @@ router.get('/:id', requirePermission('cheques.view'), getChequeById);
  *         description: Kayıt bulunamadı
  */
 router.post('/', requirePermission('cheques.create'), validate(createChequeSchema), logActivity('create_cheque', 'cheques'), createCheque);
-router.put('/:id', requirePermission('cheques.edit'), logActivity('update_cheque', 'cheques'), updateCheque);
-router.put('/:id/status', requireAnyPermission(['cheques.change_status', 'cheques.edit']), validate(updateChequeStatusSchema), logActivity('change_cheque_status', 'cheques'), changeChequeStatus);
+router.put('/:id', validateId, requirePermission('cheques.edit'), logActivity('update_cheque', 'cheques'), updateCheque);
+router.put('/:id/status', validateId, requireAnyPermission(['cheques.change_status', 'cheques.edit']), validate(updateChequeStatusSchema), logActivity('change_cheque_status', 'cheques'), changeChequeStatus);
 
 /**
  * @swagger
@@ -201,7 +202,7 @@ router.put('/:id/status', requireAnyPermission(['cheques.change_status', 'cheque
  *       404:
  *         description: Çek bulunamadı
  */
-router.patch('/:id/status', requireAnyPermission(['cheques.change_status', 'cheques.edit']), validate(updateChequeStatusSchema), logActivity('change_cheque_status', 'cheques'), changeChequeStatus);
-router.delete('/:id', requirePermission('cheques.delete'), logActivity('delete_cheque', 'cheques'), deleteCheque);
+router.patch('/:id/status', validateId, requireAnyPermission(['cheques.change_status', 'cheques.edit']), validate(updateChequeStatusSchema), logActivity('change_cheque_status', 'cheques'), changeChequeStatus);
+router.delete('/:id', validateId, requirePermission('cheques.delete'), logActivity('delete_cheque', 'cheques'), deleteCheque);
 
 module.exports = router;

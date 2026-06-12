@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth');
+const validateId = require('../middleware/validateId');
 const { requirePermission, requireAnyPermission, logActivity } = require('../middleware/permissions');
 const { validate, orderSchemas, querySchemas } = require('../utils/validators');
 const {
@@ -61,7 +62,7 @@ router.get('/', authMiddleware, requirePermission('orders.view'),
  *           application/json:
  *             schema: { $ref: '#/components/schemas/SuccessResponse' }
  */
-router.get('/:id', authMiddleware, requirePermission('orders.view'), getOrderById);
+router.get('/:id', authMiddleware, validateId, requirePermission('orders.view'), getOrderById);
 
 /**
  * @openapi
@@ -132,14 +133,14 @@ router.post('/', authMiddleware, requirePermission('orders.create'),
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
-router.patch('/:id/status', authMiddleware, requireAnyPermission(['orders.complete', 'orders.edit']),
+router.patch('/:id/status', authMiddleware, validateId, requireAnyPermission(['orders.complete', 'orders.edit']),
   validate(orderSchemas.updateStatus), logActivity('update_order_status', 'orders'), updateOrderStatus);
 
-router.put('/:id', authMiddleware, requirePermission('orders.edit'),
+router.put('/:id', authMiddleware, validateId, requirePermission('orders.edit'),
   validate(orderSchemas.update), logActivity('update_order', 'orders'), updateOrder);
-router.post('/:id/cancel', authMiddleware, requireAnyPermission(['orders.cancel', 'orders.edit']),
+router.post('/:id/cancel', authMiddleware, validateId, requireAnyPermission(['orders.cancel', 'orders.edit']),
   validate(orderSchemas.cancel), logActivity('cancel_order', 'orders'), cancelOrder);
-router.delete('/:id', authMiddleware, requirePermission('orders.delete'),
+router.delete('/:id', authMiddleware, validateId, requirePermission('orders.delete'),
   logActivity('delete_order', 'orders'), deleteOrder);
 
 module.exports = router;

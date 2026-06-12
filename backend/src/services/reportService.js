@@ -380,8 +380,8 @@ class ReportService {
         SELECT
           category,
           COUNT(*) as product_count,
-          SUM(stock) as total_stock,
-          SUM(stock * price) as inventory_value,
+          SUM(stock_quantity) as total_stock,
+          SUM(stock_quantity * price) as inventory_value,
           AVG(price) as avg_price
         FROM products
         WHERE 1=1
@@ -403,8 +403,8 @@ class ReportService {
       let totalQuery = `
         SELECT
           COUNT(*) as total_products,
-          SUM(stock) as total_stock,
-          SUM(stock * price) as total_value
+          SUM(stock_quantity) as total_stock,
+          SUM(stock_quantity * price) as total_value
         FROM products
         WHERE 1=1
       `;

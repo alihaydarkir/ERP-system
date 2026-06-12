@@ -54,6 +54,10 @@ const getOrderById = async (req, res) => {
   try {
     const { id } = req.params;
     const { company_id } = req.user; // MULTI-TENANCY
+    const numId = parseInt(id, 10);
+    if (isNaN(numId) || numId <= 0 || String(numId) !== id) {
+      return res.status(400).json({ success: false, message: 'Geçersiz ID formatı' });
+    }
 
     const order = await Order.findById(id, company_id); // MULTI-TENANCY
 
@@ -161,6 +165,9 @@ const createOrder = async (req, res) => {
 
   } catch (error) {
     console.error('Create order error:', error);
+    if (error.message && error.message.startsWith('Insufficient stock')) {
+      return res.status(422).json(formatError(error.message));
+    }
     res.status(500).json(formatError(error.message || 'Failed to create order'));
   }
 };

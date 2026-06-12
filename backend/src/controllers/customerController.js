@@ -45,6 +45,10 @@ const getCustomerById = async (req, res) => {
   try {
     const { id } = req.params;
     const { company_id } = req.user;
+    const numId = parseInt(id, 10);
+    if (isNaN(numId) || numId <= 0 || String(numId) !== id) {
+      return res.status(400).json({ success: false, message: 'Geçersiz ID formatı' });
+    }
 
     const customer = await Customer.findById(id, company_id);
 

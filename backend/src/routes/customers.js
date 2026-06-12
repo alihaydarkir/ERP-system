@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth');
+const validateId = require('../middleware/validateId');
 const { requirePermission } = require('../middleware/permissions');
 const { upload, handleUploadError } = require('../middleware/fileUpload');
 const { validate, customerSchemas, querySchemas } = require('../utils/validators');
@@ -85,7 +86,7 @@ router.get('/', authMiddleware, requirePermission('customers.view'), validate(qu
  *       404:
  *         description: Müşteri bulunamadı
  */
-router.get('/:id', authMiddleware, requirePermission('customers.view'), getCustomerById);
+router.get('/:id', authMiddleware, validateId, requirePermission('customers.view'), getCustomerById);
 
 /**
  * @swagger
@@ -155,7 +156,7 @@ router.post('/', authMiddleware, requirePermission('customers.create'), validate
  *       404:
  *         description: Müşteri bulunamadı
  */
-router.put('/:id', authMiddleware, requirePermission('customers.edit'), validate(customerSchemas.update), updateCustomer);
+router.put('/:id', authMiddleware, validateId, requirePermission('customers.edit'), validate(customerSchemas.update), updateCustomer);
 
 /**
  * @swagger
@@ -181,6 +182,6 @@ router.put('/:id', authMiddleware, requirePermission('customers.edit'), validate
  *       404:
  *         description: Müşteri bulunamadı
  */
-router.delete('/:id', authMiddleware, requirePermission('customers.delete'), deleteCustomer);
+router.delete('/:id', authMiddleware, validateId, requirePermission('customers.delete'), deleteCustomer);
 
 module.exports = router;

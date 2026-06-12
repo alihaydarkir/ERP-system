@@ -76,6 +76,9 @@ const ipAccessControl = async (req, res, next) => {
  * Şüpheli aktivite tespiti
  */
 const detectSuspiciousActivity = async (req, res, next) => {
+  // Test/geliştirme ortamında aktivite tabanlı engelleme devre dışı
+  if (config.nodeEnv !== 'production') return next();
+
   try {
     const clientIp = getClientIp(req);
     

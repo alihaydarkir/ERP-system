@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth');
+const validateId = require('../middleware/validateId');
 const { requirePermission, logActivity } = require('../middleware/permissions');
 const { validate, productSchemas, querySchemas } = require('../utils/validators');
 const {
@@ -65,7 +66,7 @@ router.get('/', authMiddleware, requirePermission('products.view'),
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
-router.get('/:id', authMiddleware, requirePermission('products.view'), getProductById);
+router.get('/:id', authMiddleware, validateId, requirePermission('products.view'), getProductById);
 
 /**
  * @openapi
@@ -137,9 +138,9 @@ router.post('/', authMiddleware, requirePermission('products.create'),
  *           application/json:
  *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  */
-router.put('/:id', authMiddleware, requirePermission('products.edit'),
+router.put('/:id', authMiddleware, validateId, requirePermission('products.edit'),
   validate(productSchemas.update), logActivity('update_product', 'products'), updateProduct);
-router.delete('/:id', authMiddleware, requirePermission('products.delete'),
+router.delete('/:id', authMiddleware, validateId, requirePermission('products.delete'),
   logActivity('delete_product', 'products'), deleteProduct);
 
 module.exports = router;

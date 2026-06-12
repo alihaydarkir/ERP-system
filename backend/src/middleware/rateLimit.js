@@ -124,14 +124,14 @@ const createRateLimiter = ({
 const generalApiLimiter = createRateLimiter({
   prefix: 'api-general',
   windowMs: 15 * 60 * 1000,
-  max: config.nodeEnv === 'production' ? 100 : 1000,
+  max: config.nodeEnv === 'production' ? 100 : 5000,
   messageBuilder: () => 'Çok fazla istek gönderildi. Lütfen daha sonra tekrar deneyin.'
 });
 
 const authLoginLimiter = createRateLimiter({
   prefix: 'auth-login',
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: config.nodeEnv === 'production' ? 10 : 500,
   messageBuilder: ({ retryAfterSeconds }) => {
     const minutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
     return `Çok fazla deneme. ${minutes} dakika sonra tekrar deneyin.`;

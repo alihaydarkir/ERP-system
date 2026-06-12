@@ -28,8 +28,8 @@ export default function OnboardingModal({ isOpen, onComplete }) {
         <div className="p-6 min-h-[300px]">
           {step === 1 && (
             <div className="space-y-4">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">ErpFinaly'e Hoş Geldiniz!</h2>
-              <p className="text-gray-600 dark:text-gray-300">ERP sisteminizle tüm operasyonları tek yerden yönetin:</p>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Helix-Ware ERP Pro'ya Hoş Geldiniz!</h2>
+              <p className="text-gray-600 dark:text-gray-300">Helix-Ware ERP Pro ile tüm operasyonları tek yerden yönetin:</p>
               <ul className="list-disc pl-6 space-y-2 text-gray-700 dark:text-gray-200">
                 <li>Sipariş yönetimi ve durum takibi</li>
                 <li>Stok takibi ve düşük stok uyarıları</li>

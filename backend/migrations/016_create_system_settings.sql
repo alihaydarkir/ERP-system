@@ -31,7 +31,7 @@ INSERT INTO system_settings (key, value, type, category, description) VALUES
 ('emailSmtpUsername', '', 'string', 'email', 'SMTP username'),
 ('emailSmtpPassword', '', 'string', 'email', 'SMTP password (encrypted)'),
 ('emailFromAddress', '', 'string', 'email', 'From email address'),
-('emailFromName', 'ERP System', 'string', 'email', 'From name'),
+('emailFromName', 'Helix-Ware ERP Pro', 'string', 'email', 'From name'),
 
 -- Stock Settings
 ('stockGlobalThreshold', '10', 'number', 'stock', 'Global low stock threshold'),

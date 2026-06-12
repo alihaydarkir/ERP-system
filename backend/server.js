@@ -253,7 +253,7 @@ app.get('/api/capabilities', async (req, res) => {
   try { aiHealth = await aiService.checkHealth(); } catch (err) { aiHealth = { available: false, error: err.message }; }
 
   res.json({
-    name: 'ERP System API',
+    name: 'Helix-Ware ERP Pro API',
     version: '2.0.0',
     openapi_spec: '/api/openapi.json',
     docs_ui:      '/api/docs',

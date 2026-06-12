@@ -6,7 +6,7 @@ import { authService } from '../services/authService';
 import Button from '../components/UI/Button';
 import Input from '../components/UI/Input';
 import { hasValidationErrors, validateLoginForm } from '../utils/validators/authValidators';
-import { Mail, Lock, ArrowRight, UserCheck, LayoutDashboard } from 'lucide-react';
+import { Mail, Lock, ArrowRight, UserCheck } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -60,11 +60,11 @@ export default function LoginPage() {
         
         <div className='relative z-10 text-center px-12'>
           <div className='mb-8 flex justify-center'>
-             <div className='w-24 h-24 bg-white dark:bg-gray-800/10 backdrop-blur-md rounded-2xl flex items-center justify-center shadow-xl border border-white/20'>
-                <LayoutDashboard size={48} className='text-white' />
+             <div className='w-24 h-24 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center shadow-xl border border-white/20 p-3'>
+                <img src='/logo.svg' alt='Helix-Ware ERP Pro Logo' className='w-full h-full object-contain drop-shadow-lg' />
              </div>
           </div>
-          <h2 className='text-4xl font-bold text-white mb-6'>ERP Sistemine Hoş Geldiniz</h2>
+          <h2 className='text-4xl font-bold text-white mb-6'>Helix-Ware ERP Pro'ya Hoş Geldiniz</h2>
           <p className='text-primary-100 text-lg leading-relaxed max-w-md mx-auto'>
             İş süreçlerinizi yönetmenin en akıllı yolu. Stok, sipariş, finans ve daha fazlası tek bir platformda.
           </p>
@@ -79,10 +79,10 @@ export default function LoginPage() {
         <div className='mx-auto w-full max-w-sm lg:max-w-md'>
           {/* Mobil Logo */}
           <div className='lg:hidden text-center mb-10'>
-             <div className='inline-flex w-16 h-16 bg-primary-600 rounded-xl items-center justify-center shadow-lg mb-4'>
-                <LayoutDashboard size={32} className='text-white' />
+             <div className='inline-flex w-16 h-16 bg-primary-600 rounded-xl items-center justify-center shadow-lg mb-4 p-2'>
+                <img src='/logo.svg' alt='Helix-Ware ERP Pro Logo' className='w-full h-full object-contain' />
              </div>
-             <h2 className='text-2xl font-bold text-gray-900 dark:text-white'>ERP Sistem</h2>
+             <h2 className='text-2xl font-bold text-gray-900 dark:text-white'>Helix-Ware ERP Pro</h2>
           </div>
 
           <div className='text-left mb-10'>

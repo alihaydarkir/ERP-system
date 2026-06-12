@@ -11,7 +11,7 @@ export default function EmailSettings() {
     emailSmtpUsername: '',
     emailSmtpPassword: '',
     emailFromAddress: '',
-    emailFromName: 'ERP System'
+    emailFromName: 'Helix-Ware ERP Pro'
   });
   const [testEmailAddress, setTestEmailAddress] = useState('');
 
@@ -23,7 +23,7 @@ export default function EmailSettings() {
         emailSmtpUsername: settings.email.emailSmtpUsername || '',
         emailSmtpPassword: settings.email.emailSmtpPassword || '',
         emailFromAddress: settings.email.emailFromAddress || '',
-        emailFromName: settings.email.emailFromName || 'ERP System'
+        emailFromName: settings.email.emailFromName || 'Helix-Ware ERP Pro'
       });
     }
   }, [settings.email]);
@@ -141,7 +141,7 @@ export default function EmailSettings() {
           value={formData.emailFromName}
           onChange={handleChange}
           className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-          placeholder="ERP System"
+          placeholder="Helix-Ware ERP Pro"
         />
       </div>
 

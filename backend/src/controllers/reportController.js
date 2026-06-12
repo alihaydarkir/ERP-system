@@ -204,15 +204,17 @@ const exportReport = async (req, res) => {
     const { type = 'sales', format = 'json', start_date, end_date } = req.query;
     const { company_id } = req.user; // MULTI-TENANCY
 
+    // Tarih parametreleri yoksa son 30 günü varsayılan al
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
+    const startDate = start_date ? new Date(start_date) : thirtyDaysAgo;
+    const endDate   = end_date   ? new Date(end_date)   : now;
+
     let reportData;
 
     switch (type) {
       case 'sales':
-        reportData = await reportService.getSalesReport(
-          new Date(start_date),
-          new Date(end_date),
-          company_id
-        );
+        reportData = await reportService.getSalesReport(startDate, endDate, company_id);
         break;
 
       case 'inventory':

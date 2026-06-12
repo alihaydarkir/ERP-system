@@ -13,7 +13,7 @@ const CHAT_STORAGE_KEY = 'erp_chat_history';
 const INITIAL_MESSAGE = {
   id: 1,
   type: 'ai',
-  text: 'Merhaba! Ben ERP sisteminizin AI asistanıyım. 🤖\n\nÇeklerinizi, siparişlerinizi, müşterilerinizi ve finansal verilerinizi analiz edebilirim. Ne öğrenmek istersiniz?',
+  text: 'Merhaba! Ben Helix-Ware ERP Pro\'nun AI asistanıyım. 🤖\n\nÇeklerinizi, siparişlerinizi, müşterilerinizi ve finansal verilerinizi analiz edebilirim. Ne öğrenmek istersiniz?',
   timestamp: new Date(),
   steps: []
 };

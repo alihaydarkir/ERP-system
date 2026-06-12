@@ -1,10 +1,18 @@
 const Joi = require('joi');
 
 const createChequeSchema = Joi.object({
-  check_serial_no: Joi.string().required(),
-  amount: Joi.number().min(0.01).required(),
-  due_date: Joi.date().required(),
-  customer_id: Joi.number().integer().required()
+  check_serial_no:     Joi.string().required(),
+  check_issuer:        Joi.string().required(),
+  customer_id:         Joi.number().integer().required(),
+  bank_name:           Joi.string().required(),
+  received_date:       Joi.date().required(),
+  due_date:            Joi.date().required(),
+  amount:              Joi.number().min(0.01).required(),
+  currency:            Joi.string().valid('TRY', 'USD', 'EUR', 'GBP').default('TRY'),
+  status:              Joi.string().optional(),
+  collateral_bank:     Joi.string().optional(),
+  given_to_customer_id: Joi.number().integer().optional(),
+  notes:               Joi.string().optional().allow(''),
 });
 
 const updateChequeStatusSchema = Joi.object({
