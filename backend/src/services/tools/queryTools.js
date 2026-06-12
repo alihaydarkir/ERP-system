@@ -16,15 +16,26 @@ const queryTools = {
     return result.rows[0];
   },
 
-  async search_cheques({ status, limit = 10, company_id }) {
+  async search_cheques({ status, limit = 10, company_id, role, user_id }) {
     const values = [company_id];
-    let statusClause = '';
+    const clauses = [];
+
+    if (role === 'customer') {
+      const custR = await pool.query(
+        `SELECT id FROM customers WHERE user_id = $1 AND company_id = $2 LIMIT 1`,
+        [user_id, company_id]
+      );
+      if (!custR.rows[0]) return [];
+      values.push(custR.rows[0].id);
+      clauses.push(`ch.customer_id = $${values.length}`);
+    }
 
     if (status) {
       values.push(status);
-      statusClause = `AND ch.status = $${values.length}`;
+      clauses.push(`ch.status = $${values.length}`);
     }
 
+    const where = clauses.length ? 'AND ' + clauses.join(' AND ') : '';
     values.push(Math.min(limit, 50));
     const result = await pool.query(`
       SELECT
@@ -41,7 +52,7 @@ const queryTools = {
         (ch.due_date - CURRENT_DATE) AS days_until_due
       FROM cheques ch
       LEFT JOIN customers c ON ch.customer_id = c.id
-      WHERE ch.company_id = $1 ${statusClause}
+      WHERE ch.company_id = $1 ${where}
       ORDER BY ch.due_date ASC
       LIMIT $${values.length}
     `, values);
@@ -158,13 +169,26 @@ const queryTools = {
     return { ...result.rows[0], period };
   },
 
-  async get_orders_list({ status, limit = 15, company_id }) {
+  async get_orders_list({ status, limit = 15, company_id, role, user_id }) {
     const values = [company_id];
-    let statusClause = '';
+    const clauses = [];
+
+    if (role === 'customer') {
+      const custR = await pool.query(
+        `SELECT id FROM customers WHERE user_id = $1 AND company_id = $2 LIMIT 1`,
+        [user_id, company_id]
+      );
+      if (!custR.rows[0]) return { orders: [], count: 0 };
+      values.push(custR.rows[0].id);
+      clauses.push(`o.customer_id = $${values.length}`);
+    }
+
     if (status) {
       values.push(status);
-      statusClause = `AND o.status = $${values.length}`;
+      clauses.push(`o.status = $${values.length}`);
     }
+
+    const where = clauses.length ? 'AND ' + clauses.join(' AND ') : '';
     values.push(Math.min(limit, 50));
     const result = await pool.query(`
       SELECT
@@ -172,16 +196,27 @@ const queryTools = {
         c.full_name AS customer_name, c.company_name AS customer_company
       FROM orders o
       LEFT JOIN customers c ON o.customer_id = c.id
-      WHERE o.company_id = $1 ${statusClause}
+      WHERE o.company_id = $1 ${where}
       ORDER BY o.created_at DESC
       LIMIT $${values.length}
     `, values);
     return { orders: result.rows, count: result.rows.length };
   },
 
-  async search_orders({ search, status, limit = 10, company_id }) {
+  async search_orders({ search, status, limit = 10, company_id, role, user_id }) {
     const values = [company_id];
     const clauses = [];
+
+    if (role === 'customer') {
+      const custR = await pool.query(
+        `SELECT id FROM customers WHERE user_id = $1 AND company_id = $2 LIMIT 1`,
+        [user_id, company_id]
+      );
+      if (!custR.rows[0]) return { orders: [], count: 0 };
+      values.push(custR.rows[0].id);
+      clauses.push(`o.customer_id = $${values.length}`);
+    }
+
     if (status) { values.push(status); clauses.push(`o.status = $${values.length}`); }
     if (search) {
       values.push(`%${search}%`);
@@ -299,14 +334,26 @@ const queryTools = {
 
   // ── ANALİTİK ARAÇLAR ─────────────────────────────────────────────────────
 
-  async get_customer_detail({ customer_name, company_id }) {
-    const search = `%${customer_name || ''}%`;
-    const customerResult = await pool.query(`
-      SELECT id, full_name, company_name, phone_number, company_location
-      FROM customers
-      WHERE company_id = $1 AND (full_name ILIKE $2 OR company_name ILIKE $2)
-      LIMIT 1
-    `, [company_id, search]);
+  async get_customer_detail({ customer_name, company_id, role, user_id }) {
+    let customerResult;
+
+    if (role === 'customer') {
+      // Customer role can only view their own profile
+      customerResult = await pool.query(`
+        SELECT id, full_name, company_name, phone_number, company_location
+        FROM customers
+        WHERE company_id = $1 AND user_id = $2
+        LIMIT 1
+      `, [company_id, user_id]);
+    } else {
+      const search = `%${customer_name || ''}%`;
+      customerResult = await pool.query(`
+        SELECT id, full_name, company_name, phone_number, company_location
+        FROM customers
+        WHERE company_id = $1 AND (full_name ILIKE $2 OR company_name ILIKE $2)
+        LIMIT 1
+      `, [company_id, search]);
+    }
 
     if (customerResult.rows.length === 0) {
       return { found: false, customer_name };

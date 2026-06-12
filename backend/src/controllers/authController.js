@@ -132,7 +132,9 @@ const register = async (req, res) => {
     }
 
     let company_id = null;
-    let userRole = role;
+    // Only 'user' and 'customer' are self-assignable; privileged roles are set by the system
+    const selfAssignableRoles = ['user', 'customer'];
+    let userRole = selfAssignableRoles.includes(role) ? role : 'user';
 
     // Handle company selection
     if (companyAction === 'create') {

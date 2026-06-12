@@ -7,6 +7,7 @@ const {
   sanitizeToolArgs,
   validateToolArgs
 } = require('./toolSchemas');
+const { isToolAllowed } = require('./toolPermissionMatrix');
 
 const tools = {
   ...queryTools,
@@ -29,6 +30,11 @@ const tools = {
     const { valid, sanitizedArgs, error } = this.validateToolArgs(toolName, args || {});
     if (!valid) {
       throw new Error(`Geçersiz araç parametresi: ${error}`);
+    }
+
+    // Role-based access check for ALL tools (query + mutation)
+    if (!isToolAllowed(toolName, context.role, this.isMutationTool(toolName))) {
+      throw new Error(`Bu bilgiye erişim yetkiniz yok. (Rol: ${context.role || 'bilinmiyor'})`);
     }
 
     if (this.isMutationTool(toolName)) {

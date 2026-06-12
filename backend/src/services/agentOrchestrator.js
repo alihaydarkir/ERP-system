@@ -1,5 +1,6 @@
 const agentTools = require('./tools');
 const aiGateway = require('./aiGateway');
+const { isToolAllowed } = require('./tools/toolPermissionMatrix');
 
 class AgentOrchestrator {
   constructor(deps = {}) {
@@ -48,20 +49,29 @@ class AgentOrchestrator {
     };
   }
 
-  buildToolCatalog() {
+  buildToolCatalog(context = {}) {
+    const role = context.role;
     return (this.tools.definitions || [])
+      .filter((def) => {
+        const isMutation = this.tools.isMutationTool(def.name);
+        return isToolAllowed(def.name, role, isMutation);
+      })
       .map((def) => `- ${def.name} [${this.tools.isMutationTool(def.name) ? 'YAZMA/DEĞİŞİKLİK' : 'SADECE OKUMA'}]: ${def.description}`)
       .join('\n');
   }
 
-  async plan({ userMessage, fallbackTools = [] }) {
-    const toolNames = (this.tools.definitions || []).map(d => d.name).join(', ');
+  async plan({ userMessage, fallbackTools = [], context = {} }) {
+    const allowedDefs = (this.tools.definitions || []).filter((def) => {
+      const isMutation = this.tools.isMutationTool(def.name);
+      return isToolAllowed(def.name, context.role, isMutation);
+    });
+    const toolNames = allowedDefs.map(d => d.name).join(', ');
     const systemPrompt = `Sen bir ERP ajan planlayıcısısın.
 Sadece JSON döndür. Format:
 {"steps":[{"tool":"tool_name","args":{}}],"strategy":"short"}
 
 Kullanabileceğin araçlar (SADECE bu listedeki "tool_name" değerlerini kullan):
-${this.buildToolCatalog()}
+${this.buildToolCatalog(context)}
 
 GEÇERLİ ARAÇ İSİMLERİ (tam liste): ${toolNames}
 
@@ -209,9 +219,17 @@ Kurallar:
     return { consistent: hasData, notes: hasData ? [] : ['no_data'] };
   }
 
-  async respond({ userMessage, toolContexts }) {
+  async respond({ userMessage, toolContexts, context = {} }) {
     if (!this.hasActualData(toolContexts)) {
       return 'Sistemde bu konuyla ilgili kayıt bulunamadı.';
+    }
+
+    const role = context.role || 'user';
+    let roleContext = '';
+    if (role === 'customer') {
+      roleContext = '\n\n⚠️ KULLANICI MÜŞTERİ ROLÜNDEDIR. Yalnızca kendi siparişleri, çekleri ve ürün kataloğu erişilebilir. Tedarikçi bilgileri, finansal özet, diğer müşterilerin verileri veya şirket analitiği talep edilirse "Bu bilgiye erişim yetkiniz yok" şeklinde yanıt ver.';
+    } else if (role === 'user') {
+      roleContext = '\n\nKullanıcı standart çalışan rolündedir. Finansal özet, ödeme riski analizi ve borç yaşlandırma raporlarına erişimi yoktur.';
     }
 
     const dataBlocks = (toolContexts || []).map((item) => ({
@@ -235,7 +253,7 @@ Kurallar:
     });
 
     // Data in system role — never masked by PII filter, never corrupted
-    const systemPrompt = `Sen Türkçe konuşan bir ERP asistanısın. Aşağıdaki veriyi kullanarak kullanıcının sorusunu yanıtla.
+    const systemPrompt = `Sen Türkçe konuşan bir ERP asistanısın. Aşağıdaki veriyi kullanarak kullanıcının sorusunu yanıtla.${roleContext}
 
 Kurallar:
 - Sadece verilen veriyi kullan, kesinlikle uydurma yapma
@@ -308,9 +326,12 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
 
   async run({ userMessage, context, fallbackTools, hasMutationPermission, requestApproval }) {
     if (this.isGreeting(userMessage)) {
+      const greetingAnswer = context?.role === 'customer'
+        ? 'Merhaba! Siparişleriniz, çekleriniz ve ürün kataloğu hakkında yardımcı olabilirim. Ne öğrenmek istersiniz?'
+        : 'Merhaba! ERP sisteminizdeki ürünler, siparişler, müşteriler, çekler, tedarikçiler ve raporlar hakkında yardımcı olabilirim. Ne öğrenmek istersiniz?';
       return {
         success: true,
-        answer: 'Merhaba! ERP sisteminizdeki ürünler, siparişler, müşteriler, çekler, tedarikçiler ve raporlar hakkında yardımcı olabilirim. Ne öğrenmek istersiniz?',
+        answer: greetingAnswer,
         steps: [],
         meta: { greeting: true }
       };
@@ -327,7 +348,7 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
       };
     }
 
-    const plan = await this.plan({ userMessage, fallbackTools });
+    const plan = await this.plan({ userMessage, fallbackTools, context });
 
     if (plan.strategy === 'ask_for_info' || !plan.steps?.length) {
       return {
@@ -374,7 +395,8 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
     const verification = this.verify({ toolContexts: execution.toolContexts });
     const answer = await this.respond({
       userMessage,
-      toolContexts: execution.toolContexts
+      toolContexts: execution.toolContexts,
+      context
     });
 
     return {

@@ -66,6 +66,13 @@ export default function Layout({ children }) {
     '/settings': Settings
   };
 
+  const customerMenuItems = [
+    { path: '/products', label: 'Ürünler' },
+    { path: '/orders', label: 'Siparişlerim' },
+    { path: '/cheques', label: 'Çeklerim' },
+    { path: '/chat', label: 'AI Asistan' },
+  ];
+
   const baseMenuItems = [
     { path: '/dashboard', label: 'Dashboard' },
     { path: '/products', label: 'Ürünler' },
@@ -85,7 +92,9 @@ export default function Layout({ children }) {
     { path: '/settings', label: 'Ayarlar' }
   ];
 
-  const menuItems = user?.role === 'admin'
+  const menuItems = user?.role === 'customer'
+    ? customerMenuItems
+    : user?.role === 'admin' || user?.role === 'super_admin'
     ? [...baseMenuItems, ...adminMenuItems]
     : baseMenuItems;
 

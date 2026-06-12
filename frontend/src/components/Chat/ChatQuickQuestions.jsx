@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import useAuthStore from '../../store/authStore';
 
-const CATEGORIES = [
+const ALL_CATEGORIES = [
   {
     key: 'analiz',
     label: '🧠 Analiz',
+    roles: ['admin', 'super_admin', 'manager'],
     questions: [
       { icon: '📈', label: 'Bu ay vs geçen ay', text: 'Bu ayı geçen ayla karşılaştır: sipariş sayısı, gelir ve yeni müşteriler' },
       { icon: '⚠️', label: 'Risk analizi', text: 'Ödeme riski yüksek müşterilerimi analiz et' },
@@ -14,8 +16,9 @@ const CATEGORIES = [
   {
     key: 'finans',
     label: '💰 Finans',
+    roles: ['admin', 'super_admin', 'manager', 'user'],
     questions: [
-      { icon: '💰', label: 'Finansal özet', text: 'Bu ay finansal durumumu analiz et' },
+      { icon: '💰', label: 'Finansal özet', text: 'Bu ay finansal durumumu analiz et', roles: ['admin', 'super_admin', 'manager'] },
       { icon: '⚠️', label: 'Vadesi geçmiş çekler', text: 'Vadesi geçmiş çeklerimi göster ve toplam tutarını söyle' },
       { icon: '📋', label: 'Bekleyen çekler', text: 'Bekleyen çeklerimi listele' },
       { icon: '🧾', label: 'Fatura özeti', text: 'Fatura durumumu ve bekleyen faturaları göster' },
@@ -24,6 +27,7 @@ const CATEGORIES = [
   {
     key: 'stok',
     label: '📦 Stok',
+    roles: ['admin', 'super_admin', 'manager', 'user'],
     questions: [
       { icon: '🚨', label: 'Kritik stok + öneri', text: 'Kritik stoktaki ürünleri göster ve hangileri için sipariş önerirsin?' },
       { icon: '🔝', label: 'En çok satan', text: 'En çok satan ürünler hangileri?' },
@@ -34,6 +38,7 @@ const CATEGORIES = [
   {
     key: 'musteriler',
     label: '👥 Müşteriler',
+    roles: ['admin', 'super_admin', 'manager', 'user'],
     questions: [
       { icon: '⭐', label: 'En iyi müşteri', text: 'En iyi müşterilerim kimler? Gelire göre sırala' },
       { icon: '📊', label: 'Genel özet', text: 'Sistemin genel durumunu özetle: siparişler, müşteriler, stok uyarıları, vadesi geçmiş çekler' },
@@ -43,15 +48,60 @@ const CATEGORIES = [
   },
 ];
 
+// Müşteri portalı için özel kategoriler
+const CUSTOMER_CATEGORIES = [
+  {
+    key: 'siparislerim',
+    label: '🛒 Siparişlerim',
+    questions: [
+      { icon: '📋', label: 'Tüm siparişlerim', text: 'Siparişlerimi listele' },
+      { icon: '⏳', label: 'Bekleyen', text: 'Bekleyen siparişlerim var mı?' },
+      { icon: '✅', label: 'Tamamlanan', text: 'Tamamlanan siparişlerimi göster' },
+      { icon: '📊', label: 'Sipariş özeti', text: 'Sipariş geçmişimi özetle' },
+    ],
+  },
+  {
+    key: 'ceklerim',
+    label: '💳 Çeklerim',
+    questions: [
+      { icon: '📋', label: 'Tüm çeklerim', text: 'Çeklerimi listele' },
+      { icon: '⏳', label: 'Bekleyen çekler', text: 'Bekleyen çeklerim hangileri?' },
+      { icon: '✅', label: 'Ödenen çekler', text: 'Ödenmiş çeklerimi göster' },
+    ],
+  },
+  {
+    key: 'urunler',
+    label: '📦 Ürünler',
+    questions: [
+      { icon: '🔍', label: 'Ürün ara', text: 'Ürün kataloğunu göster' },
+      { icon: '🔝', label: 'Popüler ürünler', text: 'En popüler ürünler hangileri?' },
+    ],
+  },
+];
+
 export default function ChatQuickQuestions({ onSelect, disabled }) {
-  const [activeTab, setActiveTab] = useState('analiz');
-  const active = CATEGORIES.find(c => c.key === activeTab) || CATEGORIES[0];
+  const { user } = useAuthStore();
+  const role = user?.role || 'user';
+
+  const isCustomer = role === 'customer';
+  const categories = isCustomer
+    ? CUSTOMER_CATEGORIES
+    : ALL_CATEGORIES.filter(cat => !cat.roles || cat.roles.includes(role));
+
+  const [activeTab, setActiveTab] = useState(categories[0]?.key || '');
+  const active = categories.find(c => c.key === activeTab) || categories[0];
+
+  if (!active) return null;
+
+  const visibleQuestions = isCustomer
+    ? active.questions
+    : active.questions.filter(q => !q.roles || q.roles.includes(role));
 
   return (
     <div className="space-y-2">
       {/* Tab başlıkları */}
       <div className="flex gap-1 flex-wrap">
-        {CATEGORIES.map(cat => (
+        {categories.map(cat => (
           <button
             key={cat.key}
             onClick={() => setActiveTab(cat.key)}
@@ -68,7 +118,7 @@ export default function ChatQuickQuestions({ onSelect, disabled }) {
 
       {/* Soru butonları */}
       <div className="grid grid-cols-2 gap-2">
-        {active.questions.map((q, i) => (
+        {visibleQuestions.map((q, i) => (
           <button
             key={i}
             onClick={() => onSelect(q.text)}
