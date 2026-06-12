@@ -1,9 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import dashboardService from '../services/dashboardService';
+import { aiService } from '../services/aiService';
+import useAuthStore from '../store/authStore';
 import {
   TrendingUp, TrendingDown, Package, ShoppingCart,
   AlertTriangle, DollarSign, Clock, Users,
   RefreshCw, BarChart3, PieChart as PieIcon,
+  CreditCard, MessageSquare, CheckCircle, XCircle,
 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line,
@@ -75,13 +79,213 @@ function CustomTooltip({ active, payload, label }) {
   );
 }
 
+/* ─── Müşteri Dashboard ───────────────────────────────────────── */
+function CustomerDashboard() {
+  const { user } = useAuthStore();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await aiService.getCustomerDashboard();
+      setData(res);
+    } catch (err) {
+      console.error('Müşteri dashboard yüklenemedi:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const fmt  = (n) => Number(n || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtN = (n) => Number(n || 0).toLocaleString('tr-TR');
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('tr-TR') : '-';
+
+  const orders  = data?.orders  || {};
+  const cheques = data?.cheques || {};
+
+  const statusLabel = (s) => ({
+    pending: 'Bekliyor', completed: 'Tamamlandı', cancelled: 'İptal',
+    processing: 'İşlemde', confirmed: 'Onaylandı',
+  }[s] || s);
+
+  const statusColor = (s) => ({
+    pending:    'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
+    completed:  'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+    cancelled:  'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+    processing: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+    confirmed:  'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  }[s] || 'bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300');
+
+  const chequeStatusColor = (s) => ({
+    paid:    'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+    pending: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
+  }[s] || 'bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300');
+
+  return (
+    <div className="p-6 space-y-6">
+
+      {/* Hoşgeldin Banner */}
+      <div className="bg-gradient-to-r from-emerald-600 to-teal-700 rounded-2xl p-6 text-white flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">
+            Hoş geldiniz{data?.customer?.full_name ? `, ${data.customer.full_name}` : ''}!
+          </h1>
+          {data?.customer?.company_name && (
+            <p className="text-emerald-100 mt-1">{data.customer.company_name}</p>
+          )}
+          <p className="text-emerald-200 text-sm mt-1">Sipariş ve çeklerinizi buradan takip edebilirsiniz.</p>
+        </div>
+        <Link
+          to="/chat"
+          className="flex items-center gap-2 px-4 py-2.5 bg-white/20 hover:bg-white/30 border border-white/30 rounded-xl text-sm font-medium transition-all"
+        >
+          <MessageSquare size={16} />
+          AI Asistana Sor
+        </Link>
+      </div>
+
+      {/* KPI Kartları */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {loading ? (
+          [...Array(4)].map((_, i) => <Skeleton key={i} className="h-28" />)
+        ) : (
+          <>
+            <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl p-5 text-white shadow-md hover:shadow-emerald-500/30 hover:-translate-y-1 transition-all">
+              <div className="p-2 bg-white/20 rounded-lg w-fit mb-3"><ShoppingCart size={20} /></div>
+              <p className="text-white/70 text-xs">Toplam Sipariş</p>
+              <p className="text-2xl font-bold">{fmtN(orders.total)}</p>
+              <p className="text-white/60 text-xs mt-1">{fmtN(orders.pending)} bekliyor</p>
+            </div>
+            <div className="bg-gradient-to-br from-blue-500 to-blue-700 rounded-xl p-5 text-white shadow-md hover:shadow-blue-500/30 hover:-translate-y-1 transition-all">
+              <div className="p-2 bg-white/20 rounded-lg w-fit mb-3"><DollarSign size={20} /></div>
+              <p className="text-white/70 text-xs">Toplam Harcama</p>
+              <p className="text-2xl font-bold">₺{fmt(orders.total_spent)}</p>
+              <p className="text-white/60 text-xs mt-1">{fmtN(orders.completed)} tamamlandı</p>
+            </div>
+            <div className="bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl p-5 text-white shadow-md hover:shadow-amber-500/30 hover:-translate-y-1 transition-all">
+              <div className="p-2 bg-white/20 rounded-lg w-fit mb-3"><CreditCard size={20} /></div>
+              <p className="text-white/70 text-xs">Bekleyen Çek</p>
+              <p className="text-2xl font-bold">{fmtN(cheques.pending_count)}</p>
+              <p className="text-white/60 text-xs mt-1">₺{fmt(cheques.pending_amount)}</p>
+            </div>
+            <div className={`rounded-xl p-5 text-white shadow-md hover:-translate-y-1 transition-all ${Number(cheques.overdue_count) > 0 ? 'bg-gradient-to-br from-red-500 to-red-700 hover:shadow-red-500/30' : 'bg-gradient-to-br from-teal-500 to-teal-700 hover:shadow-teal-500/30'}`}>
+              <div className="p-2 bg-white/20 rounded-lg w-fit mb-3">
+                {Number(cheques.overdue_count) > 0 ? <AlertTriangle size={20} /> : <CheckCircle size={20} />}
+              </div>
+              <p className="text-white/70 text-xs">Vadesi Geçmiş</p>
+              <p className="text-2xl font-bold">{fmtN(cheques.overdue_count)}</p>
+              <p className="text-white/60 text-xs mt-1">
+                {Number(cheques.overdue_count) > 0 ? `₺${fmt(cheques.overdue_amount)} gecikmiş` : 'Gecikmiş çek yok'}
+              </p>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Alt bölüm */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        {/* Son Siparişler */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+              <Clock size={16} className="text-emerald-500" />
+              Son Siparişlerim
+            </h2>
+            <Link to="/orders" className="text-xs text-emerald-600 hover:text-emerald-700 font-medium">Tümünü gör →</Link>
+          </div>
+          {loading ? (
+            <div className="space-y-3">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
+          ) : data?.recentOrders?.length > 0 ? (
+            <div className="space-y-2">
+              {data.recentOrders.map(o => (
+                <div key={o.id} className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700 last:border-0">
+                  <div>
+                    <p className="text-sm font-medium text-gray-800 dark:text-gray-100">{o.order_number || `#${o.id}`}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{fmtDate(o.created_at)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">₺{fmt(o.total_amount)}</p>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${statusColor(o.status)}`}>{statusLabel(o.status)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-gray-400 text-sm py-8">Henüz sipariş yok</p>
+          )}
+        </div>
+
+        {/* Son Çekler */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+              <CreditCard size={16} className="text-amber-500" />
+              Son Çeklerim
+            </h2>
+            <Link to="/cheques" className="text-xs text-amber-600 hover:text-amber-700 font-medium">Tümünü gör →</Link>
+          </div>
+          {loading ? (
+            <div className="space-y-3">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
+          ) : data?.recentCheques?.length > 0 ? (
+            <div className="space-y-2">
+              {data.recentCheques.map(c => {
+                const isOverdue = c.status === 'pending' && Number(c.days_overdue) > 0;
+                return (
+                  <div key={c.id} className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700 last:border-0">
+                    <div>
+                      <p className="text-sm font-medium text-gray-800 dark:text-gray-100">{c.check_serial_no}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{c.bank_name} · Vade: {fmtDate(c.due_date)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">₺{fmt(c.amount)}</p>
+                      {isOverdue
+                        ? <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">{c.days_overdue} gün gecikmiş</span>
+                        : <span className={`text-xs px-2 py-0.5 rounded-full ${chequeStatusColor(c.status)}`}>{c.status === 'paid' ? 'Ödendi' : 'Bekliyor'}</span>
+                      }
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-center text-gray-400 text-sm py-8">Henüz çek yok</p>
+          )}
+        </div>
+      </div>
+
+      {/* AI Asistan Kartı */}
+      <div className="bg-gradient-to-r from-violet-600 to-purple-700 rounded-xl p-5 text-white flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <h3 className="font-semibold text-lg">AI Asistan</h3>
+          <p className="text-violet-200 text-sm">Siparişleriniz veya çekleriniz hakkında soru sorabilirsiniz.</p>
+        </div>
+        <Link
+          to="/chat"
+          className="flex items-center gap-2 px-5 py-2.5 bg-white text-violet-700 font-semibold rounded-xl hover:bg-violet-50 transition text-sm"
+        >
+          <MessageSquare size={16} />
+          Asistanı Aç
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Ana Sayfa ───────────────────────────────────────────────── */
 export default function DashboardPage() {
+  const { user } = useAuthStore();
+  const isCustomer = user?.role === 'customer';
+
   const [summary, setSummary] = useState(null);
   const [loading, setLoading]   = useState(true);
   const [lastUpdated, setLastUpdated] = useState(null);
 
   const load = useCallback(async () => {
+    if (isCustomer) return;
     setLoading(true);
     try {
       const res = await dashboardService.getSummary();
@@ -92,9 +296,11 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isCustomer]);
 
   useEffect(() => { load(); }, [load]);
+
+  if (isCustomer) return <CustomerDashboard />;
 
   const fmt  = (n) => Number(n || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtN = (n) => Number(n || 0).toLocaleString('tr-TR');

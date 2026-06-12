@@ -10,7 +10,8 @@ const {
 	getMyApprovals,
 	approveAIAction,
 	rejectAIAction,
-	executeTool
+	executeTool,
+	getCustomerDashboard
 } = require('../controllers/aiController');
 
 // Tüm AI endpoint'leri JWT auth gerektirir
@@ -21,5 +22,6 @@ router.get('/approvals/my', authMiddleware, getMyApprovals);
 router.post('/approvals/:id/approve', authMiddleware, aiMutationLimiter, approveAIAction);
 router.post('/approvals/:id/reject', authMiddleware, aiMutationLimiter, rejectAIAction);
 router.post('/execute-tool', authMiddleware, aiMutationLimiter, executeTool);
+router.get('/customer-dashboard', authMiddleware, getCustomerDashboard);
 
 module.exports = router;

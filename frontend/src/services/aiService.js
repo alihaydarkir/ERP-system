@@ -54,4 +54,12 @@ export const aiService = {
     const response = await api.get('/api/ai/models');
     return response.data;
   },
+
+  /**
+   * Müşteri rolüne özel dashboard özeti
+   */
+  getCustomerDashboard: async () => {
+    const response = await api.get('/api/ai/customer-dashboard');
+    return response.data?.data ?? response.data;
+  },
 };

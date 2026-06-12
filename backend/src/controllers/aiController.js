@@ -3,6 +3,7 @@ const aiApprovalService = require('../services/aiApprovalService');
 const { formatSuccess, formatError } = require('../utils/formatters');
 const { randomUUID } = require('crypto');
 const { notifyAIApprovalUpdated } = require('../websocket/notifier');
+const pool = require('../config/database');
 
 /**
  * POST /api/ai/chat
@@ -264,6 +265,87 @@ const executeTool = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/ai/customer-dashboard
+ * Müşteri rolüne özel dashboard özeti — kendi siparişleri ve çekleri
+ */
+const getCustomerDashboard = async (req, res) => {
+  const { userId, company_id } = req.user;
+
+  if (req.user.role !== 'customer') {
+    return res.status(403).json(formatError('Bu endpoint yalnızca müşteri hesapları içindir', null, 'FORBIDDEN'));
+  }
+
+  try {
+    // Kullanıcının müşteri kaydını bul
+    const custR = await pool.query(
+      `SELECT id, full_name, company_name FROM customers WHERE user_id = $1 AND company_id = $2 LIMIT 1`,
+      [userId, company_id]
+    );
+
+    if (!custR.rows[0]) {
+      return res.json(formatSuccess({
+        customer: null,
+        orders: { total: 0, pending: 0, completed: 0, cancelled: 0, total_spent: 0 },
+        cheques: { pending_count: 0, pending_amount: 0, overdue_count: 0, overdue_amount: 0 },
+        recentOrders: [],
+        recentCheques: []
+      }));
+    }
+
+    const customerId = custR.rows[0].id;
+    const customer = custR.rows[0];
+
+    const [orderStats, chequeStats, recentOrders, recentCheques] = await Promise.all([
+      pool.query(`
+        SELECT
+          COUNT(*)                                                                    AS total,
+          COUNT(CASE WHEN status = 'pending'   THEN 1 END)                           AS pending,
+          COUNT(CASE WHEN status = 'completed' THEN 1 END)                           AS completed,
+          COUNT(CASE WHEN status = 'cancelled' THEN 1 END)                           AS cancelled,
+          COALESCE(SUM(CASE WHEN status = 'completed' THEN total_amount ELSE 0 END), 0) AS total_spent
+        FROM orders
+        WHERE company_id = $1 AND customer_id = $2
+      `, [company_id, customerId]),
+
+      pool.query(`
+        SELECT
+          COUNT(CASE WHEN status = 'pending' THEN 1 END)                                           AS pending_count,
+          COALESCE(SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END), 0)                    AS pending_amount,
+          COUNT(CASE WHEN status = 'pending' AND due_date < CURRENT_DATE THEN 1 END)               AS overdue_count,
+          COALESCE(SUM(CASE WHEN status = 'pending' AND due_date < CURRENT_DATE THEN amount ELSE 0 END), 0) AS overdue_amount
+        FROM cheques
+        WHERE company_id = $1 AND customer_id = $2
+      `, [company_id, customerId]),
+
+      pool.query(`
+        SELECT id, order_number, status, total_amount, created_at
+        FROM orders
+        WHERE company_id = $1 AND customer_id = $2
+        ORDER BY created_at DESC LIMIT 5
+      `, [company_id, customerId]),
+
+      pool.query(`
+        SELECT id, check_serial_no, amount, due_date, status, bank_name,
+               (CURRENT_DATE - due_date::date) AS days_overdue
+        FROM cheques
+        WHERE company_id = $1 AND customer_id = $2
+        ORDER BY due_date ASC LIMIT 5
+      `, [company_id, customerId])
+    ]);
+
+    return res.json(formatSuccess({
+      customer,
+      orders: orderStats.rows[0],
+      cheques: chequeStats.rows[0],
+      recentOrders: recentOrders.rows,
+      recentCheques: recentCheques.rows
+    }));
+  } catch (error) {
+    return res.status(500).json(formatError(error.message, null, 'CUSTOMER_DASHBOARD_ERROR'));
+  }
+};
+
 module.exports = {
   agentChat,
   getHealth,
@@ -271,5 +353,6 @@ module.exports = {
   getMyApprovals,
   approveAIAction,
   rejectAIAction,
-  executeTool
+  executeTool,
+  getCustomerDashboard
 };
