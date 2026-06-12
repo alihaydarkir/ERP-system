@@ -14,7 +14,8 @@
  *   node scripts/test_chat.js --only=typos         → yazım hataları
  *   node scripts/test_chat.js --only=boundary      → sınır değer testleri
  *   node scripts/test_chat.js --only=ratelimit     → rate limit testi
- *   node scripts/test_chat.js --only=demo         → sunum demo senaryoları
+ *   node scripts/test_chat.js --only=demo          → sunum demo senaryoları
+ *   node scripts/test_chat.js --only=rbac          → rol bazlı erişim kontrolü testleri
  *   node scripts/test_chat.js --msg="vadesi geçen çekler" → tek mesaj
  *   node scripts/test_chat.js --interactive        → serbest sohbet modu
  */
@@ -406,6 +407,12 @@ async function runScenarios() {
     return;
   }
 
+  // rbac group ayrı çalışır (farklı context objesi per test)
+  if (only === 'all') {
+    await runRbacTests();
+    return;
+  }
+
   printSummary(totalPass, totalFail, failures);
 }
 
@@ -459,6 +466,278 @@ async function runConfirmationTests(failures = [], counts = { totalPass: 0, tota
   }
 
   printSummary(totalPass, totalFail, failures);
+}
+
+// ── RBAC (Rol Bazlı Erişim Kontrolü) Testleri ───────────────────────────────
+// Her test kendi context'ini (role) taşır; bazı istekler kasıtlı olarak
+// bloklanmalı (mustContainAny: ['erişim', 'yetki', 'yok', 'yasak']),
+// bazıları geçmeli (mustContainAny ile pozitif doğrulama).
+
+const RBAC_TESTS = [
+
+  // ── 1. MÜŞTERİ — YASAKLI ARAÇLAR ─────────────────────────────────────────
+  {
+    label: 'Müşteri: tedarikçi listesi → BLOK',
+    msg: 'tedarikçi listesi',
+    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'customer' },
+    expectBlocked: true,
+    mustContainAny: ['erişim', 'yetki', 'yok', 'yasak']
+  },
+  {
+    label: 'Müşteri: finansal özet → BLOK',
+    msg: 'finansal durumumuz nasıl',
+    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'customer' },
+    expectBlocked: true,
+    mustContainAny: ['erişim', 'yetki', 'yok', 'yasak']
+  },
+  {
+    label: 'Müşteri: ödeme riski analizi → BLOK',
+    msg: 'ödeme riski yüksek müşterilerimi analiz et',
+    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'customer' },
+    expectBlocked: true,
+    mustContainAny: ['erişim', 'yetki', 'yok', 'yasak']
+  },
+  {
+    label: 'Müşteri: borç yaşlandırma raporu → BLOK',
+    msg: 'vadesi geçmiş çekleri yaş gruplarına göre raporla',
+    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'customer' },
+    expectBlocked: true,
+    mustContainAny: ['erişim', 'yetki', 'yok', 'yasak']
+  },
+  {
+    label: 'Müşteri: tüm müşteri listesi → BLOK',
+    msg: 'müşteri listesi',
+    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'customer' },
+    expectBlocked: true,
+    mustContainAny: ['erişim', 'yetki', 'yok', 'yasak']
+  },
+  {
+    label: 'Müşteri: en iyi müşteriler (top customers) → BLOK',
+    msg: 'en iyi müşterilerim kimler',
+    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'customer' },
+    expectBlocked: true,
+    mustContainAny: ['erişim', 'yetki', 'yok', 'yasak']
+  },
+  {
+    label: 'Müşteri: dashboard özet → BLOK',
+    msg: 'genel özet ver',
+    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'customer' },
+    expectBlocked: true,
+    mustContainAny: ['erişim', 'yetki', 'yok', 'yasak']
+  },
+  {
+    label: 'Müşteri: aylık karşılaştırma → BLOK',
+    msg: 'bu ayı geçen ayla karşılaştır',
+    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'customer' },
+    expectBlocked: true,
+    mustContainAny: ['erişim', 'yetki', 'yok', 'yasak']
+  },
+  {
+    label: 'Müşteri: sipariş MUTASYON → BLOK',
+    msg: 'laptop stokunu 50 yap',
+    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'customer' },
+    expectBlocked: true,
+    mustContainAny: ['erişim', 'yetki', 'yok', 'yasak', 'izin']
+  },
+
+  // ── 2. MÜŞTERİ — İZİN VERİLEN ARAÇLAR ────────────────────────────────────
+  {
+    label: 'Müşteri: ürün listesi → İZİN',
+    msg: 'ürün listesi',
+    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'customer' },
+    expectBlocked: false,
+    mustContainAny: ['ürün', 'laptop', 'mouse', 'stok', 'bulunamadı', 'kayıt yok']
+  },
+  {
+    label: 'Müşteri: siparişleri listele → İZİN (kendi siparişleri)',
+    msg: 'siparişlerimi listele',
+    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'customer' },
+    expectBlocked: false,
+    mustContainAny: ['sipariş', 'bulunamadı', 'kayıt', 'yok', 'bekliyor', 'tamamlandı']
+  },
+  {
+    label: 'Müşteri: çekleri listele → İZİN (kendi çekleri)',
+    msg: 'çeklerimi listele',
+    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'customer' },
+    expectBlocked: false,
+    mustContainAny: ['çek', 'bulunamadı', 'kayıt', 'yok', 'bekliyor', 'ödendi']
+  },
+  {
+    label: 'Müşteri: selamlama → İZİN',
+    msg: 'merhaba',
+    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'customer' },
+    expectBlocked: false,
+    mustContainAny: ['sipariş', 'çek', 'ürün', 'merhaba', 'yardımcı']
+  },
+
+  // ── 3. ÇALIŞAN (user) — KISITLI ARAÇLAR ───────────────────────────────────
+  {
+    label: 'Çalışan: finansal özet → BLOK',
+    msg: 'finansal durumumuz nasıl',
+    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'user' },
+    expectBlocked: true,
+    mustContainAny: ['erişim', 'yetki', 'yok', 'yasak']
+  },
+  {
+    label: 'Çalışan: borç yaşlandırma RAPORU → BLOK',
+    msg: 'borç yaşlandırma analizi raporu',
+    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'user' },
+    expectBlocked: true,
+    mustContainAny: ['erişim', 'yetki', 'yok', 'yasak']
+  },
+  {
+    label: 'Çalışan: ödeme riski analizi raporu → BLOK',
+    msg: 'ödeme riski analizi yap',
+    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'user' },
+    expectBlocked: true,
+    mustContainAny: ['erişim', 'yetki', 'yok', 'yasak']
+  },
+  {
+    label: 'Çalışan: sipariş listesi → İZİN',
+    msg: 'bekleyen siparişleri listele',
+    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'user' },
+    expectBlocked: false,
+    mustContainAny: ['sipariş', 'bulunamadı', 'bekliyor', 'yok']
+  },
+  {
+    label: 'Çalışan: ürün stok listesi → İZİN',
+    msg: 'stok kritik ürünler hangileri',
+    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'user' },
+    expectBlocked: false,
+    mustContainAny: ['ürün', 'stok', 'bulunamadı', 'yok', 'laptop', 'kritik']
+  },
+
+  // ── 4. MANAGER — KISITLI ARAÇLAR ──────────────────────────────────────────
+  {
+    label: 'Manager: ödeme riski analizi → BLOK',
+    msg: 'ödeme riski yüksek müşteriler analizi',
+    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'manager' },
+    expectBlocked: true,
+    mustContainAny: ['erişim', 'yetki', 'yok', 'yasak']
+  },
+  {
+    label: 'Manager: en iyi müşteriler → BLOK',
+    msg: 'en iyi müşterilerim kimler',
+    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'manager' },
+    expectBlocked: true,
+    mustContainAny: ['erişim', 'yetki', 'yok', 'yasak']
+  },
+  {
+    label: 'Manager: finansal özet → İZİN',
+    msg: 'finansal durumumuz nasıl',
+    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'manager' },
+    expectBlocked: false,
+    mustContainAny: ['TL', '₺', 'gelir', 'çek', 'sipariş', 'bulunamadı']
+  },
+  {
+    label: 'Manager: tedarikçi listesi → İZİN',
+    msg: 'tedarikçileri listele',
+    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'manager' },
+    expectBlocked: false,
+    mustContainAny: ['tedarikçi', 'tedarik', 'bulunamadı', 'kayıt', 'yok', 'abc', 'gmbh', 'ltd']
+  },
+
+  // ── 5. ADMİN — TAM ERİŞİM ─────────────────────────────────────────────────
+  {
+    label: 'Admin: finansal özet → İZİN',
+    msg: 'finansal durumumuz nasıl',
+    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'admin' },
+    expectBlocked: false,
+    mustContainAny: ['TL', '₺', 'gelir', 'çek', 'sipariş', 'bulunamadı']
+  },
+  {
+    label: 'Admin: tedarikçi listesi → İZİN',
+    msg: 'tedarikçileri listele',
+    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'admin' },
+    expectBlocked: false,
+    mustContainAny: ['tedarikçi', 'tedarik', 'bulunamadı', 'kayıt', 'yok', 'abc', 'gmbh', 'ltd']
+  },
+  {
+    label: 'Admin: ödeme riski analizi → İZİN',
+    msg: 'ödeme riski yüksek müşteriler analizi',
+    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'admin' },
+    expectBlocked: false,
+    mustContainAny: ['risk', 'müşteri', 'çek', 'TL', '₺', 'bulunamadı', 'yılmaz', 'şahin', 'orta', 'yüksek', 'düşük']
+  },
+  {
+    label: 'Admin: borç yaşlandırma → İZİN',
+    msg: 'vadesi geçmiş çekleri yaş gruplarına göre raporla',
+    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'admin' },
+    expectBlocked: false,
+    mustContainAny: ['gün', 'çek', 'TL', '₺', 'toplam', 'bulunamadı']
+  },
+  {
+    label: 'Admin: en iyi müşteriler → İZİN',
+    msg: 'en iyi müşterilerim kimler',
+    context: { company_id: COMPANY_ID, user_id: USER_ID, role: 'admin' },
+    expectBlocked: false,
+    mustContainAny: ['müşteri', 'TL', '₺', 'sipariş', 'bulunamadı']
+  },
+];
+
+async function runRbacTests() {
+  console.log(`\n${C.bold}${C.cyan}━━━ RBAC — ROL BAZLI ERİŞİM KONTROLÜ (${RBAC_TESTS.length} test) ━━━${C.reset}`);
+  console.log(`${C.gray}   Rol hiyerarşisi: super_admin > admin > manager > user > customer${C.reset}`);
+  console.log(`${C.gray}   Beklenti:  [BLOK] = erişim reddedilmeli  |  [İZİN] = veri gelmeli${C.reset}\n`);
+
+  let pass = 0, fail = 0;
+  const failures = [];
+
+  // Rol gruplarına göre başlık bas
+  let lastRole = null;
+
+  for (const test of RBAC_TESTS) {
+    const role = test.context.role;
+    if (role !== lastRole) {
+      const roleLabels = {
+        customer: `${C.bold}${C.magenta}── MÜŞTERİ (customer) ──${C.reset}`,
+        user:     `${C.bold}${C.blue}── ÇALIŞAN (user) ──${C.reset}`,
+        manager:  `${C.bold}${C.yellow}── MANAGER ──${C.reset}`,
+        admin:    `${C.bold}${C.green}── ADMİN (admin) ──${C.reset}`,
+      };
+      console.log(`\n${roleLabels[role] || `── ${role.toUpperCase()} ──`}`);
+      lastRole = role;
+    }
+
+    const r = await sendMessage(test.msg, test.label, test.context);
+    const answer = String(r.result?.answer || '').toLowerCase();
+
+    // Blok beklentisi: yanıt "erişim/yetki/yok/yasak" içermeli
+    // İzin beklentisi: yanıt mustContainAny'den en az birini içermeli
+    const quality = checkQuality(r.result, test.mustContainAny || [], []);
+    const passed = !quality.failContain;
+
+    const icon = passed ? `${C.green}✅${C.reset}` : `${C.red}❌${C.reset}`;
+    const expectTag = test.expectBlocked
+      ? `${C.red}[BLOK]${C.reset}`
+      : `${C.green}[İZİN]${C.reset}`;
+
+    console.log(`\n${icon} ${expectTag} ${C.bold}${test.label}${C.reset}  ${C.gray}(${r.ms}ms)${C.reset}`);
+    console.log(`   ${C.cyan}Mesaj :${C.reset} ${test.msg}`);
+    console.log(`   ${C.cyan}Yanıt :${C.reset} ${String(r.result?.answer || '').slice(0, 180)}`);
+
+    if (!passed) {
+      console.log(`   ${C.yellow}⚠ BAŞARISIZ: beklenen [${test.mustContainAny.join(' | ')}] → yanıtta yok${C.reset}`);
+      fail++;
+      failures.push({ label: test.label, role, expectBlocked: test.expectBlocked });
+    } else {
+      pass++;
+    }
+  }
+
+  // Özet
+  console.log(`\n${C.bold}━━━ RBAC ÖZET ━━━${C.reset}`);
+  console.log(`  ${C.green}✅ Geçti : ${pass}${C.reset}`);
+  console.log(`  ${C.red}❌ Hata  : ${fail}${C.reset}`);
+  if (failures.length) {
+    console.log(`\n${C.red}${C.bold}Başarısız testler:${C.reset}`);
+    failures.forEach(f => {
+      const tag = f.expectBlocked ? '[BLOK bekleniyordu]' : '[İZİN bekleniyordu]';
+      console.log(`  • [${f.role}] ${f.label} ${tag}`);
+    });
+  } else {
+    console.log(`\n${C.green}${C.bold}🎉 Tüm RBAC testleri geçti!${C.reset}`);
+  }
 }
 
 // ── Rate limit testi ──────────────────────────────────────────────────────────
@@ -534,6 +813,12 @@ async function runInteractive() {
 
   if (only === 'ratelimit') {
     await runRateLimitTest();
+    await pool.end();
+    process.exit(0);
+  }
+
+  if (only === 'rbac') {
+    await runRbacTests();
     await pool.end();
     process.exit(0);
   }

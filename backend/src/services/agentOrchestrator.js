@@ -60,12 +60,50 @@ class AgentOrchestrator {
       .join('\n');
   }
 
+  isRbacDeniedByKeyword(msg, role) {
+    const m = String(msg || '').toLowerCase();
+    if (role === 'user') {
+      return (
+        /finansal|ciro|gelir.?gider|mali durum/.test(m) ||
+        /en iyi müşteri|top müşteri|en değerli müşteri/.test(m) ||
+        /ödeme riski|risk analiz|riskli müşteri/.test(m) ||
+        /yaşlandırma|borç raporu|borç analiz/.test(m)
+      );
+    }
+    if (role === 'manager') {
+      return (
+        /en iyi müşteri|top müşteri|en değerli müşteri/.test(m) ||
+        /ödeme riski|risk analiz|riskli müşteri/.test(m)
+      );
+    }
+    return false;
+  }
+
+  getRoleRestrictions(role) {
+    if (role === 'customer') {
+      return `\n\n⚠️ KULLANICI MÜŞTERİ ROLÜNDEDIR. Aşağıdaki konularda soru gelirse, başka araç DENEME, doğrudan {"steps":[],"strategy":"rbac_denied"} döndür:
+- Finansal özet, ciro, gelir-gider, genel şirket özeti, aylık/dönemsel karşılaştırma
+- Tedarikçi bilgileri veya listesi
+- Ödeme riski analizi veya risk değerlendirmesi
+- Borç yaşlandırma raporu
+- Başka müşteri listesi veya en iyi müşteriler sıralaması
+- Stok değiştirme, stok güncelleme, "X yap", "X olarak ayarla" gibi yazma/değiştirme istekleri
+- Sipariş durumu değiştirme, iptal etme, oluşturma gibi her türlü mutasyon
+Müşteri SADECE kendi siparişleri, çekleri ve ürün kataloğu hakkında OKUMA işlemi yapabilir.`;
+    }
+    if (role === 'user' || role === 'manager') {
+      return '';
+    }
+    return '';
+  }
+
   async plan({ userMessage, fallbackTools = [], context = {} }) {
     const allowedDefs = (this.tools.definitions || []).filter((def) => {
       const isMutation = this.tools.isMutationTool(def.name);
       return isToolAllowed(def.name, context.role, isMutation);
     });
     const toolNames = allowedDefs.map(d => d.name).join(', ');
+    const roleRestrictions = this.getRoleRestrictions(context.role);
     const systemPrompt = `Sen bir ERP ajan planlayıcısısın.
 Sadece JSON döndür. Format:
 {"steps":[{"tool":"tool_name","args":{}}],"strategy":"short"}
@@ -85,7 +123,7 @@ Kurallar:
 - Kullanıcı sadece bilgi/durum/liste soruyorsa SADECE [SADECE OKUMA] araçlarını kullan
 - Belirsiz veya eksik bilgiyle asla [YAZMA/DEĞİŞİKLİK] aracı önerme
 - Kullanıcı işlem yapmak istiyor ama gerekli bilgiler belirtilmemişse: {"steps":[],"strategy":"ask_for_info"}
-- Örnek: "sipariş ekle" → müşteri adı bilinmiyor → {"steps":[],"strategy":"ask_for_info"}`;
+- Örnek: "sipariş ekle" → müşteri adı bilinmiyor → {"steps":[],"strategy":"ask_for_info"}${roleRestrictions}`;
 
     const userPrompt = `Kullanıcı mesajı: ${String(userMessage || '').slice(0, 1000)}`;
 
@@ -221,15 +259,34 @@ Kurallar:
 
   async respond({ userMessage, toolContexts, context = {} }) {
     if (!this.hasActualData(toolContexts)) {
+      if (context?.role === 'customer') {
+        return 'Bu konuya erişim yetkiniz yok. Yalnızca kendi siparişleriniz, çekleriniz ve ürün kataloğu hakkında yardımcı olabilirim.';
+      }
       return 'Sistemde bu konuyla ilgili kayıt bulunamadı.';
     }
 
     const role = context.role || 'user';
     let roleContext = '';
     if (role === 'customer') {
-      roleContext = '\n\n⚠️ KULLANICI MÜŞTERİ ROLÜNDEDIR. Yalnızca kendi siparişleri, çekleri ve ürün kataloğu erişilebilir. Tedarikçi bilgileri, finansal özet, diğer müşterilerin verileri veya şirket analitiği talep edilirse "Bu bilgiye erişim yetkiniz yok" şeklinde yanıt ver.';
+      roleContext = `\n\n⚠️ KULLANICI MÜŞTERİ ROLÜNDEDIR. ZORUNLU KISITLAMALAR:
+SADECE şu konularda yanıt ver: kendi siparişleri, kendi çekleri, ürün kataloğu, kendi profili.
+Aşağıdaki konularla ilgili soru gelirse — veri mevcut olsa bile, kısmi de olsa — MUTLAKA şunu yaz: "Bu bilgiye erişim yetkiniz yok." BAŞKA HİÇBİR AÇIKLAMA EKLEME, sadece bu cümleyi yaz:
+- Finansal özet, ciro, gelir-gider, şirket geneli dashboard veya karşılaştırma
+- Tedarikçi bilgileri
+- Ödeme riski analizi, risk değerlendirmesi veya benzeri analiz
+- Borç yaşlandırma raporu
+- Başka müşterilerin listesi veya en iyi müşteriler sıralaması
+- Stok güncelleme, sipariş oluşturma gibi yazma/değiştirme işlemleri`;
     } else if (role === 'user') {
-      roleContext = '\n\nKullanıcı standart çalışan rolündedir. Finansal özet, ödeme riski analizi ve borç yaşlandırma raporlarına erişimi yoktur.';
+      roleContext = `\n\nKullanıcı standart çalışan rolündedir. Şu konularda "Bu bilgiye erişim yetkiniz yok" de:
+- Finansal özet veya ciro analizi
+- En iyi müşteriler sıralaması
+- Ödeme riski analizi
+- Borç yaşlandırma raporu`;
+    } else if (role === 'manager') {
+      roleContext = `\n\nKullanıcı manager rolündedir. Şu konularda "Bu bilgiye erişim yetkiniz yok" de:
+- En iyi müşteriler sıralaması (top customers)
+- Ödeme riski analizi`;
     }
 
     const dataBlocks = (toolContexts || []).map((item) => ({
@@ -262,6 +319,8 @@ Kurallar:
 - Sayıları Türkçe formatında yaz: 172600 → "172.600 TL" (nokta binlik ayırıcı, TL para birimi)
 - Tarihleri Türkçe yaz: "15 Ocak 2026" gibi
 - Yanıtı kısa ve net tut, gereksiz açıklama ekleme
+- ZORUNLU: Yanıtı her zaman Türkçe yaz — başka dil kullanma
+- Rol kısıtlaması olan konularda "Bu bilgiye erişim yetkiniz yok" de ve başka bilgi ekleme
 - Doğal Türkçe kullan — "para kredisiz", "ödersiz" gibi ifadeler kullanma
 - Sayısal verilerden yorum çıkar: "7 bekleyen sipariş, toplam 172.600 TL" gibi bütünleşik cevap ver
 - Birden fazla araçtan veri geliyorsa hepsini tek yanıtta birleştir
@@ -350,12 +409,26 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
 
     const plan = await this.plan({ userMessage, fallbackTools, context });
 
-    if (plan.strategy === 'ask_for_info' || !plan.steps?.length) {
+    if (plan.strategy === 'rbac_denied') {
       return {
         success: true,
-        answer: 'Bu konuda size yardımcı olabilmem için daha fazla bilgiye ihtiyacım var. Lütfen detayları belirtin.',
+        answer: 'Bu bilgiye erişim yetkiniz yok.',
         steps: [],
-        meta: { orchestrator_mode: this.mode, ask_for_info: true }
+        meta: { orchestrator_mode: this.mode, rbac_denied: true }
+      };
+    }
+
+    if (plan.strategy === 'ask_for_info' || !plan.steps?.length) {
+      const isRbacDenied = context?.role === 'customer'
+        || this.isRbacDeniedByKeyword(userMessage, context?.role);
+      const answer = isRbacDenied
+        ? 'Bu bilgiye erişim yetkiniz yok.'
+        : 'Bu konuda size yardımcı olabilmem için daha fazla bilgiye ihtiyacım var. Lütfen detayları belirtin.';
+      return {
+        success: true,
+        answer,
+        steps: [],
+        meta: { orchestrator_mode: this.mode, ask_for_info: true, rbac_denied: isRbacDenied }
       };
     }
 
@@ -389,6 +462,18 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
         answer: 'Bu işlemi yapmak için yetkiniz yok.',
         steps: [{ type: 'plan', plan }, ...execution.steps],
         meta: { orchestrator_mode: this.mode, permission_denied: true }
+      };
+    }
+
+    const rbacErrorStep = execution.steps.find(
+      (s) => s.type === 'tool_error' && /erişim yetkiniz yok/i.test(s.error || '')
+    );
+    if (rbacErrorStep) {
+      return {
+        success: true,
+        answer: 'Bu bilgiye erişim yetkiniz yok.',
+        steps: [{ type: 'plan', plan }, ...execution.steps],
+        meta: { orchestrator_mode: this.mode, rbac_denied: true }
       };
     }
 
