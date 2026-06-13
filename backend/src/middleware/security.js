@@ -167,7 +167,7 @@ const sqlInjectionProtection = (req, res, next) => {
   
   // Query parameters kontrolü
   for (const key in req.query) {
-    if (isEmailField(key) && typeof req.query[key] === 'string' && !validator.isEmail(req.query[key].trim())) {
+    if (isEmailField(key) && typeof req.query[key] === 'string' && req.query[key].trim() !== '' && !validator.isEmail(req.query[key].trim())) {
       return res.status(400).json({
         success: false,
         message: 'Geçersiz email formatı'
@@ -185,7 +185,7 @@ const sqlInjectionProtection = (req, res, next) => {
   
   // Body kontrolü
   for (const key in req.body) {
-    if (isEmailField(key) && typeof req.body[key] === 'string' && !validator.isEmail(req.body[key].trim())) {
+    if (isEmailField(key) && typeof req.body[key] === 'string' && req.body[key].trim() !== '' && !validator.isEmail(req.body[key].trim())) {
       return res.status(400).json({
         success: false,
         message: 'Geçersiz email formatı'
