@@ -14,6 +14,7 @@
 
 require('dotenv').config();
 const { Pool } = require('pg');
+const bcrypt = require('bcryptjs');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -25,13 +26,40 @@ const C = {
   cyan:  '\x1b[36m', gray: '\x1b[90m', bold: '\x1b[1m', reset: '\x1b[0m'
 };
 
-async function getUserId() {
-  const r = await pool.query(`SELECT id FROM users WHERE company_id = $1 ORDER BY id LIMIT 1`, [COMPANY_ID]);
-  if (!r.rows[0]) throw new Error(`company_id=${COMPANY_ID} için kullanıcı bulunamadı`);
-  return r.rows[0].id;
+// Staff (admin/manager/user) hesaplarını idempotent oluşturur ve owner olarak
+// kullanılacak admin id'sini döndürür. Sıfır bir veritabanında (sadece migration'lar
+// çalışmış) giriş yapılabilir bir admin olmadığından seed'in kendisi oluşturur.
+// Şifre: Admin123!  (tüm staff hesapları için)
+async function seedStaffUsers() {
+  const pwHash = bcrypt.hashSync('Admin123!', 10);
+  const staff = [
+    { username: 'admin',   email: 'admin@erp.local',   role: 'admin'   },
+    { username: 'manager', email: 'manager@erp.local', role: 'manager' },
+    { username: 'user',    email: 'user@erp.local',    role: 'user'    },
+  ];
+
+  let adminId = null;
+  for (const u of staff) {
+    const ex = await pool.query(`SELECT id FROM users WHERE email = $1`, [u.email]);
+    let id;
+    if (ex.rows[0]) {
+      id = ex.rows[0].id;
+      console.log(`  ${C.gray}Kullanıcı zaten var: ${u.username}${C.reset}`);
+    } else {
+      const r = await pool.query(
+        `INSERT INTO users (username, email, password_hash, role, company_id, approval_status, created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,'approved',NOW(),NOW()) RETURNING id`,
+        [u.username, u.email, pwHash, u.role, COMPANY_ID]
+      );
+      id = r.rows[0].id;
+      console.log(`  ${C.green}✓${C.reset} Kullanıcı oluşturuldu: ${u.username} (${u.role})`);
+    }
+    if (u.role === 'admin') adminId = id;
+  }
+  return adminId;
 }
 
-async function seedCustomers() {
+async function seedCustomers(userId) {
   const customers = [
     { full_name: 'Ahmet Yılmaz', company_name: 'Yılmaz Tekstil A.Ş.', tax_office: 'Kadıköy',  tax_number: 'DEMO-1111', phone_number: '0212 555 0101', company_location: 'İstanbul' },
     { full_name: 'Mehmet Kara',  company_name: 'Karadeniz Gıda Ltd.',  tax_office: 'Beşiktaş', tax_number: 'DEMO-2222', phone_number: '0312 555 0202', company_location: 'Ankara'   },
@@ -51,9 +79,9 @@ async function seedCustomers() {
       continue;
     }
     const r = await pool.query(
-      `INSERT INTO customers (full_name, company_name, tax_office, tax_number, phone_number, company_location, company_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-      [c.full_name, c.company_name, c.tax_office, c.tax_number, c.phone_number, c.company_location, COMPANY_ID]
+      `INSERT INTO customers (full_name, company_name, tax_office, tax_number, phone_number, company_location, company_id, user_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+      [c.full_name, c.company_name, c.tax_office, c.tax_number, c.phone_number, c.company_location, COMPANY_ID, userId]
     );
     ids.push(r.rows[0].id);
     console.log(`  ${C.green}✓${C.reset} Müşteri oluşturuldu: ${c.company_name}`);
@@ -105,12 +133,14 @@ async function seedOrders(userId, customerIds, productIds) {
   ];
 
   let created = 0;
-  for (const o of orders) {
-    const total = o.items.reduce((s, i) => s + i.qty * i.price, 0);
+  for (let i = 0; i < orders.length; i++) {
+    const o = orders[i];
+    const total = o.items.reduce((s, it) => s + it.qty * it.price, 0);
+    const orderNumber = `DEMO-ORD-${String(i + 1).padStart(3, '0')}`;
     const orderR = await pool.query(
-      `INSERT INTO orders (user_id, customer_id, total_amount, status, company_id)
-       VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-      [userId, o.customer_id, total, o.status, COMPANY_ID]
+      `INSERT INTO orders (order_number, user_id, customer_id, total_amount, status, company_id)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+      [orderNumber, userId, o.customer_id, total, o.status, COMPANY_ID]
     );
     const orderId = orderR.rows[0].id;
     for (const item of o.items) {
@@ -124,7 +154,7 @@ async function seedOrders(userId, customerIds, productIds) {
   console.log(`  ${C.green}✓${C.reset} ${created} sipariş oluşturuldu`);
 }
 
-async function seedCheques(customerIds) {
+async function seedCheques(userId, customerIds) {
   const [yilmazId, karadenizId, anadoluId, egeId] = customerIds;
   const today = new Date();
   const offset = (n) => { const d = new Date(today); d.setDate(d.getDate() + n); return d.toISOString().split('T')[0]; };
@@ -150,10 +180,18 @@ async function seedCheques(customerIds) {
       console.log(`  ${C.gray}Çek zaten var: ${ch.serial}${C.reset}`);
       continue;
     }
+    // received_date her zaman due_date'ten ÖNCE olmalı (CHECK: due_date > received_date).
+    // Vadesi geçmiş demo çeklerinde due_date geçmişte olduğundan, alındığı tarihi
+    // vadesinden 30 gün öncesi olarak hesapla.
+    const recvDate = (() => {
+      const d = new Date(ch.due_date);
+      d.setDate(d.getDate() - 30);
+      return d.toISOString().split('T')[0];
+    })();
     await pool.query(
-      `INSERT INTO cheques (check_serial_no, check_issuer, customer_id, bank_name, due_date, amount, received_date, currency, status, company_id, notes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,'TRY',$8,$9,$10)`,
-      [ch.serial, 'Demo Kesideci', ch.customer_id, ch.bank, ch.due_date, ch.amount, offset(0), ch.status, COMPANY_ID, ch.note]
+      `INSERT INTO cheques (check_serial_no, check_issuer, customer_id, bank_name, due_date, amount, received_date, currency, status, company_id, notes, user_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,'TRY',$8,$9,$10,$11)`,
+      [ch.serial, 'Demo Kesideci', ch.customer_id, ch.bank, ch.due_date, ch.amount, recvDate, ch.status, COMPANY_ID, ch.note, userId]
     );
     created++;
   }
@@ -166,11 +204,12 @@ async function main() {
   console.log(`${C.bold}${C.cyan}╚═══════════════════════════════════════════╝${C.reset}\n`);
 
   try {
-    const userId = await getUserId();
-    console.log(`${C.yellow}Kullanıcı ID: ${userId}${C.reset}\n`);
+    console.log(`${C.bold}Kullanıcılar...${C.reset}`);
+    const userId = await seedStaffUsers();
+    console.log(`${C.yellow}Owner (admin) kullanıcı ID: ${userId}${C.reset}\n`);
 
     console.log(`${C.bold}Müşteriler...${C.reset}`);
-    const customerIds = await seedCustomers();
+    const customerIds = await seedCustomers(userId);
 
     console.log(`\n${C.bold}Ürünler...${C.reset}`);
     const productIds = await seedProducts();
@@ -179,7 +218,7 @@ async function main() {
     await seedOrders(userId, customerIds, productIds);
 
     console.log(`\n${C.bold}Çekler...${C.reset}`);
-    await seedCheques(customerIds);
+    await seedCheques(userId, customerIds);
 
     console.log(`\n${C.bold}${C.green}✓ Sunum verisi hazır!${C.reset}`);
     console.log(`\n${C.cyan}Chatbot demo komutları:${C.reset}`);
