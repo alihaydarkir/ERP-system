@@ -155,7 +155,7 @@ const supplierSchemas = {
     payment_terms: Joi.string().max(50).default('Net 30'),
     currency: Joi.string().length(3).default('TRY'),
     notes: Joi.string().max(1000).allow('', null),
-    rating: Joi.number().integer().min(1).max(5).allow(null)
+    rating: Joi.number().integer().min(1).max(5).empty('').allow(null)
   }),
 
   update: Joi.object({
@@ -170,7 +170,7 @@ const supplierSchemas = {
     payment_terms: Joi.string().max(50),
     currency: Joi.string().length(3),
     notes: Joi.string().max(1000).allow('', null),
-    rating: Joi.number().integer().min(1).max(5).allow(null),
+    rating: Joi.number().integer().min(1).max(5).empty('').allow(null),
     is_active: Joi.boolean()
   }).min(1)
 };

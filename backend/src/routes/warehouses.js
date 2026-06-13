@@ -120,7 +120,7 @@ router.get('/:id/stock', authMiddleware, requirePermission('warehouses.view'), g
  *       404:
  *         description: Kayıt bulunamadı
  */
-router.post('/', authMiddleware, requirePermission('warehouses.create'), validate(createWarehouseSchema), createWarehouse);
+router.post('/', authMiddleware, requirePermission('warehouses.create'), validate(warehouseSchemas.create), createWarehouse);
 
 // Update warehouse stock (increment/decrement)
 router.post('/:id/stock/update', authMiddleware, requirePermission('warehouses.edit'), updateWarehouseStock);
@@ -159,7 +159,7 @@ router.post('/:id/stock/set', authMiddleware, requirePermission('warehouses.edit
  *       404:
  *         description: Depo bulunamadı
  */
-router.put('/:id', authMiddleware, requirePermission('warehouses.edit'), validate(updateWarehouseSchema), updateWarehouse);
+router.put('/:id', authMiddleware, requirePermission('warehouses.edit'), validate(warehouseSchemas.update), updateWarehouse);
 
 // Delete warehouse
 /**

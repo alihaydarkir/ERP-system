@@ -2,10 +2,12 @@ const Joi = require('joi');
 
 const createChequeSchema = Joi.object({
   check_serial_no:     Joi.string().required(),
-  check_issuer:        Joi.string().required(),
+  // check_issuer (keşideci) ve received_date (alındığı tarih) tabloda NOT NULL ama
+  // formda her zaman gönderilmiyor — makul varsayılanlarla doldur.
+  check_issuer:        Joi.string().allow('').default('Bilinmiyor'),
   customer_id:         Joi.number().integer().required(),
   bank_name:           Joi.string().required(),
-  received_date:       Joi.date().required(),
+  received_date:       Joi.date().default(() => new Date()),
   due_date:            Joi.date().required(),
   amount:              Joi.number().min(0.01).required(),
   currency:            Joi.string().valid('TRY', 'USD', 'EUR', 'GBP').default('TRY'),

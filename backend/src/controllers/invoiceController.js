@@ -94,16 +94,29 @@ const createInvoice = async (req, res) => {
       }
     }
 
+    // Parasal alanlar tabloda NOT NULL — form göndermezse item'lardan hesapla
+    // (boş NULL geçmek INSERT'i kırıyordu).
+    const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+    const lineTotal = (it) =>
+      it && it.total_price != null ? num(it.total_price) : num(it && (it.quantity ?? it.qty)) * num(it && (it.unit_price ?? it.price));
+    const computedSubtotal = subtotal != null
+      ? num(subtotal)
+      : (Array.isArray(items) ? items.reduce((s, it) => s + lineTotal(it), 0) : 0);
+    const rate = tax_rate != null ? num(tax_rate) : 18;
+    const computedTax = tax_amount != null ? num(tax_amount) : +(computedSubtotal * rate / 100).toFixed(2);
+    const computedDiscount = num(discount_amount);
+    const computedTotal = total_amount != null ? num(total_amount) : +(computedSubtotal + computedTax - computedDiscount).toFixed(2);
+
     const invoice = await Invoice.create({
       user_id,
       customer_id,
       order_id,
       items,
-      subtotal,
-      tax_rate,
-      tax_amount,
-      discount_amount,
-      total_amount,
+      subtotal: computedSubtotal,
+      tax_rate: rate,
+      tax_amount: computedTax,
+      discount_amount: computedDiscount,
+      total_amount: computedTotal,
       issue_date,
       due_date,
       notes,

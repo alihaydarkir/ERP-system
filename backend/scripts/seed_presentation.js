@@ -198,6 +198,58 @@ async function seedCheques(userId, customerIds) {
   console.log(`  ${C.green}✓${C.reset} ${created} çek oluşturuldu`);
 }
 
+async function seedSuppliers() {
+  const suppliers = [
+    { supplier_name: 'Ege Hammadde A.Ş.',   contact_person: 'Veli Kaya',   email: 'veli@egehammadde.com',  phone: '0232 555 1010', tax_number: 'SUP-1001', payment_terms: 'Net 30', rating: 5 },
+    { supplier_name: 'Marmara Lojistik Ltd.', contact_person: 'Ayşe Demir', email: 'ayse@marmaralog.com',  phone: '0212 555 2020', tax_number: 'SUP-1002', payment_terms: 'Net 60', rating: 4 },
+    { supplier_name: 'Anadolu Ambalaj San.',  contact_person: 'Mehmet Ak',  email: 'mehmet@anadoluamb.com', phone: '0312 555 3030', tax_number: 'SUP-1003', payment_terms: 'Net 30', rating: 3 },
+  ];
+  let created = 0;
+  for (const s of suppliers) {
+    const ex = await pool.query(`SELECT id FROM suppliers WHERE tax_number = $1 AND company_id = $2`, [s.tax_number, COMPANY_ID]);
+    if (ex.rows[0]) { console.log(`  ${C.gray}Tedarikçi zaten var: ${s.supplier_name}${C.reset}`); continue; }
+    await pool.query(
+      `INSERT INTO suppliers (supplier_name, contact_person, email, phone, tax_number, payment_terms, currency, rating, is_active, company_id)
+       VALUES ($1,$2,$3,$4,$5,$6,'TRY',$7,true,$8)`,
+      [s.supplier_name, s.contact_person, s.email, s.phone, s.tax_number, s.payment_terms, s.rating, COMPANY_ID]
+    );
+    created++;
+  }
+  console.log(`  ${C.green}✓${C.reset} ${created} tedarikçi oluşturuldu`);
+}
+
+async function seedWarehouses(productIds) {
+  const warehouses = [
+    { warehouse_name: 'Ana Depo Istanbul', warehouse_code: 'WH-IST', city: 'İstanbul', manager_name: 'Kadir Yılmaz' },
+    { warehouse_name: 'Ankara Bölge Depo', warehouse_code: 'WH-ANK', city: 'Ankara',   manager_name: 'Murat Demir'  },
+  ];
+  const whIds = [];
+  for (const w of warehouses) {
+    const ex = await pool.query(`SELECT id FROM warehouses WHERE warehouse_code = $1 AND company_id = $2`, [w.warehouse_code, COMPANY_ID]);
+    if (ex.rows[0]) { whIds.push(ex.rows[0].id); continue; }
+    const r = await pool.query(
+      `INSERT INTO warehouses (warehouse_name, warehouse_code, city, manager_name, is_active, company_id)
+       VALUES ($1,$2,$3,$4,true,$5) RETURNING id`,
+      [w.warehouse_name, w.warehouse_code, w.city, w.manager_name, COMPANY_ID]
+    );
+    whIds.push(r.rows[0].id);
+  }
+  // Ürünleri depolara dağıt (depo stok ekranı boş kalmasın)
+  let stocked = 0;
+  for (let i = 0; i < productIds.length; i++) {
+    const whId = whIds[i % whIds.length];
+    const pr = await pool.query(`SELECT stock_quantity FROM products WHERE id = $1`, [productIds[i]]);
+    const qty = pr.rows[0] ? Number(pr.rows[0].stock_quantity || 0) : 0;
+    await pool.query(
+      `INSERT INTO warehouse_stock (warehouse_id, product_id, quantity)
+       VALUES ($1,$2,$3) ON CONFLICT (warehouse_id, product_id) DO UPDATE SET quantity = EXCLUDED.quantity`,
+      [whId, productIds[i], qty]
+    ).catch(() => {});
+    stocked++;
+  }
+  console.log(`  ${C.green}✓${C.reset} ${whIds.length} depo, ${stocked} ürün-stok kaydı oluşturuldu`);
+}
+
 async function main() {
   console.log(`\n${C.bold}${C.cyan}╔═══════════════════════════════════════════╗${C.reset}`);
   console.log(`${C.bold}${C.cyan}║  SUNUM SEED VERİSİ — company_id=${COMPANY_ID}         ║${C.reset}`);
@@ -216,6 +268,12 @@ async function main() {
 
     console.log(`\n${C.bold}Siparişler...${C.reset}`);
     await seedOrders(userId, customerIds, productIds);
+
+    console.log(`\n${C.bold}Tedarikçiler...${C.reset}`);
+    await seedSuppliers();
+
+    console.log(`\n${C.bold}Depolar...${C.reset}`);
+    await seedWarehouses(productIds);
 
     console.log(`\n${C.bold}Çekler...${C.reset}`);
     await seedCheques(userId, customerIds);
