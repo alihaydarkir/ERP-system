@@ -47,6 +47,9 @@ services:
     build:
       context: ./frontend
       dockerfile: ../Dockerfile.frontend
+      # Dev modunda nginx'e gerek yok (Vite dev server kullaniyoruz). Sadece "build"
+      # stage'inde dur — boylece prod nginx COPY'si (kok nginx/ klasoru) calismaz.
+      target: build
     # Override: use Vite dev server instead of nginx build
     entrypoint: ["sh", "-c", "npm run dev -- --host 0.0.0.0"]
     volumes:
