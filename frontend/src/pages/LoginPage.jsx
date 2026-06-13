@@ -158,19 +158,33 @@ export default function LoginPage() {
                          Hızlı Test Erişimi
                       </p>
                       <div className='grid grid-cols-2 gap-2'>
-                        <button 
+                        <button
                           onClick={() => { setEmail('admin@admin.com'); setPassword('admin123'); }}
                           className='text-xs bg-white dark:bg-gray-800 px-2 py-1.5 rounded border border-blue-100 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 transition text-left'
                         >
                           <span className='font-bold block'>Admin</span>
                           admin@admin.com
                         </button>
-                        <button 
+                        <button
                           onClick={() => { setEmail('user@user.com'); setPassword('user123'); }}
                           className='text-xs bg-white dark:bg-gray-800 px-2 py-1.5 rounded border border-blue-100 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 transition text-left'
                         >
                           <span className='font-bold block'>Kullanıcı</span>
                           user@user.com
+                        </button>
+                        <button
+                          onClick={() => { setEmail('ahmet@yilmazinsaat.com'); setPassword('Customer123!'); }}
+                          className='text-xs bg-white dark:bg-gray-800 px-2 py-1.5 rounded border border-blue-100 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 transition text-left'
+                        >
+                          <span className='font-bold block'>Müşteri (Ahmet)</span>
+                          ahmet@yilmazinsaat.com
+                        </button>
+                        <button
+                          onClick={() => { setEmail('fatma@kayatekstil.com'); setPassword('Customer123!'); }}
+                          className='text-xs bg-white dark:bg-gray-800 px-2 py-1.5 rounded border border-blue-100 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 transition text-left'
+                        >
+                          <span className='font-bold block'>Müşteri (Fatma)</span>
+                          fatma@kayatekstil.com
                         </button>
                       </div>
                    </div>

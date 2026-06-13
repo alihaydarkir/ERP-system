@@ -28,8 +28,11 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS company_id INTEGER REFERENCES compani
 CREATE INDEX IF NOT EXISTS idx_users_company ON users(company_id);
 
 -- Update role enum to include super_admin
+-- NOT: 'customer' rolü 029_add_customer_role'da ekleniyor; runner tüm migration'ları
+-- her seferinde baştan çalıştırdığı için, 'customer' kullanıcıları varken 028'in
+-- yeniden çalışması constraint'i ihlal ediyordu. İleriye dönük uyum için burada da dahil edildi.
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
-ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('super_admin', 'admin', 'manager', 'user'));
+ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('super_admin', 'admin', 'manager', 'user', 'customer'));
 
 -- Add company_id to products table
 ALTER TABLE products ADD COLUMN IF NOT EXISTS company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE;

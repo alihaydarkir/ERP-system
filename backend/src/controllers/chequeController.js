@@ -1,5 +1,6 @@
 const { Cheque, ChequeTransaction } = require('../models/Cheque');
 const Customer = require('../models/Customer');
+const pool = require('../config/database');
 const AuditLog = require('../models/AuditLog');
 const ActivityLogService = require('../services/activityLogService');
 const { formatSuccess, formatError, formatPaginated } = require('../utils/formatters');
@@ -30,7 +31,7 @@ const getAllCheques = async (req, res) => {
   try {
     const {
       status,
-      customer_id,
+      customer_id: rawCustomerId,
       bank_name,
       start_date,
       end_date,
@@ -41,6 +42,17 @@ const getAllCheques = async (req, res) => {
     } = req.query;
 
     const companyId = req.user.company_id;
+    let customer_id = rawCustomerId;
+
+    // Customer role: scope to their own cheques only
+    if (req.user.role === 'customer') {
+      const custR = await pool.query(
+        'SELECT id FROM customers WHERE user_id = $1 AND company_id = $2 LIMIT 1',
+        [req.user.id || req.user.userId, companyId]
+      );
+      if (!custR.rows[0]) return res.json({ success: true, data: [], total: 0, page: 1, totalPages: 0 });
+      customer_id = custR.rows[0].id;
+    }
 
     // Build filters
     const filters = {
@@ -473,8 +485,18 @@ const getDueSoonCheques = async (req, res) => {
     const companyId = req.user.company_id;
     const days = req.query.days ? parseInt(req.query.days) : 7;
 
-    const dueSoonCheques = await Cheque.getDueSoon(companyId, days);
-    const overdueCheques = await Cheque.getOverdue(companyId);
+    let scopedCustomerId = null;
+    if (req.user.role === 'customer') {
+      const custR = await pool.query(
+        'SELECT id FROM customers WHERE user_id = $1 AND company_id = $2 LIMIT 1',
+        [req.user.id || req.user.userId, companyId]
+      );
+      if (!custR.rows[0]) return res.json(formatSuccess({ dueSoon: [], overdue: [], totalDueSoonAmount: 0, totalOverdueAmount: 0 }));
+      scopedCustomerId = custR.rows[0].id;
+    }
+
+    const dueSoonCheques = await Cheque.getDueSoon(companyId, days, scopedCustomerId);
+    const overdueCheques = await Cheque.getOverdue(companyId, scopedCustomerId);
 
     const totalDueSoonAmount = dueSoonCheques.reduce((sum, cheque) => sum + parseFloat(cheque.amount), 0);
     const totalOverdueAmount = overdueCheques.reduce((sum, cheque) => sum + parseFloat(cheque.amount), 0);
@@ -499,7 +521,25 @@ const getChequeStatistics = async (req, res) => {
   try {
     const companyId = req.user.company_id;
 
-    const stats = await Cheque.getStatistics(companyId);
+    let scopedCustomerId = null;
+    if (req.user.role === 'customer') {
+      const custR = await pool.query(
+        'SELECT id FROM customers WHERE user_id = $1 AND company_id = $2 LIMIT 1',
+        [req.user.id || req.user.userId, companyId]
+      );
+      if (!custR.rows[0]) {
+        return res.json(formatSuccess({
+          totalCheques: 0, pendingCount: 0, paidCount: 0, teminatCount: 0,
+          musteriyeVerildiCount: 0, cancelledCount: 0, pendingAmount: 0,
+          paidAmount: 0, teminatAmount: 0, musteriyeVerildiAmount: 0,
+          cancelledAmount: 0, dueSoonCount: 0, dueSoonAmount: 0,
+          overdueCount: 0, overdueAmount: 0
+        }));
+      }
+      scopedCustomerId = custR.rows[0].id;
+    }
+
+    const stats = await Cheque.getStatistics(companyId, scopedCustomerId);
 
     // Convert string numbers to floats for amounts
     const formattedStats = {

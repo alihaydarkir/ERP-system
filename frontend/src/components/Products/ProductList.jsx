@@ -4,6 +4,7 @@ import PermissionButton from '../PermissionButton';
 import LoadingState from '../UI/LoadingState';
 import EmptyState from '../UI/EmptyState';
 import ProductStockBadge from './ProductStockBadge';
+import useAuthStore from '../../store/authStore';
 
 const toLower = (value) => String(value || '').toLocaleLowerCase('tr-TR');
 
@@ -18,6 +19,8 @@ export default function ProductList({
   onDelete,
   onVisibleProductsChange,
 }) {
+  const { user } = useAuthStore();
+  const isCustomer = user?.role === 'customer';
   const filteredProducts = useMemo(() => {
     const search = toLower(searchTerm).trim();
 
@@ -104,29 +107,31 @@ export default function ProductList({
                     <ProductStockBadge stock={product.stock} lowStockThreshold={product.low_stock_threshold || 10} />
                   </td>
 
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-                    <div className="flex justify-end gap-2">
-                      <PermissionButton
-                        permission="products.edit"
-                        deniedText="Ürün düzenleme yetkiniz yok."
-                        onClick={() => onEdit(product)}
-                        className="p-2 text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
-                        title="Düzenle"
-                      >
-                        <Edit2 size={18} />
-                      </PermissionButton>
+                  {!isCustomer && (
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
+                      <div className="flex justify-end gap-2">
+                        <PermissionButton
+                          permission="products.edit"
+                          deniedText="Ürün düzenleme yetkiniz yok."
+                          onClick={() => onEdit(product)}
+                          className="p-2 text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
+                          title="Düzenle"
+                        >
+                          <Edit2 size={18} />
+                        </PermissionButton>
 
-                      <PermissionButton
-                        permission="products.delete"
-                        deniedText="Ürün silme yetkiniz yok."
-                        onClick={() => onDelete(product.id, product.name)}
-                        className="p-2 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:bg-red-900/20 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                        title="Sil"
-                      >
-                        <Trash2 size={18} />
-                      </PermissionButton>
-                    </div>
-                  </td>
+                        <PermissionButton
+                          permission="products.delete"
+                          deniedText="Ürün silme yetkiniz yok."
+                          onClick={() => onDelete(product.id, product.name)}
+                          className="p-2 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:bg-red-900/20 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                          title="Sil"
+                        >
+                          <Trash2 size={18} />
+                        </PermissionButton>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))
             )}

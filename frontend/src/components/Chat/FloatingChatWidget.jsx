@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { aiService } from '../../services/aiService';
+import useAuthStore from '../../store/authStore';
 import useChatSocket from '../../hooks/useChatSocket';
 import ChatInlineForm from './ChatInlineForm';
 import ChatSelectionList from './ChatSelectionList';
@@ -100,9 +101,13 @@ function WidgetMessage({ msg, isLastAi, approvalState, onApprove, onReject, load
 // ── Main widget ────────────────────────────────────────────────
 export default function FloatingChatWidget() {
   const location = useLocation();
+  const { user } = useAuthStore();
+  const welcomeText = user?.role === 'customer'
+    ? 'Merhaba! Siparişleriniz, çekleriniz ve ürün kataloğu hakkında yardımcı olabilirim. Ne öğrenmek istersiniz?'
+    : 'Merhaba! Ben Helix-Ware ERP Pro\'nun AI asistanıyım. 🤖\n\nÇeklerinizi, siparişlerinizi, müşterilerinizi ve finansal verilerinizi analiz edebilirim. Ne öğrenmek istersiniz?';
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { id: 1, role: 'ai', text: 'Merhaba! Size nasıl yardımcı olabilirim?' }
+    { id: 1, role: 'ai', text: welcomeText }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);

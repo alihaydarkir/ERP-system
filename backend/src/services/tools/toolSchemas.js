@@ -410,8 +410,18 @@ const definitions = [
   },
   {
     name: 'get_overdue_cheques',
-    description: 'Vadesi geçmiş tüm çekleri getir ve toplam tutarı hesapla.',
+    description: 'Vadesi GEÇMİŞ (gecikmiş) çekleri getir ve toplam tutarı hesapla. Gelecekte vadesi dolacak çekler için get_due_soon_cheques kullan.',
     parameters: { type: 'object', properties: {} }
+  },
+  {
+    name: 'get_due_soon_cheques',
+    description: 'Vadesi YAKLAŞAN (önümüzdeki günlerde dolacak, henüz geçmemiş) çekleri getir. "Bu hafta hangi çeklerin vadesi doluyor", "yaklaşan çek ödemeleri" gibi sorular için kullan.',
+    parameters: {
+      type: 'object',
+      properties: {
+        days: { type: 'integer', description: 'Kaç gün ilerisine bakılacak (varsayılan 7, en fazla 90)' }
+      }
+    }
   },
   {
     name: 'set_product_stock',

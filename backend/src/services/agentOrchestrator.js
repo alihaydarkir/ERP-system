@@ -273,18 +273,18 @@ Kurallar:
   }
 
   hasActualData(toolContexts) {
-    return (toolContexts || []).some((tc) => {
-      const r = tc.result;
-      if (!r) return false;
-      if (Array.isArray(r)) return r.length > 0;
-      if (typeof r === 'object') {
-        return Object.values(r).some((v) => {
-          const num = this.toPositiveNumber(v);
-          return (num !== null && num > 0) || (Array.isArray(v) && v.length > 0);
-        });
+    // İç içe nesneleri de tarar (örn. get_monthly_comparison → {this_month:{revenue:38250}})
+    const hasValue = (v, depth = 0) => {
+      if (v === null || v === undefined) return false;
+      const num = this.toPositiveNumber(v);
+      if (num !== null) return num > 0;
+      if (Array.isArray(v)) return v.length > 0;
+      if (typeof v === 'object' && depth < 3) {
+        return Object.values(v).some((inner) => hasValue(inner, depth + 1));
       }
       return false;
-    });
+    };
+    return (toolContexts || []).some((tc) => hasValue(tc.result));
   }
 
   verify({ toolContexts }) {
@@ -362,6 +362,12 @@ Kurallar:
 - Sayısal verilerden yorum çıkar: "7 bekleyen sipariş, toplam 172.600 TL" gibi bütünleşik cevap ver
 - Birden fazla araçtan veri geliyorsa hepsini tek yanıtta birleştir
 - Listelemede madde işareti (-) kullan, numaralı liste değil
+- ÖNEMLİ: Önceki konuşma mesajlarındaki sayıları, ürün adlarını veya listeleri KULLANMA — yanıtını YALNIZCA aşağıdaki VERİ bölümüne dayandır
+- VERİ bölümünde kayıt varsa onları MUTLAKA kullanarak yanıt ver — dolu veri varken asla "veri bulunamadı" deme
+- Yalnızca VERİ bölümü tamamen boşsa "Bu konuda veri bulunamadı" de, geçmişten veri taşıma
+- "__BOŞ_SONUÇ__" metnini yanıtında ASLA aynen yazma
+- ASLA kendi başına aritmetik, yüzde veya fark HESAPLAMA — verideki hazır sayıları olduğu gibi aktar
+- Bir araç verisi "summary_text" alanı içeriyorsa yanıtını o metne dayandır, sayıları oradan aynen al
 
 VERİ:
 ${JSON.stringify(annotatedBlocks, null, 2)}`;
@@ -381,18 +387,26 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
 
     const completion = await this.gateway.chat(chatMessages, { temperature: 0.1, max_tokens: 600 });
 
-    const raw = completion.content || 'Kayıt bulunamadı.';
+    let raw = completion.content || 'Kayıt bulunamadı.';
+    // LLM placeholder'ı yanıt içine sızdırırsa temizle
+    raw = raw.replace(/__BOŞ_SONU[ÇC]__/gi, 'veri bulunamadı').trim();
+    if (!raw) raw = 'Kayıt bulunamadı.';
     return this.sanitizeCurrencyInAnswer(raw);
   }
 
   detectFormTool(message) {
     const msg = String(message || '').toLowerCase();
-    if (/çek.*\s(ekle|oluştur|yeni|kaydet|gir)(?:\s|$)|yeni\s+çek/.test(msg)) return 'create_cheque';
-    if (/(ürün|urun).*\s(ekle|oluştur|yeni|kaydet)(?:\s|$)|yeni\s+(ürün|urun)/.test(msg)) return 'create_product';
-    if (/sipariş.*\s(ekle|oluştur|yeni|aç)(?:\s|$)|yeni\s+sipariş/.test(msg)) return 'create_order';
-    if (/müşteri.*\s(ekle|oluştur|yeni|kaydet)(?:\s|$)|yeni\s+müşteri/.test(msg)) return 'create_customer';
-    if (/(tedarikçi|tedarikci).*\s(ekle|oluştur|yeni|kaydet)(?:\s|$)|yeni\s+(tedarikçi|tedarikci)/.test(msg)) return 'create_supplier';
-    if (/(depo|warehouse).*\s(ekle|oluştur|yeni|kaydet|aç)(?:\s|$)|yeni\s+(depo|warehouse)/.test(msg)) return 'create_warehouse';
+    // Sorgu/rapor niyeti varsa form gösterme — "yeni müşteriler" gibi ifadeler
+    // karşılaştırma sorularında geçebilir, create niyeti değildir
+    if (/karşılaştır|kıyasla|göster|listele|raporla|özetle|analiz|hesapla|sırala|sayısı|kaç\s|neler|hangi|var\s*mı|durumu/.test(msg)) {
+      return null;
+    }
+    if (/çek\S*\s+(ekle|oluştur|kaydet|gir)|yeni\s+(bir\s+)?çek/.test(msg)) return 'create_cheque';
+    if (/(ürün|urun)\S*\s+(ekle|oluştur|kaydet)|yeni\s+(bir\s+)?(ürün|urun)/.test(msg)) return 'create_product';
+    if (/sipariş\S*\s+(ekle|oluştur|aç)|yeni\s+(bir\s+)?sipariş/.test(msg)) return 'create_order';
+    if (/müşteri\S*\s+(ekle|oluştur|kaydet)|yeni\s+(bir\s+)?müşteri/.test(msg)) return 'create_customer';
+    if (/(tedarikçi|tedarikci)\S*\s+(ekle|oluştur|kaydet)|yeni\s+(bir\s+)?(tedarikçi|tedarikci)/.test(msg)) return 'create_supplier';
+    if (/(depo|warehouse)\S*\s+(ekle|oluştur|kaydet|aç)|yeni\s+(bir\s+)?(depo|warehouse)/.test(msg)) return 'create_warehouse';
     return null;
   }
 
@@ -456,6 +470,57 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
     }
 
     const plan = await this.plan({ userMessage, fallbackTools, context });
+
+    // Zayıf planner düzeltmesi: "vadesi dolacak/yaklaşan" soruları gelecek vadeyi sorar,
+    // planner sık sık get_overdue_cheques (geçmiş vade) seçiyor — deterministik düzelt.
+    const lowerMsg = String(userMessage || '').toLowerCase();
+    if (/vadesi (dol|yaklaş|gel)|yaklaşan (çek|vade|ödeme)/.test(lowerMsg) && !/vadesi geç|gecikmiş/.test(lowerMsg)) {
+      const days = /ay\b|30 gün/.test(lowerMsg) ? 30 : 7;
+      let swapped = false;
+      plan.steps = (plan.steps || []).map((s) => {
+        if (s.tool === 'get_overdue_cheques' || s.tool === 'search_cheques') {
+          swapped = true;
+          return { tool: 'get_due_soon_cheques', args: { days } };
+        }
+        return s;
+      });
+      if (!swapped && !(plan.steps || []).some((s) => s.tool === 'get_due_soon_cheques')) {
+        plan.steps = [{ tool: 'get_due_soon_cheques', args: { days } }, ...(plan.steps || [])];
+      }
+    }
+
+    // "Ödeme riski" sorularında zayıf planner sık sık get_low_stock_products seçiyor.
+    // Deterministik düzelt: risk niyeti → get_payment_risk_assessment.
+    if (/ödeme\s*risk|riskli\s*müşteri|risk\s*(analiz|değerlend)|tahsilat\s*risk/.test(lowerMsg)) {
+      let swapped = false;
+      plan.steps = (plan.steps || []).map((s) => {
+        if (s.tool === 'get_low_stock_products' || s.tool === 'get_financial_summary') {
+          swapped = true;
+          return { tool: 'get_payment_risk_assessment', args: {} };
+        }
+        return s;
+      });
+      if (!swapped && !(plan.steps || []).some((s) => s.tool === 'get_payment_risk_assessment')) {
+        plan.steps = [{ tool: 'get_payment_risk_assessment', args: {} }, ...(plan.steps || [])];
+      }
+    }
+
+    // Bu yol sorgu yoludur — mutation niyeti aiService'te ayrı akışta (onaylı) işlenir.
+    // LLM planner yanlışlıkla yazma aracı seçerse (örn. "durumumu özetle" → set_order_status) ele.
+    let removedMutationSteps = 0;
+    if (Array.isArray(plan.steps)) {
+      const before = plan.steps.length;
+      plan.steps = plan.steps.filter((s) => !this.tools.isMutationTool(s.tool));
+      removedMutationSteps = before - plan.steps.length;
+    }
+    if (removedMutationSteps > 0 && !plan.steps.length) {
+      return {
+        success: true,
+        answer: 'Bu istek bir kayıt değişikliği gerektiriyor gibi görünüyor. Yapmak istediğiniz işlemi açıkça belirtir misiniz? Örn: "ORD-123 siparişini tamamla" veya "X ürününün stoğunu güncelle".',
+        steps: [],
+        meta: { orchestrator_mode: this.mode, ask_for_info: true, mutation_blocked_in_query_path: true }
+      };
+    }
 
     if (plan.strategy === 'rbac_denied') {
       return {

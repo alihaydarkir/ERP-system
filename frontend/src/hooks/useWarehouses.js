@@ -3,11 +3,12 @@ import { warehouseService } from '../services/warehouseService';
 
 export const WAREHOUSES_KEY = 'warehouses';
 
-export function useWarehouses(params = {}) {
+export function useWarehouses({ enabled = true, ...params } = {}) {
   return useQuery({
     queryKey: [WAREHOUSES_KEY, params],
     queryFn: () => warehouseService.getAll(params),
     select: (res) => res.data ?? [],
+    enabled,
   });
 }
 

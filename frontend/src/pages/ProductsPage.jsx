@@ -9,6 +9,7 @@ import ErrorState from '../components/UI/ErrorState';
 import { exportProductsToPDF, exportProductsToExcel } from '../utils/exportUtils';
 import { hasEntityValidationErrors, validateProductForm } from '../utils/validators/entityValidators';
 import toast from 'react-hot-toast';
+import useAuthStore from '../store/authStore';
 import {
   useProducts,
   useCreateProduct,
@@ -39,6 +40,8 @@ const EMPTY_ERRORS = {
 };
 
 export default function ProductsPage() {
+  const { user } = useAuthStore();
+  const isCustomer = user?.role === 'customer';
   const { showSuccess, showError, showConfirm } = useUIStore();
   const [showModal, setShowModal] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
@@ -50,8 +53,8 @@ export default function ProductsPage() {
   const [formErrors, setFormErrors] = useState(EMPTY_ERRORS);
 
   const { data: products = [], isLoading, isError, error, refetch } = useProducts({ limit: 10000 });
-  const { data: suppliers = [] } = useSuppliers({ limit: 100, is_active: 'true' });
-  const { data: warehouses = [] } = useWarehouses({ limit: 100, is_active: 'true' });
+  const { data: suppliers = [] } = useSuppliers({ limit: 100, is_active: 'true', enabled: !isCustomer });
+  const { data: warehouses = [] } = useWarehouses({ limit: 100, is_active: 'true', enabled: !isCustomer });
 
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();

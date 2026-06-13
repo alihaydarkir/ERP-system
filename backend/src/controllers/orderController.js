@@ -1,6 +1,7 @@
 const Order = require('../models/Order');
 const Product = require('../models/Product');
 const User = require('../models/User');
+const pool = require('../config/database');
 const AuditLog = require('../models/AuditLog');
 const ActivityLogService = require('../services/activityLogService');
 const emailService = require('../services/emailService');
@@ -16,13 +17,27 @@ const getActorUserId = (req) => req.user?.userId || req.user?.id;
  */
 const getAllOrders = async (req, res) => {
   try {
-    const { status, start_date, end_date, page = 1, limit = 20 } = req.query;
+    let { status, start_date, end_date, page = 1, limit = 20 } = req.query;
     const { company_id } = req.user; // MULTI-TENANCY
+
+    // Customer role: scope to their own orders only
+    let customerScopeId;
+    if (req.user.role === 'customer') {
+      const custR = await pool.query(
+        'SELECT id FROM customers WHERE user_id = $1 AND company_id = $2 LIMIT 1',
+        [req.user.id || req.user.userId, company_id]
+      );
+      if (!custR.rows[0]) {
+        return res.json({ success: true, data: [], total: 0, page: 1, totalPages: 0 });
+      }
+      customerScopeId = custR.rows[0].id;
+    }
 
     // Build filters
     const filters = {
       company_id, // MULTI-TENANCY
       status,
+      ...(customerScopeId ? { customer_id: customerScopeId } : {}),
       start_date: start_date ? new Date(start_date) : undefined,
       end_date: end_date ? new Date(end_date) : undefined,
       limit: parseInt(limit),

@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import useChequeStore from '../../store/chequeStore';
 import customerService from '../../services/customerService';
+import useAuthStore from '../../store/authStore';
 
 const ChequeList = ({ onChequeClick, onEditCheque, onDeleteCheque, onChangeStatus }) => {
+  const { user } = useAuthStore();
+  const isCustomer = user?.role === 'customer';
   const {
     cheques,
     filters,
@@ -17,8 +20,9 @@ const ChequeList = ({ onChequeClick, onEditCheque, onDeleteCheque, onChangeStatu
   const [customers, setCustomers] = useState([]);
   const [localFilters, setLocalFilters] = useState(filters);
 
-  // Load customers for filter dropdown
+  // Load customers for filter dropdown (not for customer role)
   useEffect(() => {
+    if (isCustomer) return;
     const loadCustomers = async () => {
       try {
         const response = await customerService.getAll({ limit: 1000 });
@@ -28,7 +32,7 @@ const ChequeList = ({ onChequeClick, onEditCheque, onDeleteCheque, onChangeStatu
       }
     };
     loadCustomers();
-  }, []);
+  }, [isCustomer]);
 
   const handleFilterChange = (key, value) => {
     setLocalFilters({ ...localFilters, [key]: value });
@@ -299,24 +303,28 @@ const ChequeList = ({ onChequeClick, onEditCheque, onDeleteCheque, onChangeStatu
                     {getStatusBadge(cheque.status)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      onClick={() => onEditCheque && onEditCheque(cheque)}
-                      className="text-blue-600 hover:text-blue-800 font-medium"
-                    >
-                      Düzenle
-                    </button>
-                    <button
-                      onClick={() => onChangeStatus && onChangeStatus(cheque)}
-                      className="text-green-600 hover:text-green-800 font-medium"
-                    >
-                      Durum
-                    </button>
-                    <button
-                      onClick={() => onDeleteCheque && onDeleteCheque(cheque)}
-                      className="text-red-600 hover:text-red-800 font-medium"
-                    >
-                      Sil
-                    </button>
+                    {!isCustomer && (
+                      <>
+                        <button
+                          onClick={() => onEditCheque && onEditCheque(cheque)}
+                          className="text-blue-600 hover:text-blue-800 font-medium"
+                        >
+                          Düzenle
+                        </button>
+                        <button
+                          onClick={() => onChangeStatus && onChangeStatus(cheque)}
+                          className="text-green-600 hover:text-green-800 font-medium"
+                        >
+                          Durum
+                        </button>
+                        <button
+                          onClick={() => onDeleteCheque && onDeleteCheque(cheque)}
+                          className="text-red-600 hover:text-red-800 font-medium"
+                        >
+                          Sil
+                        </button>
+                      </>
+                    )}
                   </td>
                 </tr>
               ))

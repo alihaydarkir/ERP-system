@@ -1,5 +1,13 @@
 const pool = require('../../config/database');
 
+// Türkçe büyük/küçük harf duyarsız LIKE: C/POSIX collation'da ILIKE Türkçe
+// büyük harfleri (İ, Ş, Ğ...) eşleyemez — "yılmaz inşaat" araması
+// "Yılmaz İnşaat A.Ş." kaydını bulamaz. Önce TRANSLATE ile küçültüyoruz.
+const TR_UP = 'İIĞÜŞÖÇ';
+const TR_LO = 'iığüşöç';
+const trLike = (col, paramIdx) =>
+  `LOWER(TRANSLATE(${col}, '${TR_UP}', '${TR_LO}')) LIKE LOWER(TRANSLATE($${paramIdx}, '${TR_UP}', '${TR_LO}'))`;
+
 const queryTools = {
   async get_dashboard_summary({ company_id }) {
     const result = await pool.query(`
@@ -82,6 +90,53 @@ const queryTools = {
     return { cheques: result.rows, total_overdue_amount: total, count: result.rows.length };
   },
 
+  async get_due_soon_cheques({ days = 7, company_id, role, user_id }) {
+    const values = [company_id];
+    let customerFilter = '';
+
+    if (role === 'customer') {
+      const custR = await pool.query(
+        `SELECT id FROM customers WHERE user_id = $1 AND company_id = $2 LIMIT 1`,
+        [user_id, company_id]
+      );
+      if (!custR.rows[0]) return { cheques: [], total_due_soon_amount: 0, count: 0, days };
+      values.push(custR.rows[0].id);
+      customerFilter = ` AND ch.customer_id = $${values.length}`;
+    }
+
+    const safeDays = Math.min(Math.max(parseInt(days) || 7, 1), 90);
+    const result = await pool.query(`
+      SELECT
+        ch.id,
+        ch.check_serial_no,
+        ch.amount,
+        ch.currency,
+        ch.due_date,
+        ch.bank_name,
+        c.full_name   AS customer_name,
+        c.company_name AS customer_company,
+        (ch.due_date - CURRENT_DATE) AS days_until_due
+      FROM cheques ch
+      LEFT JOIN customers c ON ch.customer_id = c.id
+      WHERE ch.company_id = $1
+        AND ch.status = 'pending'
+        AND ch.due_date >= CURRENT_DATE
+        AND ch.due_date <= CURRENT_DATE + INTERVAL '${safeDays} days'
+        ${customerFilter}
+      ORDER BY ch.due_date ASC
+      LIMIT 20
+    `, values);
+
+    const total = result.rows.reduce((sum, row) => sum + parseFloat(row.amount || 0), 0);
+    const fmt = (n) => Number(n).toLocaleString('tr-TR');
+    const summaryText = result.rows.length === 0
+      ? `Önümüzdeki ${safeDays} gün içinde vadesi dolacak çek yok.`
+      : `Önümüzdeki ${safeDays} gün içinde ${result.rows.length} çekin vadesi doluyor, toplam ${fmt(total)} TL: ` +
+        result.rows.map(r => `${r.check_serial_no} (${fmt(r.amount)} TL, ${r.days_until_due} gün kaldı)`).join(', ');
+
+    return { cheques: result.rows, total_due_soon_amount: total, count: result.rows.length, days: safeDays, summary_text: summaryText };
+  },
+
   async get_financial_summary({ company_id }) {
     const result = await pool.query(`
       SELECT
@@ -114,7 +169,7 @@ const queryTools = {
 
     if (search) {
       values.push(`%${search}%`);
-      searchClause = `AND (p.name ILIKE $${values.length} OR p.category ILIKE $${values.length})`;
+      searchClause = `AND (${trLike('p.name', values.length)} OR ${trLike('p.category', values.length)})`;
     }
 
     values.push(Math.min(limit, 50));
@@ -134,7 +189,7 @@ const queryTools = {
 
     if (search) {
       values.push(`%${search}%`);
-      searchClause = `AND (c.full_name ILIKE $${values.length} OR c.company_name ILIKE $${values.length})`;
+      searchClause = `AND (${trLike('c.full_name', values.length)} OR ${trLike('c.company_name', values.length)})`;
     }
 
     values.push(Math.min(limit, 50));
@@ -220,7 +275,7 @@ const queryTools = {
     if (status) { values.push(status); clauses.push(`o.status = $${values.length}`); }
     if (search) {
       values.push(`%${search}%`);
-      clauses.push(`(o.order_number ILIKE $${values.length} OR c.full_name ILIKE $${values.length} OR c.company_name ILIKE $${values.length})`);
+      clauses.push(`(${trLike('o.order_number', values.length)} OR ${trLike('c.full_name', values.length)} OR ${trLike('c.company_name', values.length)})`);
     }
     const where = clauses.length ? 'AND ' + clauses.join(' AND ') : '';
     values.push(Math.min(limit, 50));
@@ -241,7 +296,7 @@ const queryTools = {
     let searchClause = '';
     if (search) {
       values.push(`%${search}%`);
-      searchClause = `AND (s.supplier_name ILIKE $${values.length} OR s.contact_person ILIKE $${values.length})`;
+      searchClause = `AND (${trLike('s.supplier_name', values.length)} OR ${trLike('s.contact_person', values.length)})`;
     }
     values.push(Math.min(limit, 50));
     const result = await pool.query(`
@@ -350,7 +405,7 @@ const queryTools = {
       customerResult = await pool.query(`
         SELECT id, full_name, company_name, phone_number, company_location
         FROM customers
-        WHERE company_id = $1 AND (full_name ILIKE $2 OR company_name ILIKE $2)
+        WHERE company_id = $1 AND (${trLike('full_name', 2)} OR ${trLike('company_name', 2)})
         LIMIT 1
       `, [company_id, search]);
     }
@@ -455,10 +510,19 @@ const queryTools = {
     const lastOrders = Number(row.last_month_orders || 0);
     const ordersChange = lastOrders > 0 ? ((thisOrders - lastOrders) / lastOrders * 100).toFixed(1) : null;
 
+    const fmt = (n) => Number(n).toLocaleString('tr-TR');
+    const newCust = Number(row.new_customers_this_month || 0);
+    const summaryText =
+      `Bu ay: ${thisOrders} sipariş, ${fmt(thisRev)} TL gelir, ${newCust} yeni müşteri. ` +
+      `Geçen ay: ${lastOrders} sipariş, ${fmt(lastRev)} TL gelir.` +
+      (revChange !== null ? ` Gelir değişimi: %${revChange}.` : '') +
+      (ordersChange !== null ? ` Sipariş değişimi: %${ordersChange}.` : '');
+
     return {
-      this_month: { revenue: thisRev, orders: thisOrders, new_customers: Number(row.new_customers_this_month || 0), collections: Number(row.this_month_collections || 0) },
+      this_month: { revenue: thisRev, orders: thisOrders, new_customers: newCust, collections: Number(row.this_month_collections || 0) },
       last_month: { revenue: lastRev, orders: lastOrders },
-      changes: { revenue_pct: revChange, orders_pct: ordersChange }
+      changes: { revenue_pct: revChange, orders_pct: ordersChange },
+      summary_text: summaryText
     };
   },
 
@@ -521,7 +585,20 @@ const queryTools = {
       return { ...r, risk_level: risk };
     });
 
-    return { customers, high_risk: customers.filter(c => c.risk_level === 'Yüksek').length, medium_risk: customers.filter(c => c.risk_level === 'Orta').length, count: customers.length };
+    const fmt = (n) => Number(n).toLocaleString('tr-TR');
+    const summaryText = customers.length === 0
+      ? 'Ödeme riski taşıyan müşteri bulunmuyor.'
+      : customers.slice(0, 5).map(c =>
+          `${c.company_name || c.full_name}: risk ${c.risk_level}, vadesi geçmiş ${c.overdue_count} çek (${fmt(c.overdue_amount)} TL), bekleyen ${fmt(c.pending_amount)} TL`
+        ).join('; ');
+
+    return {
+      customers,
+      high_risk: customers.filter(c => c.risk_level === 'Yüksek').length,
+      medium_risk: customers.filter(c => c.risk_level === 'Orta').length,
+      count: customers.length,
+      summary_text: summaryText
+    };
   }
 };
 

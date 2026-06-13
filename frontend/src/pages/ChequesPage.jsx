@@ -10,9 +10,12 @@ import ChequeExcelImport from '../components/Cheques/ChequeExcelImport';
 import ChequeStatusChangeModal from '../components/Cheques/ChequeStatusChangeModal';
 import DueSoonAlert from '../components/Cheques/DueSoonAlert';
 import useUIStore from '../store/uiStore';
+import useAuthStore from '../store/authStore';
 import { FileSpreadsheet, FileText, Upload, Plus } from 'lucide-react';
 
 const ChequesPage = () => {
+  const { user } = useAuthStore();
+  const isCustomer = user?.role === 'customer';
   const { showSuccess, showError, showConfirm } = useUIStore();
   const {
     cheques,
@@ -294,24 +297,28 @@ const ChequesPage = () => {
                 <span>PDF'e Aktar</span>
               </button>
 
-              <button
-                onClick={() => setShowImport(true)}
-                className="group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-gradient-to-r from-violet-500 to-violet-600 rounded-lg shadow-md hover:from-violet-600 hover:to-violet-700 hover:shadow-violet-500/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500"
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                <span>Excel'den Yükle</span>
-              </button>
+              {!isCustomer && (
+                <>
+                  <button
+                    onClick={() => setShowImport(true)}
+                    className="group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-gradient-to-r from-violet-500 to-violet-600 rounded-lg shadow-md hover:from-violet-600 hover:to-violet-700 hover:shadow-violet-500/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500"
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    <span>Excel'den Yükle</span>
+                  </button>
 
-              <button
-                onClick={() => {
-                  setEditingCheque(null);
-                  setShowForm(true);
-                }}
-                className="group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow-md hover:from-blue-700 hover:to-blue-800 hover:shadow-blue-500/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                <span>Yeni Çek</span>
-              </button>
+                  <button
+                    onClick={() => {
+                      setEditingCheque(null);
+                      setShowForm(true);
+                    }}
+                    className="group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow-md hover:from-blue-700 hover:to-blue-800 hover:shadow-blue-500/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    <span>Yeni Çek</span>
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

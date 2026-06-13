@@ -21,6 +21,7 @@ const TOOL_ACCESS = {
       'get_orders_list',
       'search_orders',
       'search_cheques',
+      'get_due_soon_cheques',
       'get_customer_detail'
     ],
     // Data scoping: queries must be filtered to this user's own customer record

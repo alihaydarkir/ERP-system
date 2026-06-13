@@ -161,6 +161,12 @@ class Order {
       paramCount++;
     }
 
+    if (filters.customer_id) {
+      query += ` AND o.customer_id = $${paramCount}`;
+      values.push(filters.customer_id);
+      paramCount++;
+    }
+
     if (filters.status) {
       query += ` AND o.status = $${paramCount}`;
       values.push(filters.status);
@@ -398,6 +404,13 @@ class Order {
     if (filters.user_id) {
       query += ` AND user_id = $${paramCount}`;
       values.push(filters.user_id);
+      paramCount++;
+    }
+
+    if (filters.customer_id) {
+      query += ` AND customer_id = $${paramCount}`;
+      values.push(filters.customer_id);
+      paramCount++;
     }
 
     const result = await pool.query(query, values);

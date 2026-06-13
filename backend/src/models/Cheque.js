@@ -302,7 +302,13 @@ class Cheque {
   /**
    * Get cheques due soon (within specified days)
    */
-  static async getDueSoon(company_id, days = 7) {
+  static async getDueSoon(company_id, days = 7, customer_id = null) {
+    const values = [company_id];
+    let customerFilter = '';
+    if (customer_id) {
+      values.push(customer_id);
+      customerFilter = ` AND ch.customer_id = $${values.length}`;
+    }
     const query = `
       SELECT
         ch.*,
@@ -315,17 +321,24 @@ class Cheque {
         AND ch.status = 'pending'
         AND ch.due_date <= CURRENT_DATE + INTERVAL '${days} days'
         AND ch.due_date >= CURRENT_DATE
+        ${customerFilter}
       ORDER BY ch.due_date ASC
     `;
 
-    const result = await pool.query(query, [company_id]);
+    const result = await pool.query(query, values);
     return result.rows;
   }
 
   /**
    * Get overdue cheques (past due date and still pending)
    */
-  static async getOverdue(company_id) {
+  static async getOverdue(company_id, customer_id = null) {
+    const values = [company_id];
+    let customerFilter = '';
+    if (customer_id) {
+      values.push(customer_id);
+      customerFilter = ` AND ch.customer_id = $${values.length}`;
+    }
     const query = `
       SELECT
         ch.*,
@@ -337,17 +350,24 @@ class Cheque {
       WHERE ch.company_id = $1
         AND ch.status = 'pending'
         AND ch.due_date < CURRENT_DATE
+        ${customerFilter}
       ORDER BY ch.due_date ASC
     `;
 
-    const result = await pool.query(query, [company_id]);
+    const result = await pool.query(query, values);
     return result.rows;
   }
 
   /**
    * Get statistics for cheques
    */
-  static async getStatistics(company_id) {
+  static async getStatistics(company_id, customer_id = null) {
+    const values = [company_id];
+    let customerFilter = '';
+    if (customer_id) {
+      values.push(customer_id);
+      customerFilter = ` AND customer_id = $${values.length}`;
+    }
     const query = `
       SELECT
         COUNT(*) as total_cheques,
@@ -366,10 +386,10 @@ class Cheque {
         COUNT(CASE WHEN status = 'pending' AND due_date < CURRENT_DATE THEN 1 END) as overdue_count,
         SUM(CASE WHEN status = 'pending' AND due_date < CURRENT_DATE THEN amount ELSE 0 END) as overdue_amount
       FROM cheques
-      WHERE company_id = $1
+      WHERE company_id = $1${customerFilter}
     `;
 
-    const result = await pool.query(query, [company_id]);
+    const result = await pool.query(query, values);
     return result.rows[0];
   }
 

@@ -1,5 +1,6 @@
 import { FileDown, FileSpreadsheet, Plus, Upload } from 'lucide-react';
 import PermissionButton from '../PermissionButton';
+import useAuthStore from '../../store/authStore';
 
 export default function ProductsHeader({
   onExportPdf,
@@ -7,6 +8,8 @@ export default function ProductsHeader({
   onOpenImport,
   onOpenCreate
 }) {
+  const { user } = useAuthStore();
+  const isCustomer = user?.role === 'customer';
   return (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
       <div>
@@ -33,25 +36,29 @@ export default function ProductsHeader({
           <span>Excel</span>
         </button>
 
-        <PermissionButton
-          permission="products.create"
-          deniedText="Ürün içe aktarma yetkiniz yok."
-          onClick={onOpenImport}
-          className="group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-lg shadow-sm hover:from-indigo-600 hover:to-indigo-700 hover:shadow-indigo-500/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-        >
-          <Upload className="w-5 h-5 mr-2" />
-          <span>Excel'den Yükle</span>
-        </PermissionButton>
+        {!isCustomer && (
+          <>
+            <PermissionButton
+              permission="products.create"
+              deniedText="Ürün içe aktarma yetkiniz yok."
+              onClick={onOpenImport}
+              className="group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-lg shadow-sm hover:from-indigo-600 hover:to-indigo-700 hover:shadow-indigo-500/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            >
+              <Upload className="w-5 h-5 mr-2" />
+              <span>Excel'den Yükle</span>
+            </PermissionButton>
 
-        <PermissionButton
-          permission="products.create"
-          deniedText="Ürün oluşturma yetkiniz yok."
-          onClick={onOpenCreate}
-          className="group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow-lg hover:from-blue-700 hover:to-blue-800 hover:shadow-blue-500/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-        >
-          <Plus className="w-5 h-5 mr-2" />
-          <span>Yeni Ürün</span>
-        </PermissionButton>
+            <PermissionButton
+              permission="products.create"
+              deniedText="Ürün oluşturma yetkiniz yok."
+              onClick={onOpenCreate}
+              className="group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow-lg hover:from-blue-700 hover:to-blue-800 hover:shadow-blue-500/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              <Plus className="w-5 h-5 mr-2" />
+              <span>Yeni Ürün</span>
+            </PermissionButton>
+          </>
+        )}
       </div>
     </div>
   );

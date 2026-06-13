@@ -336,6 +336,11 @@ class AIService {
     const msg = message.toLowerCase();
     const tools = [];
 
+    // Vadesi yaklaşan çek (henüz geçmemiş, önümüzdeki günlerde dolacak)
+    if (/(vadesi dol|vadesi yaklaş|vadesi gel|yaklaşan (çek|vade|ödeme)|bu hafta.*vade|vade.*bu hafta)/.test(msg)) {
+      const days = /ay\b|30 gün/.test(msg) ? 30 : /hafta|7 gün/.test(msg) ? 7 : 7;
+      tools.push({ name: 'get_due_soon_cheques', args: { days } });
+    }
     // Vadesi geçmiş çek
     if (/(vadesi geç|gecikmiş çek|overdue)/.test(msg)) {
       tools.push({ name: 'get_overdue_cheques', args: {} });
@@ -345,7 +350,7 @@ class AIService {
       tools.push({ name: 'search_cheques', args: { status: 'pending', limit: 20 } });
     }
     // Genel çek (yukarıdakilerle çakışmıyorsa)
-    if (/çek/.test(msg) && !/(vadesi geç|gecikmiş|bekleyen|overdue|pending)/.test(msg)) {
+    if (/çek/.test(msg) && !/(vadesi geç|vadesi dol|vadesi yaklaş|gecikmiş|bekleyen|yaklaşan|overdue|pending)/.test(msg)) {
       tools.push({ name: 'search_cheques', args: { limit: 10 } });
     }
     // Finansal / gelir / para
@@ -417,7 +422,14 @@ class AIService {
   }
 
   detectMutationIntent(message) {
-    const msg = String(message || '').toLowerCase();
+    let msg = String(message || '').toLowerCase();
+
+    // Edilgen ortaçları nötrleştir: "tamamlanan siparişler", "oluşturulan kayıtlar",
+    // "iptal edilen çekler" gibi ifadeler sorgu niyetidir, mutation değil.
+    // Emir kipleri ("tamamla", "iptal et", "ödendi yap") etkilenmez.
+    msg = msg
+      .replace(/\b(tamamlan|oluşturul|eklen|silin|güncellen|onaylan|gönderil|kapatıl|değiştiril|yaratıl|iptal\s+edil)(an|en|mış|miş|dı|di|du|dü|dık|dik|duk|dük|dığı|diği|acak|ecek)\w*/g, ' ')
+      .replace(/\b(öden)(en|miş|ecek)\w*/g, ' ');
 
     // Genel mutation kelimeleri (substring eşleşmesi)
     if (this.mutationKeywords.length) {
@@ -1047,6 +1059,9 @@ class AIService {
     // 1) Create intents → show inline form immediately (bypasses old guide-string system)
     const formTool = this.orchestrator.detectFormTool(sanitizedUserMessage);
     if (formTool) {
+      if (role === 'customer') {
+        return { success: true, answer: 'Bu bilgiye erişim yetkiniz yok.', steps, meta: { rbac_denied: true } };
+      }
       return {
         success: true,
         answer: 'Aşağıdaki formu doldurun:',
@@ -1057,6 +1072,9 @@ class AIService {
 
     // 2) Yazma/silme niyeti varsa önce onay iste
     if (this.detectMutationIntent(sanitizedUserMessage)) {
+      if (role === 'customer') {
+        return { success: true, answer: 'Bu bilgiye erişim yetkiniz yok.', steps, meta: { rbac_denied: true } };
+      }
       const action = this.detectMutationAction(sanitizedUserMessage);
       if (!action) {
         const selectionResponse = await this._buildSelectionResponse(sanitizedUserMessage, context);

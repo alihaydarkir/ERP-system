@@ -3,11 +3,12 @@ import { supplierService } from '../services/supplierService';
 
 export const SUPPLIERS_KEY = 'suppliers';
 
-export function useSuppliers(params = {}) {
+export function useSuppliers({ enabled = true, ...params } = {}) {
   return useQuery({
     queryKey: [SUPPLIERS_KEY, params],
     queryFn: () => supplierService.getAll(params),
     select: (res) => res.data ?? [],
+    enabled,
   });
 }
 

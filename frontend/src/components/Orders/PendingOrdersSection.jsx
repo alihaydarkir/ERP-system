@@ -2,7 +2,7 @@
 import LoadingState from '../UI/LoadingState';
 import EmptyState from '../UI/EmptyState';
 
-export default function PendingOrdersSection({ orders, onComplete, onCancel, onView, loading }) {
+export default function PendingOrdersSection({ orders, onComplete, onCancel, onView, loading, hideActions = false }) {
   if (loading) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 transition-colors duration-200">
@@ -32,7 +32,7 @@ export default function PendingOrdersSection({ orders, onComplete, onCancel, onV
               onComplete={onComplete}
               onCancel={onCancel}
               onView={onView}
-              isPending={true}
+              isPending={!hideActions}
             />
           ))}
         </div>
