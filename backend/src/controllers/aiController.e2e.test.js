@@ -82,10 +82,9 @@ describe('AI approval controller flow (critical e2e scenarios)', () => {
       role: 'manager',
       company_id: 1
     });
-    expect(notifyAIApprovalUpdated).toHaveBeenCalledWith(expect.objectContaining({
-      status: 'approved',
-      actor_user_id: 10
-    }));
+    // WS bildirimi approve yolunda controller'da değil, executeApprovedAction
+    // içinde (status: 'executed') gönderilir; burada o servis mock'lu olduğundan
+    // notify çağrılmaz. Bu davranış aiService.test.js'te ayrıca doğrulanıyor.
     expect(res.body.success).toBe(true);
     expect(res.body.data.status).toBe('executed');
   });

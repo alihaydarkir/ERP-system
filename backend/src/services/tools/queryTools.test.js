@@ -46,7 +46,9 @@ describe('queryTools', () => {
 
       const [sql, values] = mockPool.query.mock.calls[0];
       expect(sql).toContain('FROM products p');
-      expect(sql).toContain('ILIKE');
+      // Türkçe-duyarlı arama: ILIKE yerine LOWER(TRANSLATE(...)) LIKE kullanılıyor
+      expect(sql).toContain('TRANSLATE');
+      expect(sql).toContain('LIKE');
       expect(values).toEqual([9, '%lap%', 15]);
       expect(result).toEqual({
         products: [{ id: 1, name: 'Laptop' }],

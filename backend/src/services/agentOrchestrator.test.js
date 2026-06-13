@@ -31,21 +31,25 @@ describe('AgentOrchestrator', () => {
     jest.clearAllMocks();
   });
 
-  test('copilot mode blocks mutation with approval_required step', async () => {
+  test('query path strips mutation steps and asks for explicit action', async () => {
+    // run() artık SADECE sorgu yoludur; mutation niyeti aiService'te ayrı onaylı
+    // akışta işlenir. Planner yanlışlıkla yazma aracı seçerse run() onu eler.
     process.env.AI_AUTOMATION_MODE = 'copilot';
     const orchestrator = new AgentOrchestrator();
 
+    const requestApproval = jest.fn(async () => ({ id: 99 }));
     const result = await orchestrator.run({
       userMessage: 'siparişi iptal et',
       context: { company_id: 1, user_id: 7, role: 'admin' },
       fallbackTools: [{ name: 'cancel_order', args: { order_identifier: 'ORD-1' } }],
       hasMutationPermission: async () => ({ allowed: true, requiredPermission: null }),
-      requestApproval: async () => ({ id: 99 })
+      requestApproval
     });
 
-    const approvalStep = result.steps.find((s) => s.type === 'approval_required');
-    expect(approvalStep).toBeTruthy();
-    expect(approvalStep.approval_id).toBe(99);
+    // Mutation sorgu yolundan çıkarıldı: onay istenmez, araç çalıştırılmaz.
+    expect(result.meta.mutation_blocked_in_query_path).toBe(true);
+    expect(result.steps.find((s) => s.type === 'approval_required')).toBeUndefined();
+    expect(requestApproval).not.toHaveBeenCalled();
   });
 
   test('permission denied mutation returns tool_error', async () => {

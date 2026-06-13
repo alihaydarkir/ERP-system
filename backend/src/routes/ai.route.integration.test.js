@@ -13,6 +13,8 @@ const mockGetModels = jest.fn((_req, res) => res.json({ ok: true, route: 'models
 const mockGetMyApprovals = jest.fn((_req, res) => res.json({ ok: true, route: 'approvals_my' }));
 const mockApproveAIAction = jest.fn((_req, res) => res.json({ ok: true, route: 'approve' }));
 const mockRejectAIAction = jest.fn((_req, res) => res.json({ ok: true, route: 'reject' }));
+const mockExecuteTool = jest.fn((_req, res) => res.json({ ok: true, route: 'execute_tool' }));
+const mockGetCustomerDashboard = jest.fn((_req, res) => res.json({ ok: true, route: 'customer_dashboard' }));
 
 jest.mock('../middleware/auth', () => mockAuthMiddleware);
 jest.mock('../middleware/rateLimit', () => ({
@@ -24,7 +26,9 @@ jest.mock('../controllers/aiController', () => ({
   getModels: mockGetModels,
   getMyApprovals: mockGetMyApprovals,
   approveAIAction: mockApproveAIAction,
-  rejectAIAction: mockRejectAIAction
+  rejectAIAction: mockRejectAIAction,
+  executeTool: mockExecuteTool,
+  getCustomerDashboard: mockGetCustomerDashboard
 }));
 
 const router = require('./ai');
@@ -69,7 +73,10 @@ describe('AI routes integration (router + middleware chain)', () => {
     }
   });
 
-  test('POST /api/ai/chat mutation intent path triggers mutation limiter', async () => {
+  test('POST /api/ai/chat mutation intent still routes to agentChat without route-level mutation limiter', async () => {
+    // Mimari: /chat route'unda route-seviyesi mutation limiter YOKTUR. Mutation niyeti
+    // ve hız sınırı servis içinde (aiService.detectMutationIntent + enforceRateLimit)
+    // onay akışıyla yönetilir. Route limiter sadece approve/reject/execute-tool'da.
     const { server, baseUrl } = await createTestServer();
 
     try {
@@ -82,7 +89,7 @@ describe('AI routes integration (router + middleware chain)', () => {
 
       expect(response.status).toBe(200);
       expect(data.ok).toBe(true);
-      expect(mockAiMutationLimiter).toHaveBeenCalled();
+      expect(mockAiMutationLimiter).not.toHaveBeenCalled();
       expect(mockAgentChat).toHaveBeenCalled();
     } finally {
       await new Promise((resolve) => server.close(resolve));

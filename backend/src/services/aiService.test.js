@@ -41,6 +41,7 @@ jest.mock('../websocket/notifier', () => ({
 
 jest.mock('./agentOrchestrator', () => {
   return jest.fn().mockImplementation(() => ({
+    detectFormTool: jest.fn(() => null),
     run: jest.fn(async () => ({
       answer: 'ok',
       steps: [],

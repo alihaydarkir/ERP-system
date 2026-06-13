@@ -140,7 +140,7 @@ describe('authController', () => {
       await login(req, res);
 
       expect(res.status).not.toHaveBeenCalledWith(401);
-      expect(res.cookie).toHaveBeenCalledTimes(2);
+      expect(res.cookie).toHaveBeenCalledTimes(3); // access + refresh + csrf
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
         success: true,
         message: 'Login successful'
@@ -228,7 +228,7 @@ describe('authController', () => {
       await register(req, res);
 
       expect(res.status).toHaveBeenCalledWith(201);
-      expect(res.cookie).toHaveBeenCalledTimes(2);
+      expect(res.cookie).toHaveBeenCalledTimes(3); // access + refresh + csrf
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
         success: true,
         message: 'Registration successful'
@@ -290,7 +290,7 @@ describe('authController', () => {
 
       await logout(req, res);
 
-      expect(res.clearCookie).toHaveBeenCalledTimes(2);
+      expect(res.clearCookie).toHaveBeenCalledTimes(3); // access + refresh + csrf
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
         success: true,
         message: 'Logout successful'
@@ -310,7 +310,7 @@ describe('authController', () => {
 
       await logout(req, res);
 
-      expect(res.clearCookie).toHaveBeenCalledTimes(2);
+      expect(res.clearCookie).toHaveBeenCalledTimes(3); // access + refresh + csrf
       expect(res.status).not.toHaveBeenCalledWith(401);
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
         success: true,
@@ -368,7 +368,7 @@ describe('authController', () => {
 
       await refreshToken(req, res);
 
-      expect(res.cookie).toHaveBeenCalledTimes(2);
+      expect(res.cookie).toHaveBeenCalledTimes(3); // access + refresh + csrf
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
         success: true,
         message: 'Token refreshed'
@@ -389,7 +389,7 @@ describe('authController', () => {
 
       await refreshToken(req, res);
 
-      expect(res.clearCookie).toHaveBeenCalledTimes(2);
+      expect(res.clearCookie).toHaveBeenCalledTimes(3); // access + refresh + csrf
       expect(res.status).toHaveBeenCalledWith(401);
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
         success: false,
