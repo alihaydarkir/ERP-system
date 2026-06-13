@@ -44,10 +44,7 @@ CREATE TRIGGER trigger_suppliers_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION update_suppliers_updated_at();
 
--- Add sample data (only if suppliers table is empty)
-INSERT INTO suppliers (supplier_name, contact_person, email, phone, address, tax_office, tax_number, payment_terms, currency, rating, created_by, company_id)
-SELECT 'ABC Tedarik A.Ş.', 'Ahmet Yılmaz', 'ahmet@abctedarik.com', '+90 212 555 0101', 'İstanbul, Türkiye', 'Kadıköy Vergi Dairesi', '1234567890', 'Net 30', 'TRY', 5, 1, 
-       (SELECT id FROM companies WHERE company_code = 'DEFAULT_COMPANY' LIMIT 1)
-WHERE NOT EXISTS (SELECT 1 FROM suppliers WHERE tax_number = '1234567890')
-  AND EXISTS (SELECT 1 FROM companies WHERE company_code = 'DEFAULT_COMPANY')
-ON CONFLICT (tax_number) DO NOTHING;
+-- NOT: Örnek/demo veri burada DEĞİL, seed scriptlerinde (npm run seed) tutulur.
+-- Eski sürümde buradaki INSERT, company_id + companies tablosuna (028'de oluşan)
+-- ve users.id=1'e atıf yaptığı için SIFIR bir veritabanında migration zincirini
+-- kırıyordu. Migration'lar yalnızca şema tanımlar.

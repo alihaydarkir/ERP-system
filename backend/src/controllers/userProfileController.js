@@ -1,5 +1,5 @@
 const pool = require('../config/database');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const AuditLog = require('../models/AuditLog');
 const { formatSuccess, formatError } = require('../utils/formatters');
 const { getClientIP } = require('../utils/helpers');

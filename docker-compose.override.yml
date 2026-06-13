@@ -26,8 +26,11 @@ services:
     build:
       context: ./backend
       dockerfile: ../Dockerfile.backend
-    # Override command to use nodemon for hot-reload
-    entrypoint: ["sh", "-c", "node scripts/migrate-db.js && npm run dev"]
+    # Migration'ları uygula, sonra sunucuyu çalıştır.
+    # NOT: nodemon bir devDependency'dir ve production image'ında kurulu değildir;
+    # bu yüzden hot-reload yerine doğrudan `node server.js` kullanıyoruz. Hot-reload
+    # istenirse image'a dev bağımlılıkları eklenmeli.
+    entrypoint: ["sh", "-c", "node scripts/migrate-db.js && node server.js"]
     environment:
       NODE_ENV: development
     volumes:

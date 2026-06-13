@@ -41,12 +41,9 @@ CREATE INDEX IF NOT EXISTS idx_warehouse_stock_product ON warehouse_stock(produc
 -- Add warehouse_id to products table (default warehouse)
 ALTER TABLE products ADD COLUMN IF NOT EXISTS warehouse_id INTEGER REFERENCES warehouses(id) ON DELETE SET NULL;
 
--- Insert default warehouse
-INSERT INTO warehouses (warehouse_name, warehouse_code, location, city, country, is_active, company_id)
-SELECT 'Ana Depo', 'WH-001', 'Merkez', 'Istanbul', 'Türkiye', true,
-       (SELECT id FROM companies WHERE company_code = 'DEFAULT_COMPANY' LIMIT 1)
-WHERE EXISTS (SELECT 1 FROM companies WHERE company_code = 'DEFAULT_COMPANY')
-ON CONFLICT (warehouse_code) DO NOTHING;
+-- NOT: Varsayılan depo örnek verisi burada DEĞİL, seed scriptlerinde tutulur
+-- (scripts/seed_warehouses.sql). Eski INSERT, company_id + companies tablosuna
+-- (028'de oluşan) atıf yaptığı için SIFIR bir veritabanında migration'ı kırıyordu.
 
 -- Create trigger to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_warehouses_updated_at()

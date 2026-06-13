@@ -7,7 +7,7 @@
 
 require('dotenv').config();
 const { pool } = require('../src/config/database');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 const ADMIN = {
   username: 'admin',

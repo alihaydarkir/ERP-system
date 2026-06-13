@@ -1,0 +1,32 @@
+# Docker image'ina KOPYALANMAYACAK dosyalar — image'i yalin tutar, build'i hizlandirir.
+
+# Yerel model dosyalari (4GB+ GGUF) — Ollama host'ta calisir, backend bunlara ihtiyac duymaz
+models/
+*.gguf
+
+# Bagimliliklar container icinde yeniden kurulur
+node_modules/
+
+# Gizli bilgiler — asla image'a girmemeli
+.env
+.env.*
+!.env.example
+
+# Calisma zamani verisi (volume olarak mount ediliyor)
+logs/
+uploads/
+*.log
+
+# Gelistirme / VCS
+.git/
+.gitignore
+.vscode/
+.idea/
+coverage/
+*.test.js
+**/*.test.js
+__tests__/
+
+# OS
+.DS_Store
+Thumbs.db

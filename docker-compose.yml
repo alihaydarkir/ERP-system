@@ -92,53 +92,16 @@ services:
     networks:
       - erp_internal
 
-  # ── Ollama (Local LLM — self-hosted, no external API) ────────────────────
-  ollama:
-    image: ollama/ollama:latest
-    container_name: erp_ollama
-    restart: unless-stopped
-    volumes:
-      - ollama_data:/root/.ollama
-    networks:
-      - erp_internal
-    # GPU desteği varsa uncomment et:
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
-
-  # Model pull — backend başlamadan önce modeli indir
-  ollama-init:
-    image: ollama/ollama:latest
-    container_name: erp_ollama_init
-    restart: "no"
-    volumes:
-      - ollama_data:/root/.ollama
-    networks:
-      - erp_internal
-    entrypoint: >
-      sh -c "
-        until curl -sf http://ollama:11434/api/tags; do
-          echo 'Ollama başlaması bekleniyor...'; sleep 3;
-        done;
-        echo 'Ollama hazır, model indiriliyor...';
-        ollama pull ${OLLAMA_MODEL:-llama2};
-        echo 'Model hazır.'
-      "
-    environment:
-      OLLAMA_HOST: http://ollama:11434
-    depends_on:
-      ollama:
-        condition: service_healthy
+  # ── Ollama: HOST'ta (native) çalışır, container DEĞİL ────────────────────
+  # Ollama'yı kasıtlı olarak container'a almıyoruz. Mac M3 Pro'da native Ollama
+  # Metal GPU kullanır (container'da macOS GPU geçişi yoktur). Backend host'taki
+  # Ollama'ya `host.docker.internal:11434` üzerinden bağlanır (aşağıda backend env).
+  #
+  # ÖN KOŞUL: Host Ollama, container'ların erişebilmesi için 0.0.0.0'a bind olmalı:
+  #   macOS:   launchctl setenv OLLAMA_HOST "0.0.0.0:11434" && Ollama'yı yeniden başlat
+  #   Windows: setx OLLAMA_HOST "0.0.0.0:11434" && Ollama'yı yeniden başlat
+  #   Linux:   systemd override ile OLLAMA_HOST=0.0.0.0:11434
+  # Model indirme de host'ta yapılır:  ollama pull <model>
 
   # ── Backend (Node.js/Express) ─────────────────────────────────────────────
   backend:
@@ -160,8 +123,13 @@ services:
       DB_NAME: ${DB_NAME:-erp_db}
       DATABASE_URL: postgresql://${DB_USER:-erp_user}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-erp_db}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
-      OLLAMA_BASE_URL: http://ollama:11434
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama2}
+      # Host'taki (native) Ollama'ya bağlan — container değil
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
+    # host.docker.internal Linux'ta otomatik çözülmez; Mac/Windows Docker Desktop'ta
+    # gereksiz ama zararsız — taşınabilirlik için ekli.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - uploads_data:/app/uploads
       - backend_logs:/app/logs
@@ -169,8 +137,6 @@ services:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_healthy
-      ollama:
         condition: service_healthy
     healthcheck:
       test: >
@@ -234,6 +200,4 @@ volumes:
   uploads_data:
     driver: local
   backend_logs:
-    driver: local
-  ollama_data:
     driver: local
