@@ -4,7 +4,9 @@ FROM node:20-alpine AS build
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci --ignore-scripts && npm cache clean --force
+# NOT: --ignore-scripts KULLANMA — esbuild (Vite'in derleyicisi) native binary'sini
+# install scriptiyle kurar; atlanirsa "esbuild: The service was stopped" hatasi olur.
+RUN npm ci && npm cache clean --force
 
 COPY . .
 
