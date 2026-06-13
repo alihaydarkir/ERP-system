@@ -59,3 +59,9 @@ services:
       - "5173:5173"
     environment:
       VITE_API_URL: "http://localhost:5000"
+    # Base compose'daki 128M dev icin cok dusuk — Vite+esbuild OOM olup
+    # "esbuild: The service was stopped" veriyordu. Dev'de bol bellek ver.
+    deploy:
+      resources:
+        limits:
+          memory: 2G
