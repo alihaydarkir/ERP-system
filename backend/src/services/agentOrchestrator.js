@@ -284,7 +284,11 @@ Kurallar:
       }
       return false;
     };
-    return (toolContexts || []).some((tc) => hasValue(tc.result));
+    // Bir araç anlamlı bir summary_text döndürdüyse (örn. "0 vs 0" karşılaştırma) bu da
+    // veridir; tüm sayısal alanlar 0 olsa bile cevabı bastırma.
+    const hasSummary = (r) =>
+      r && typeof r === 'object' && typeof r.summary_text === 'string' && r.summary_text.trim().length > 0;
+    return (toolContexts || []).some((tc) => hasValue(tc.result) || hasSummary(tc.result));
   }
 
   verify({ toolContexts }) {
@@ -503,6 +507,38 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
       if (!swapped && !(plan.steps || []).some((s) => s.tool === 'get_payment_risk_assessment')) {
         plan.steps = [{ tool: 'get_payment_risk_assessment', args: {} }, ...(plan.steps || [])];
       }
+    }
+
+    // "Envanter/stok değeri" parasal hesaptır; planner sık sık get_warehouse_stock (adet)
+    // veya get_low_stock_products seçip aritmetik halüsinasyona yol açıyor. Deterministik düzelt.
+    if (/envanter\s*değer|stok\s*değer|stoğun\s*değer|depo.*değer|mal.*değer/.test(lowerMsg)) {
+      let swapped = false;
+      plan.steps = (plan.steps || []).map((s) => {
+        if (s.tool === 'get_warehouse_stock' || s.tool === 'get_low_stock_products') {
+          swapped = true;
+          return { tool: 'get_inventory_value', args: {} };
+        }
+        return s;
+      });
+      if (!swapped && !(plan.steps || []).some((s) => s.tool === 'get_inventory_value')) {
+        plan.steps = [{ tool: 'get_inventory_value', args: {} }, ...(plan.steps || [])];
+      }
+    }
+
+    // "Tamamlanan/iptal/bekleyen siparişler" → get_orders_list'e doğru status'ü enjekte et.
+    // Planner status'ü atlayıp tüm siparişleri döndürünce model yanlış etiketliyor.
+    const orderStatusMap = [
+      [/tamamlan/, 'completed'],
+      [/iptal\s*edil|iptal\s*olan/, 'cancelled'],
+      [/bekleyen\s*sipariş|sipariş.*bekle/, 'pending']
+    ];
+    const matchedStatus = orderStatusMap.find(([re]) => re.test(lowerMsg));
+    if (matchedStatus) {
+      plan.steps = (plan.steps || []).map((s) =>
+        (s.tool === 'get_orders_list' || s.tool === 'search_orders' || s.tool === 'get_orders_summary')
+          ? { tool: 'get_orders_list', args: { ...(s.args || {}), status: matchedStatus[1] } }
+          : s
+      );
     }
 
     // Bu yol sorgu yoludur — mutation niyeti aiService'te ayrı akışta (onaylı) işlenir.

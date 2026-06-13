@@ -357,8 +357,11 @@ class AIService {
     if (/(finansal|gelir|para|bütçe|tutar|kazanç|kâr|zarar|mali)/.test(msg)) {
       tools.push({ name: 'get_financial_summary', args: {} });
     }
-    // Stok
-    if (/(stok|envanter|depo|ürün azaldı|düşük stok)/.test(msg)) {
+    // Envanter/stok PARASAL değeri (adet değil) — stok dalından önce kontrol et
+    if (/(envanter\s*değer|stok\s*değer|stoğun\s*değer|depo.*değer|mal.*değer)/.test(msg)) {
+      tools.push({ name: 'get_inventory_value', args: {} });
+    } else if (/(stok|envanter|depo|ürün azaldı|düşük stok)/.test(msg)) {
+      // Stok (adet/seviye)
       tools.push({ name: 'get_low_stock_products', args: {} });
     }
     // Ürün

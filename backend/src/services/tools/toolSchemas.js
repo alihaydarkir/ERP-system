@@ -327,6 +327,8 @@ function sanitizeToolArgs(toolName, args = {}) {
       return {};
     case 'get_payment_risk_assessment':
       return {};
+    case 'get_inventory_value':
+      return {};
     default:
       return { ...input };
   }
@@ -370,6 +372,11 @@ const definitions = [
   {
     name: 'get_low_stock_products',
     description: 'Stok seviyesi kritik eşiğin altına düşmüş ürünleri listele.',
+    parameters: { type: 'object', properties: {} }
+  },
+  {
+    name: 'get_inventory_value',
+    description: 'Toplam envanter PARASAL değerini hesaplar (fiyat × stok), kategori kırılımıyla. "Envanter değeri", "stok değeri", "depodaki malın değeri" gibi sorular için kullan. Adet değil TL döner.',
     parameters: { type: 'object', properties: {} }
   },
   {

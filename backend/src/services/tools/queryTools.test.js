@@ -72,6 +72,34 @@ describe('queryTools', () => {
     });
   });
 
+  describe('get_inventory_value', () => {
+    it('parasal envanter değerini kategori kırılımıyla hesaplıyor', async () => {
+      mockPool.query.mockResolvedValueOnce({
+        rows: [
+          { category: 'Elektronik', product_count: '3', total_units: '10', category_value: '900000' },
+          { category: 'Tekstil', product_count: '2', total_units: '5', category_value: '117160' }
+        ]
+      });
+
+      const result = await queryTools.get_inventory_value({ company_id: 1 });
+
+      const [sql, values] = mockPool.query.mock.calls[0];
+      expect(sql).toContain('SUM(price * stock_quantity)');
+      expect(values).toEqual([1]);
+      expect(result.total_value).toBe(1017160);
+      expect(result.total_units).toBe(15);
+      expect(result.categories).toHaveLength(2);
+      expect(result.summary_text).toContain('1.017.160');
+    });
+
+    it('aktif stok yoksa anlamlı summary_text döner', async () => {
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+      const result = await queryTools.get_inventory_value({ company_id: 1 });
+      expect(result.total_value).toBe(0);
+      expect(result.summary_text).toContain('hesaplanamadı');
+    });
+  });
+
   describe('get_overdue_cheques', () => {
     it('tarih filtresi doğru (CURRENT_DATE ve overdue) uygulanıyor', async () => {
       mockPool.query.mockResolvedValueOnce({

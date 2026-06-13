@@ -10,7 +10,8 @@ const TOOL_ACCESS = {
       'get_financial_summary',
       'get_top_customers',
       'get_payment_risk_assessment',
-      'get_debt_aging_report'
+      'get_debt_aging_report',
+      'get_inventory_value'
     ]
   },
   customer: {

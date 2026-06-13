@@ -113,10 +113,10 @@ mutation ise `hasMutationPermission` → fonksiyonu `company_id/user_id/role` il
 
 ## 5. Araç Kataloğu
 
-### Salt-okuma (query) — 21 araç
+### Salt-okuma (query) — 22 araç
 `get_dashboard_summary` · `search_cheques` · `get_overdue_cheques` · `get_due_soon_cheques` ·
-`get_financial_summary` · `get_low_stock_products` · `search_products` · `search_customers` ·
-`get_orders_summary` · `get_orders_list` · `search_orders` · `get_suppliers_list` ·
+`get_financial_summary` · `get_low_stock_products` · `get_inventory_value` ★(yeni) · `search_products` ·
+`search_customers` · `get_orders_summary` · `get_orders_list` · `search_orders` · `get_suppliers_list` ·
 `get_invoices_summary` · `get_warehouse_stock` · `get_top_customers` · `get_top_products` ·
 `get_customer_detail` · `get_debt_aging_report` · `get_monthly_comparison` ·
 `recommend_reorder` · `get_payment_risk_assessment`
@@ -140,8 +140,8 @@ mutation ise `hasMutationPermission` → fonksiyonu `company_id/user_id/role` il
 | 1 | Ödeme riski | `get_payment_risk_assessment` | ✅ Doğru araç + doğru veri |
 | 2 | Tamamlanan siparişler neler? | `get_orders_list` | ✅ Sorgu (mutation değil), liste döndü |
 | 3 | Depo stoklarını göster | `get_warehouse_stock` | ⚠️ Veri doğru (352/61/31) ama cevap Türkçesi bozuk, Istanbul deposu düşürüldü |
-| 4 | Bu ayı geçen ayla karşılaştır | `get_monthly_comparison` | ❌ "veri bulunamadı" (bkz. Hata #1) |
-| 5 | Envanter değeri nedir? | `get_warehouse_stock` | ❌ Yanlış araç + aritmetik halüsinasyon "352+61=413" (bkz. Hata #2) |
+| 4 | Bu ayı geçen ayla karşılaştır | `get_monthly_comparison` | ✅ ÇÖZÜLDÜ — "%66.7 düşüş, geçen ay 6 / bu ay 2" (Hata #1 fix) |
+| 5 | Envanter değeri nedir? | `get_inventory_value` | ✅ ÇÖZÜLDÜ — "1.017.160 TL (589 adet)" parasal, aritmetik yok (Hata #2 fix) |
 | 6 | Düşük stoklu ürünler | `get_low_stock_products` | ✅ Doğru |
 | 7 | En iyi müşteriler | `get_top_customers` | ✅ Doğru |
 | 8 | Vadesi yaklaşan çekler | `get_due_soon_cheques` | ✅ Doğru |
@@ -155,7 +155,7 @@ kısmen kod (Hata #1, #2), kısmen 3B model kalitesi.
 
 ## 7. HATA HARİTASI
 
-### 🔴 Hata #1 — Aylık karşılaştırma "veri bulunamadı" diyor (KOD)
+### 🔴 Hata #1 — Aylık karşılaştırma "veri bulunamadı" diyor (KOD) — ✅ ÇÖZÜLDÜ
 - **Konum:** `agentOrchestrator.js` → `hasActualData()` / `respond()` (satır ~275-303)
 - **Neden:** `hasActualData` yalnızca sayısal `> 0` değer arar. `get_monthly_comparison`
   her zaman anlamlı bir `summary_text` döndürür; ama bu ay/geçen ay 0 tamamlanmış sipariş
@@ -163,14 +163,19 @@ kısmen kod (Hata #1, #2), kısmen 3B model kalitesi.
 - **Etki:** Geçerli "0 vs 0" / düşük hacimli karşılaştırmalar kullanıcıya yansımıyor.
 - **Öneri:** `hasActualData` veya `respond`, bir araç `summary_text` içeriyorsa onu veri
   saysın; ya da karşılaştırma/özet araçlarını özel olarak ele alsın.
+- **Çözüm (uygulandı):** `hasActualData`'ya `hasSummary` kontrolü eklendi — bir araç boş
+  olmayan `summary_text` döndürürse, tüm sayısal alanlar 0 olsa bile veri sayılır.
 
-### 🟠 Hata #2 — "Envanter değeri" yanlış araca gidiyor + aritmetik (KOD/KAPSAM)
+### 🟠 Hata #2 — "Envanter değeri" yanlış araca gidiyor + aritmetik (KOD/KAPSAM) — ✅ ÇÖZÜLDÜ
 - **Konum:** Araç kataloğu (`queryTools.js` / `toolSchemas.js`) — `get_inventory_value` YOK.
 - **Neden:** Parasal envanter değeri (Σ fiyat×stok) hesaplayan araç yok. Planner en yakın
   araç olarak `get_warehouse_stock` (adet) seçiyor; model adetleri toplayıp ("352+61=413")
   "asla aritmetik yapma" kuralını ihlal ediyor ve adet ile değeri karıştırıyor.
 - **Öneri:** `get_inventory_value` aracı ekle: `SUM(price * stock_quantity)` (kategori kırılımı
   opsiyonel). Alternatif: "envanter değeri" için deterministik yönlendirme.
+- **Çözüm (uygulandı):** `get_inventory_value` aracı eklendi (kategori kırılımı + `summary_text`),
+  toolSchema tanımı + RBAC (`user` rolüne kapalı) yapıldı, orchestrator'da "envanter/stok değeri"
+  için deterministik yönlendirme ve fallback router dalı eklendi. Test: "1.017.160 TL (589 adet)".
 
 ### 🟡 Hata #3 — Depo cevabında bozuk Türkçe / eksik depo (MODEL KALİTESİ)
 - **Konum:** Veri katmanı doğru (`get_warehouse_stock` Ana Depo Istanbul=31, Ankara=352,
@@ -180,11 +185,13 @@ kısmen kod (Hata #1, #2), kısmen 3B model kalitesi.
 - **Öneri:** Kod hatası değil. Çözüm: (a) liste-tipi araçlar için cevabı LLM'e bırakmadan
   şablonla biçimlendir, ya da (b) `aya-expanse:8b`/`qwen2.5:7b`'ye geç (4GB VRAM kısıtı var).
 
-### 🟡 Hata #4 — "Tamamlanan siparişler" status filtresi garanti değil (PLANNER)
+### 🟡 Hata #4 — "Tamamlanan siparişler" status filtresi garanti değil (PLANNER) — ✅ ÇÖZÜLDÜ
 - **Konum:** `get_orders_list` `status` parametresini destekliyor ama planner her zaman
   `status:'completed'` geçmeyebiliyor; model son siparişleri "tamamlandı" diye etiketliyor.
 - **Öneri:** "tamamlanan/iptal/bekleyen sipariş" ifadeleri için deterministik `status`
   enjeksiyonu (Hata #1'in çözüldüğü düzeltme deseniyle aynı yerde).
+- **Çözüm (uygulandı):** orchestrator'da niyet→status haritası eklendi (tamamlan→completed,
+  iptal→cancelled, bekleyen→pending); ilgili sipariş aracına `status` deterministik enjekte ediliyor.
 
 ### 🟡 Hata #5 — Migration runner idempotent değil (ALTYAPI)
 - **Konum:** `scripts/migrate-db.js` (satır 16-23)
@@ -210,10 +217,12 @@ kısmen kod (Hata #1, #2), kısmen 3B model kalitesi.
 
 ---
 
-## 9. Öncelikli Öneriler
+## 9. Durum & Kalan Öneriler
 
-1. **Hata #1** (aylık karşılaştırma) — küçük, net kod düzeltmesi; en görünür kullanıcı hatası.
-2. **Hata #2** — `get_inventory_value` aracı ekle (kapsam boşluğu).
-3. **Hata #5** — migration runner'a idempotency tablosu (gelecekteki kırılmaları önler).
-4. **Hata #3/#4** — liste/özet araçları için şablon-tabanlı biçimlendirme (3B model
-   bağımlılığını azaltır) veya donanım izin verirse daha büyük model.
+**Çözülenler (bu turda):** Hata #1 (aylık karşılaştırma), #2 (envanter değeri aracı),
+#4 (sipariş status enjeksiyonu). Hepsi canlı test + 106/106 birim testiyle doğrulandı.
+
+**Kalanlar:**
+1. **Hata #5** — migration runner'a idempotency tablosu (gelecekteki kırılmaları önler). Düşük aciliyet.
+2. **Hata #3** — liste/özet araçları için şablon-tabanlı biçimlendirme (3B model bağımlılığını
+   azaltır) veya donanım izin verirse daha büyük model (4GB VRAM kısıtı: `qwen2.5:7b` sığmaz).

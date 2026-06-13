@@ -163,6 +163,42 @@ const queryTools = {
     return { products: result.rows, count: result.rows.length };
   },
 
+  async get_inventory_value({ company_id }) {
+    const result = await pool.query(`
+      SELECT
+        category,
+        COUNT(*)                                            AS product_count,
+        COALESCE(SUM(stock_quantity), 0)                    AS total_units,
+        COALESCE(SUM(price * stock_quantity), 0)            AS category_value
+      FROM products
+      WHERE company_id = $1 AND is_active = true
+      GROUP BY category
+      ORDER BY category_value DESC
+    `, [company_id]);
+
+    const categories = result.rows.map(r => ({
+      category: r.category || 'Diğer',
+      product_count: Number(r.product_count || 0),
+      total_units: Number(r.total_units || 0),
+      value: Number(r.category_value || 0)
+    }));
+    const totalValue = categories.reduce((s, c) => s + c.value, 0);
+    const totalUnits = categories.reduce((s, c) => s + c.total_units, 0);
+
+    const fmt = (n) => Number(n).toLocaleString('tr-TR');
+    const summaryText = totalValue === 0
+      ? 'Aktif ürün stoğu bulunmadığından envanter değeri hesaplanamadı.'
+      : `Toplam envanter değeri ${fmt(totalValue)} TL (${fmt(totalUnits)} adet ürün). ` +
+        categories.slice(0, 5).map(c => `${c.category}: ${fmt(c.value)} TL`).join(', ') + '.';
+
+    return {
+      total_value: totalValue,
+      total_units: totalUnits,
+      categories,
+      summary_text: summaryText
+    };
+  },
+
   async search_products({ search, limit = 20, company_id }) {
     const values = [company_id];
     let searchClause = '';
