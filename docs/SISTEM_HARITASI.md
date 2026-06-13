@@ -193,13 +193,18 @@ kısmen kod (Hata #1, #2), kısmen 3B model kalitesi.
 - **Çözüm (uygulandı):** orchestrator'da niyet→status haritası eklendi (tamamlan→completed,
   iptal→cancelled, bekleyen→pending); ilgili sipariş aracına `status` deterministik enjekte ediliyor.
 
-### 🟡 Hata #5 — Migration runner idempotent değil (ALTYAPI)
-- **Konum:** `scripts/migrate-db.js` (satır 16-23)
+### 🟡 Hata #5 — Migration runner idempotent değil (ALTYAPI) — ✅ ÇÖZÜLDÜ
+- **Konum:** `scripts/migrate-db.js`
 - **Neden:** Uygulanmış migration takibi yok; her çağrıda TÜM `.sql`'ler baştan çalışıyor.
   Idempotent olmayan tek bir migration tüm zinciri kırar (028'in `customer` rolünü dışlayan
   CHECK constraint'i bu yüzden patlıyordu — düzeltildi).
-- **Öneri:** `schema_migrations` tablosu ile "uygulandı mı" takibi ekle; her migration'ı
-  ayrı transaction'da çalıştır.
+- **İlginç kök neden:** `000_create_migrations_table.sql` zaten bir `schema_migrations`
+  (migration_name UNIQUE, checksum, execution_time_ms) tablosu oluşturuyordu ama runner onu
+  HİÇ KULLANMIYORDU.
+- **Çözüm (uygulandı):** Runner mevcut `schema_migrations` tablosunu kullanacak şekilde yeniden
+  yazıldı: uygulanmış migration'ları atlar, her migration'ı kendi transaction'ında çalıştırır,
+  checksum + süre ile kaydeder. Test: 1. çalıştırma 26 uygulandı / 19 kayıtlı, 2. çalıştırma
+  0 uygulandı / 45 güncel. Sıfırdan klonda tüm zincir bir kez temiz çalışır.
 
 ---
 
@@ -219,10 +224,24 @@ kısmen kod (Hata #1, #2), kısmen 3B model kalitesi.
 
 ## 9. Durum & Kalan Öneriler
 
-**Çözülenler (bu turda):** Hata #1 (aylık karşılaştırma), #2 (envanter değeri aracı),
-#4 (sipariş status enjeksiyonu). Hepsi canlı test + 106/106 birim testiyle doğrulandı.
+**Çözülenler:** Hata #1 (aylık karşılaştırma), #2 (envanter değeri aracı),
+#4 (sipariş status enjeksiyonu), #5 (migration runner idempotency). Canlı test + 108/108 birim testi.
 
 **Kalanlar:**
-1. **Hata #5** — migration runner'a idempotency tablosu (gelecekteki kırılmaları önler). Düşük aciliyet.
-2. **Hata #3** — liste/özet araçları için şablon-tabanlı biçimlendirme (3B model bağımlılığını
+1. **Hata #3** — liste/özet araçları için şablon-tabanlı biçimlendirme (3B model bağımlılığını
    azaltır) veya donanım izin verirse daha büyük model (4GB VRAM kısıtı: `qwen2.5:7b` sığmaz).
+
+## 10. Başka Bir Makinede Kurulum (Mac/Linux/Windows)
+
+`.env` repoda yoktur (gizli). Klonlayan kişi `backend/.env`'i `.env.example`'dan oluşturmalı.
+Zorunlu: **`JWT_SECRET` (min 24 karakter)**. Adımlar:
+
+- **Docker (kolay):** `.env` oluştur (DB_PASSWORD, JWT_SECRET, OLLAMA_MODEL=qwen2.5:3b) →
+  `docker compose up -d` (postgres+pgvector, redis, ollama, backend, frontend) →
+  `docker compose exec backend npm run migrate && npm run seed`.
+  ⚠️ macOS'ta Docker Ollama GPU'ya erişemez (CPU, yavaş) → Ollama'yı native çalıştırmak daha iyi.
+- **Native:** Node 18+, PostgreSQL 16 + pgvector, Ollama (`ollama pull qwen2.5:3b`).
+  `cd backend && npm install` (bcrypt için Mac'te `xcode-select --install`) →
+  `npm run migrate && npm run seed` → `psql erp_db -f scripts/seed_warehouses.sql` (depo verisi
+  seed-data'da yok!) → `npm run dev`. Frontend: `cd frontend && npm install && npm run dev`.
+- **Redis opsiyoneldir** (yoksa uygulama "degraded" çalışır, ana akış etkilenmez).
