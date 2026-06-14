@@ -60,10 +60,10 @@ export default function AddProductToOrder({ onAddToCart }) {
       return;
     }
 
+    // Stok aşımı ENGELLEME — sadece bilgilendir (sipariş kaydedilir, ürün tedarik uyarısına düşer)
     const maxStock = Number(selectedProduct.stock_quantity ?? selectedProduct.stock ?? 0);
-    if (maxStock > 0 && quantity > maxStock) {
-      showWarning(`Maksimum ${maxStock} adet ekleyebilirsiniz`);
-      return;
+    if (quantity > maxStock) {
+      showWarning(`Stok ${maxStock} adet — ${quantity - maxStock} adet eksik, tedarik gerekecek`);
     }
 
     onAddToCart({
@@ -89,10 +89,8 @@ export default function AddProductToOrder({ onAddToCart }) {
   };
 
   const incrementQuantity = () => {
-    const maxStock = Number(selectedProduct?.stock_quantity ?? selectedProduct?.stock ?? 0);
-    if (selectedProduct && (maxStock === 0 || quantity < maxStock)) {
-      setQuantity(quantity + 1);
-    }
+    // Stok sınırı yok — stok aşılabilir (tedarik uyarısına düşer)
+    if (selectedProduct) setQuantity(quantity + 1);
   };
 
   const decrementQuantity = () => {
@@ -207,17 +205,14 @@ export default function AddProductToOrder({ onAddToCart }) {
                 value={quantity}
                 onChange={(e) => {
                   const val = parseInt(e.target.value) || 1;
-                  const maxStock = Number(selectedProduct.stock_quantity ?? selectedProduct.stock ?? 0);
-                  setQuantity(maxStock > 0 ? Math.min(Math.max(1, val), maxStock) : Math.max(1, val));
+                  setQuantity(Math.max(1, val)); // stok sınırı yok
                 }}
-                className="h-9 w-14 text-center border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700/80 text-gray-900 dark:text-gray-100 [appearance:textfield]"
+                className="h-9 w-16 text-center border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700/80 text-gray-900 dark:text-gray-100 [appearance:textfield]"
                 min="1"
-                max={Number(selectedProduct.stock_quantity ?? selectedProduct.stock ?? 0) || undefined}
               />
               <button
                 onClick={incrementQuantity}
-                className="h-9 w-9 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700/60 hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center text-gray-700 dark:text-gray-100 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={Number(selectedProduct.stock_quantity ?? selectedProduct.stock ?? 0) > 0 && quantity >= Number(selectedProduct.stock_quantity ?? selectedProduct.stock ?? 0)}
+                className="h-9 w-9 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700/60 hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center text-gray-700 dark:text-gray-100 font-semibold"
               >
                 +
               </button>

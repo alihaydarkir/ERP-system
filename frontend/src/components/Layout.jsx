@@ -9,7 +9,7 @@ import {
   LayoutDashboard, Package, Warehouse, ShoppingCart, Users, Truck,
   CreditCard, FileText, Activity, MessageSquare, BarChart3,
   Settings, Shield, ChevronLeft, ChevronRight, LogOut, User,
-  Menu, Search, Factory, Moon, Sun
+  Menu, Search, Factory, Moon, Sun, AlertTriangle
 } from 'lucide-react';
 
 export default function Layout({ children }) {
@@ -66,6 +66,7 @@ export default function Layout({ children }) {
     '/current-accounts': Activity,
     '/chat': MessageSquare,
     '/reports': BarChart3,
+    '/supply-alerts': AlertTriangle,
     '/user-management': Shield,
     '/settings': Settings
   };
@@ -92,6 +93,7 @@ export default function Layout({ children }) {
     { path: '/current-accounts', label: 'Cari Hesaplar', perm: 'invoices.view' },
     { path: '/chat', label: 'AI Asistan' },
     { path: '/reports', label: 'Raporlar', perm: 'reports.view' },
+    { path: '/supply-alerts', label: 'Tedarik Uyarıları', perm: 'products.view' },
   ];
 
   const adminMenuItems = [

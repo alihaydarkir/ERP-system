@@ -46,16 +46,17 @@ class Order {
           company_id
         ]);
 
-        // Update product stock
+        // Update product stock — stok yetersizse ENGELLEME, negatife düşür.
+        // Negatif stok = tedarik gerektiren ürün (Tedarik Uyarıları sayfasında görünür).
         const stockQuery = `
           UPDATE products
           SET stock_quantity = stock_quantity - $1
-          WHERE id = $2 AND stock_quantity >= $1
+          WHERE id = $2
         `;
         const stockResult = await client.query(stockQuery, [item.quantity, item.product_id]);
 
         if (stockResult.rowCount === 0) {
-          throw new Error(`Insufficient stock for product ID ${item.product_id}`);
+          throw new Error(`Product not found: ID ${item.product_id}`);
         }
       }
 

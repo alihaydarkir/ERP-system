@@ -27,7 +27,8 @@ const mockProductController = {
   getProductById: jest.fn((_req, res) => res.status(200).json({ success: true, data: { id: 1 } })),
   createProduct: jest.fn((_req, res) => res.status(201).json({ success: true })),
   updateProduct: jest.fn((_req, res) => res.status(200).json({ success: true })),
-  deleteProduct: jest.fn((_req, res) => res.status(200).json({ success: true }))
+  deleteProduct: jest.fn((_req, res) => res.status(200).json({ success: true })),
+  getSupplyAlerts: jest.fn((_req, res) => res.status(200).json({ success: true, data: [] }))
 };
 
 jest.mock('../config/database', () => mockPool);

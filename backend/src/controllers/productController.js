@@ -1,4 +1,5 @@
 const Product = require('../models/Product');
+const pool = require('../config/database');
 const AuditLog = require('../models/AuditLog');
 const ActivityLogService = require('../services/activityLogService');
 const cacheService = require('../services/cacheService');
@@ -276,11 +277,37 @@ const deleteProduct = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/products/supply-alerts
+ * Stok yetersiz (negatif) ürünler — tedarik gerektirenler + tedarikçisi.
+ */
+const getSupplyAlerts = async (req, res) => {
+  try {
+    const { company_id } = req.user;
+    const result = await pool.query(`
+      SELECT
+        p.id, p.name, p.sku, p.stock_quantity,
+        ABS(p.stock_quantity) AS deficit,
+        s.id AS supplier_id, s.supplier_name, s.phone AS supplier_phone, s.email AS supplier_email
+      FROM products p
+      LEFT JOIN suppliers s ON s.id = p.supplier_id
+      WHERE p.company_id = $1 AND p.stock_quantity < 0
+      ORDER BY p.stock_quantity ASC
+    `, [company_id]);
+
+    res.json(formatSuccess(result.rows, 'Tedarik uyarıları'));
+  } catch (error) {
+    console.error('Get supply alerts error:', error);
+    res.status(500).json(formatError('Tedarik uyarıları yüklenemedi'));
+  }
+};
+
 module.exports = {
   getAllProducts,
   getProductById,
   createProduct,
   updateProduct,
-  deleteProduct
+  deleteProduct,
+  getSupplyAlerts
 };
 

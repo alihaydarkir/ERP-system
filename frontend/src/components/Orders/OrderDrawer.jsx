@@ -23,11 +23,7 @@ export default function OrderDrawer({ isOpen, onClose, onSuccess }) {
       const newItems = [...cartItems];
       const newQuantity = newItems[existingIndex].quantity + product.quantity;
 
-      if (newQuantity > product.stock_quantity) {
-        showWarning(`Maksimum ${product.stock_quantity} adet ekleyebilirsiniz`);
-        return;
-      }
-
+      // Stok aşımı engellenmez — sipariş kaydedilir, ürün tedarik uyarısına düşer
       newItems[existingIndex].quantity = newQuantity;
       setCartItems(newItems);
       setFormErrors((prev) => ({ ...prev, cart: '' }));

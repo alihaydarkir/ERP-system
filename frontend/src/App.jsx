@@ -37,6 +37,7 @@ const EmployeeApprovalsPage = lazy(() => import('./pages/EmployeeApprovalsPage')
 const ActivityLogsPage = lazy(() => import('./pages/ActivityLogsPage'));
 const InvoicesPage = lazy(() => import('./pages/InvoicesPage'));
 const CurrentAccountPage = lazy(() => import('./pages/CurrentAccountPage'));
+const SupplyAlertsPage = lazy(() => import('./pages/SupplyAlertsPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 function App() {
@@ -358,6 +359,16 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <CurrentAccountPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/supply-alerts"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <SupplyAlertsPage />
                 </Layout>
               </ProtectedRoute>
             }

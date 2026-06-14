@@ -11,6 +11,11 @@ export const productService = {
     return response.data;
   },
 
+  getSupplyAlerts: async () => {
+    const response = await api.get('/api/products/supply-alerts');
+    return response.data;
+  },
+
   create: async (product) => {
     const response = await api.post('/api/products', product);
     return response.data;

@@ -40,12 +40,8 @@ export default function OrderCart({ items, onRemoveItem, onUpdateQuantity }) {
                     {item.quantity}
                   </span>
                   <button
-                    onClick={() => {
-                      const maxStock = Number(item.stock_quantity ?? item.stock ?? 0);
-                      onUpdateQuantity(index, maxStock > 0 ? Math.min(maxStock, item.quantity + 1) : item.quantity + 1);
-                    }}
-                    className="h-9 w-9 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700/60 hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center text-gray-700 dark:text-gray-100 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={Number(item.stock_quantity ?? item.stock ?? 0) > 0 && item.quantity >= Number(item.stock_quantity ?? item.stock ?? 0)}
+                    onClick={() => onUpdateQuantity(index, item.quantity + 1)}
+                    className="h-9 w-9 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700/60 hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center text-gray-700 dark:text-gray-100 font-semibold"
                   >
                     +
                   </button>
@@ -75,10 +71,10 @@ export default function OrderCart({ items, onRemoveItem, onUpdateQuantity }) {
               </div>
             </div>
 
-            {/* Stock Warning */}
-            {Number(item.stock_quantity ?? item.stock ?? 0) > 0 && item.quantity >= Number(item.stock_quantity ?? item.stock ?? 0) && (
+            {/* Stok aşımı bilgisi — engellenmez, tedarik uyarısına düşer */}
+            {item.quantity > Number(item.stock_quantity ?? item.stock ?? 0) && (
               <p className="text-xs text-orange-600 mt-2">
-                ⚠️ Maksimum stok miktarına ulaşıldı
+                ⚠️ Stok {Number(item.stock_quantity ?? item.stock ?? 0)} adet — {item.quantity - Number(item.stock_quantity ?? item.stock ?? 0)} adet eksik, tedarik gerekecek
               </p>
             )}
           </div>
