@@ -1,4 +1,4 @@
-import { FileDown, FileSpreadsheet, Plus, Upload } from 'lucide-react';
+import { FileDown, FileSpreadsheet, Plus, Upload, PackagePlus } from 'lucide-react';
 import PermissionButton from '../PermissionButton';
 import useAuthStore from '../../store/authStore';
 
@@ -6,7 +6,8 @@ export default function ProductsHeader({
   onExportPdf,
   onExportExcel,
   onOpenImport,
-  onOpenCreate
+  onOpenCreate,
+  onOpenStockEntry
 }) {
   const { user } = useAuthStore();
   const isCustomer = user?.role === 'customer';
@@ -46,6 +47,16 @@ export default function ProductsHeader({
             >
               <Upload className="w-5 h-5 mr-2" />
               <span>Excel'den Yükle</span>
+            </PermissionButton>
+
+            <PermissionButton
+              permission="products.edit"
+              deniedText="Stok girişi yetkiniz yok."
+              onClick={onOpenStockEntry}
+              className="group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-gradient-to-r from-teal-500 to-teal-600 rounded-lg shadow-sm hover:from-teal-600 hover:to-teal-700 hover:shadow-teal-500/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
+            >
+              <PackagePlus className="w-5 h-5 mr-2" />
+              <span>Stok Girişi</span>
             </PermissionButton>
 
             <PermissionButton

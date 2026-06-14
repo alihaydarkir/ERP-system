@@ -4,6 +4,7 @@ import ProductsHeader from '../components/Products/ProductsHeader';
 import ProductFilters from '../components/Products/ProductFilters';
 import ProductList from '../components/Products/ProductList';
 import ProductFormModal from '../components/Products/ProductFormModal';
+import StockEntryModal from '../components/Products/StockEntryModal';
 import useUIStore from '../store/uiStore';
 import ErrorState from '../components/UI/ErrorState';
 import { exportProductsToPDF, exportProductsToExcel } from '../utils/exportUtils';
@@ -45,6 +46,7 @@ export default function ProductsPage() {
   const { showSuccess, showError, showConfirm } = useUIStore();
   const [showModal, setShowModal] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [showStockEntry, setShowStockEntry] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [visibleProducts, setVisibleProducts] = useState([]);
@@ -149,7 +151,15 @@ export default function ProductsPage() {
         }}
         onOpenImport={() => setShowImportDialog(true)}
         onOpenCreate={() => setShowModal(true)}
+        onOpenStockEntry={() => setShowStockEntry(true)}
       />
+
+      {showStockEntry && (
+        <StockEntryModal
+          onClose={() => setShowStockEntry(false)}
+          onDone={() => { setShowStockEntry(false); refetch(); toast.success('Gelen stok eklendi'); }}
+        />
+      )}
 
       {isError && (
         <ErrorState

@@ -444,7 +444,20 @@ const completePartialOrder = async (req, res) => {
       const shipped = Math.min(Math.max(shippedMap[Number(oi.product_id)] ?? 0, 0), ordered);
       const remaining = ordered - shipped;
       const price = Number(oi.price);
-      if (shipped > 0) { shippedItems.push({ product_id: oi.product_id, quantity: shipped, price }); shippedTotal += shipped * price; }
+      if (shipped > 0) {
+        shippedItems.push({ product_id: oi.product_id, quantity: shipped, price });
+        shippedTotal += shipped * price;
+        // Gelen stoğu (incoming_stock) sevk adetince stok_quantity'ye uygula → açık (negatif stok) düşer.
+        // Gelen stok yoksa açık değişmez (LEAST(incoming, shipped) = 0).
+        await client.query(
+          `UPDATE products
+             SET stock_quantity = stock_quantity + LEAST(incoming_stock, $1),
+                 incoming_stock = incoming_stock - LEAST(incoming_stock, $1),
+                 updated_at = NOW()
+           WHERE id = $2`,
+          [shipped, oi.product_id]
+        );
+      }
       if (remaining > 0) { remainingItems.push({ product_id: oi.product_id, quantity: remaining, price }); remainingTotal += remaining * price; }
     }
 

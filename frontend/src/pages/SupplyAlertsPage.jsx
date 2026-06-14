@@ -57,7 +57,7 @@ export default function SupplyAlertsPage() {
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-800/50">
                 <tr>
-                  {['Ürün', 'SKU', 'Mevcut Stok', 'Eksik Adet', 'Tedarikçi', 'İletişim'].map((h) => (
+                  {['Ürün', 'SKU', 'Mevcut Stok', 'Gelen Stok', 'Eksik Adet', 'Tedarikçi', 'İletişim'].map((h) => (
                     <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -71,6 +71,13 @@ export default function SupplyAlertsPage() {
                       <span className="inline-flex items-center px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold">
                         {a.stock_quantity}
                       </span>
+                    </td>
+                    <td className="px-5 py-3">
+                      {Number(a.incoming_stock) > 0 ? (
+                        <span className="inline-flex items-center px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">
+                          +{a.incoming_stock}
+                        </span>
+                      ) : <span className="text-xs text-gray-400">—</span>}
                     </td>
                     <td className="px-5 py-3">
                       <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-bold">

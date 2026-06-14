@@ -16,6 +16,11 @@ export const productService = {
     return response.data;
   },
 
+  addStock: async (id, quantity) => {
+    const response = await api.post(`/api/products/${id}/add-stock`, { quantity });
+    return response.data;
+  },
+
   create: async (product) => {
     const response = await api.post('/api/products', product);
     return response.data;

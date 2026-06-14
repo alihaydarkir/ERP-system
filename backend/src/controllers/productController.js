@@ -286,7 +286,7 @@ const getSupplyAlerts = async (req, res) => {
     const { company_id } = req.user;
     const result = await pool.query(`
       SELECT
-        p.id, p.name, p.sku, p.stock_quantity,
+        p.id, p.name, p.sku, p.stock_quantity, p.incoming_stock,
         ABS(p.stock_quantity) AS deficit,
         s.id AS supplier_id, s.supplier_name, s.phone AS supplier_phone, s.email AS supplier_email
       FROM products p
@@ -302,12 +302,46 @@ const getSupplyAlerts = async (req, res) => {
   }
 };
 
+/**
+ * POST /api/products/:id/add-stock
+ * Mevcut ürüne stok girişi → 'gelen stok' (incoming_stock) artar.
+ * stock_quantity (açık) değişmez; sipariş sevk edilince netleşir.
+ * Body: { quantity }
+ */
+const addStock = async (req, res) => {
+  try {
+    const { company_id } = req.user;
+    const { id } = req.params;
+    const quantity = parseInt(req.body.quantity);
+
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      return res.status(400).json(formatError('Geçerli bir adet girin'));
+    }
+
+    const result = await pool.query(
+      `UPDATE products SET incoming_stock = incoming_stock + $1, updated_at = NOW()
+       WHERE id = $2 AND company_id = $3
+       RETURNING id, name, stock_quantity, incoming_stock`,
+      [quantity, id, company_id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json(formatError('Ürün bulunamadı'));
+    }
+
+    res.json(formatSuccess(result.rows[0], `${quantity} adet gelen stok eklendi`));
+  } catch (error) {
+    console.error('Add stock error:', error);
+    res.status(500).json(formatError('Stok eklenemedi'));
+  }
+};
+
 module.exports = {
   getAllProducts,
   getProductById,
   createProduct,
   updateProduct,
   deleteProduct,
-  getSupplyAlerts
+  getSupplyAlerts,
+  addStock
 };
 

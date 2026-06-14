@@ -6,7 +6,7 @@ const { requirePermission, logActivity } = require('../middleware/permissions');
 const { validate, productSchemas, querySchemas } = require('../utils/validators');
 const {
   getAllProducts, getProductById,
-  createProduct, updateProduct, deleteProduct, getSupplyAlerts,
+  createProduct, updateProduct, deleteProduct, getSupplyAlerts, addStock,
 } = require('../controllers/productController');
 
 /**
@@ -45,6 +45,10 @@ router.get('/', authMiddleware, requirePermission('products.view'),
 
 // Tedarik uyarıları (stok negatif ürünler) — /:id'den ÖNCE tanımlı olmalı
 router.get('/supply-alerts', authMiddleware, requirePermission('products.view'), getSupplyAlerts);
+
+// Mevcut ürüne stok girişi (gelen stok artar)
+router.post('/:id/add-stock', authMiddleware, validateId, requirePermission('products.edit'),
+  logActivity('add_stock', 'products'), addStock);
 
 /**
  * @openapi
