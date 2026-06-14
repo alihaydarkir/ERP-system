@@ -33,11 +33,12 @@ services:
     entrypoint: ["sh", "-c", "node scripts/migrate-db.js && node server.js"]
     environment:
       NODE_ENV: development
+      ALLOWED_HOSTS: "localhost:5001,localhost:5000,localhost:3000,localhost:5173"
     volumes:
       - ./backend:/app
       - /app/node_modules          # Don't overwrite container's node_modules
     ports:
-      - "5000:5000"
+      - "5001:5000"
     deploy:
       resources:
         limits:
@@ -58,7 +59,7 @@ services:
     ports:
       - "5173:5173"
     environment:
-      VITE_API_URL: "http://localhost:5000"
+      VITE_API_URL: "http://localhost:5001"
     # Base compose'daki 128M dev icin cok dusuk — Vite+esbuild OOM olup
     # "esbuild: The service was stopped" veriyordu. Dev'de bol bellek ver.
     deploy:

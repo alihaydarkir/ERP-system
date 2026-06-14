@@ -139,17 +139,21 @@ class AIGateway {
           model: selectedModel,
           messages: builtMessages,
           stream: false,
+          keep_alive: -1,
           options: {
             temperature: options.temperature ?? 0.3,
             top_p: options.top_p ?? 0.9,
-            max_tokens: options.max_tokens,
+            num_ctx: options.num_ctx ?? 4096,
+            num_predict: options.num_predict,
             ...(numGpuLayers !== undefined && { num_gpu: numGpuLayers }),
           }
         },
         { timeout }
       );
 
-      const content = response.data?.message?.content || '';
+      const content = response.data?.message?.content
+        || response.data?.message?.thinking
+        || '';
       if (!content && options.allowFallback !== false && this.fallbackModel && this.fallbackModel !== selectedModel) {
         return this.chat(messages, { ...options, model: this.fallbackModel, allowFallback: false });
       }
@@ -236,9 +240,11 @@ class AIGateway {
         model: selectedModel,
         prompt: this.maskPII(prompt),
         stream: false,
+        keep_alive: -1,
         options: {
           temperature: options.temperature ?? 0.7,
           top_p: options.top_p ?? 0.9,
+          num_ctx: 2048,
           max_tokens: options.max_tokens,
           ...(numGpuLayers !== undefined && { num_gpu: numGpuLayers }),
         }
