@@ -17,6 +17,19 @@ const tools = {
   sanitizeToolArgs,
   validateToolArgs,
 
+  toOllamaTools(role) {
+    return (this.definitions || [])
+      .filter((def) => isToolAllowed(def.name, role, this.isMutationTool(def.name)))
+      .map((def) => ({
+        type: 'function',
+        function: {
+          name: def.name,
+          description: def.description,
+          parameters: def.parameters || { type: 'object', properties: {} }
+        }
+      }));
+  },
+
   async execute(toolName, args, contextOrCompanyId) {
     const context = typeof contextOrCompanyId === 'object'
       ? contextOrCompanyId

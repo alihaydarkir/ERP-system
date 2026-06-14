@@ -1,7 +1,11 @@
 jest.mock('./tools', () => ({
   isMutationTool: jest.fn((tool) => ['cancel_order', 'set_product_stock', 'deactivate_product'].includes(tool)),
   validateToolArgs: jest.fn(() => ({ valid: true, sanitizedArgs: {} })),
-  execute: jest.fn(async (tool) => ({ ok: true, tool }))
+  execute: jest.fn(async (tool) => ({ ok: true, tool })),
+  toOllamaTools: jest.fn(() => [
+    { type: 'function', function: { name: 'cancel_order', description: 'test', parameters: {} } }
+  ]),
+  definitions: []
 }));
 
 jest.mock('./aiGateway', () => ({
@@ -21,7 +25,11 @@ jest.mock('./aiGateway', () => ({
     }
 
     return { content: 'Tamamdır.' };
-  })
+  }),
+  chatWithTools: jest.fn(async () => ({
+    content: '',
+    tool_calls: [{ function: { name: 'cancel_order', arguments: { order_identifier: 'ORD-1' } } }]
+  }))
 }));
 
 const AgentOrchestrator = require('./agentOrchestrator');

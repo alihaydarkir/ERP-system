@@ -15,7 +15,9 @@
 # Ön koşul: host'ta Ollama 0.0.0.0'a bind olmalı (container erişimi için)
 #   Windows: setx OLLAMA_HOST "0.0.0.0:11434"  + Ollama'yi yeniden baslat
 #   macOS:   launchctl setenv OLLAMA_HOST "0.0.0.0:11434" + yeniden baslat
-ollama pull qwen2.5:3b           # Windows (4GB VRAM). Mac M3 Pro: ollama pull qwen3:30b-a3b
+ollama pull qwen2.5:7b           # Önerilen (native tool calling + iyi Türkçe)
+# Modelfile'dan custom model oluştur (opsiyonel):
+# cd backend && ollama create erp-assistant-7b -f Modelfile && OLLAMA_MODEL=erp-assistant-7b
 
 # .env'ler: root .env (DB_PASSWORD, REDIS_PASSWORD, OLLAMA_MODEL) + backend/.env (JWT_SECRET)
 docker compose up -d             # postgres(pgvector)+redis+backend+frontend (Ollama HARIC)
@@ -30,14 +32,19 @@ docker compose exec backend npm run seed     # Turkce demo veri (idempotent degi
 `admin@erp.local` / `Admin123!` · ayrıca `manager@erp.local`, `user@erp.local` (aynı şifre).
 
 ## Model
-- **Windows**: `qwen2.5:3b` (4GB VRAM sınırı; 7B+ sığmaz).
-- **Mac M3 Pro (36GB)**: `qwen3:30b-a3b` önerilir (asıl kalite sıçraması). `.env`'de `OLLAMA_MODEL`.
+- **Önerilen**: `qwen2.5:7b` — native tool calling desteği var, Türkçe kalitesi 3b'den çok daha iyi.
+- **Düşük VRAM (4GB)**: `qwen2.5:3b` (performans düşer, tool calling yine çalışır).
+- `.env`'de `OLLAMA_MODEL=qwen2.5:7b`.
 
 ## AI chatbot mimarisi
 `POST /api/chat` veya `/api/ai/chat` → `aiService.runAgent` (`backend/src/services/aiService.js`)
 → niyet tespiti (form/mutation/onay) → sorgu yolu `AgentOrchestrator`
-(`backend/src/services/agentOrchestrator.js`): **plan (LLM) → deterministik düzeltmeler →
-mutation'ları ele → araç çalıştır → respond (LLM)**.
+(`backend/src/services/agentOrchestrator.js`): **planWithTools (Ollama tool calling API) →
+deterministik güvenlik ağları → araç çalıştır → respond (LLM)**.
+
+**planWithTools akışı:** `tools.toOllamaTools(role)` ile RBAC'e göre filtrelenmiş araç listesi
+`aiGateway.chatWithTools()` aracılığıyla modele gönderilir. Model doğrudan `tool_calls` döndürür,
+JSON parse gerekmez. `agentOrchestrator.js`'deki deterministik düzeltmeler artık nadir tetiklenir.
 - Araçlar: `backend/src/services/tools/` (queryTools, mutationTools, toolSchemas, toolPermissionMatrix).
 - Tam mimari + hata haritası: **`docs/SISTEM_HARITASI.md`**.
 

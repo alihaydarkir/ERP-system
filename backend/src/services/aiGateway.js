@@ -230,6 +230,56 @@ class AIGateway {
     };
   }
 
+  async chatWithTools(messages, tools, options = {}) {
+    this.ensureProviderConfig();
+
+    const selectedModel = options.model || this.defaultModel;
+    const timeout = options.timeout || this.timeout;
+    const builtMessages = this.buildMessages(messages);
+
+    if (this.provider === 'ollama') {
+      const numGpuLayers = parseInt(process.env.OLLAMA_NUM_GPU_LAYERS, 10) || undefined;
+      const response = await axios.post(
+        `${this.ollamaUrl}/api/chat`,
+        {
+          model: selectedModel,
+          messages: builtMessages,
+          tools: tools || [],
+          stream: false,
+          keep_alive: -1,
+          options: {
+            temperature: options.temperature ?? 0.1,
+            top_p: options.top_p ?? 0.9,
+            num_ctx: options.num_ctx ?? 4096,
+            ...(numGpuLayers !== undefined && { num_gpu: numGpuLayers }),
+          }
+        },
+        { timeout }
+      );
+
+      const rawCalls = response.data?.message?.tool_calls || [];
+      const tool_calls = rawCalls.map((tc) => ({
+        function: {
+          name: tc.function?.name || '',
+          arguments: typeof tc.function?.arguments === 'string'
+            ? (() => { try { return JSON.parse(tc.function.arguments); } catch (_) { return {}; } })()
+            : (tc.function?.arguments || {})
+        }
+      }));
+
+      return {
+        provider: this.provider,
+        model: selectedModel,
+        content: response.data?.message?.content || '',
+        tool_calls
+      };
+    }
+
+    // Diğer provider'larda tool calling desteği yok → boş tool_calls döndür
+    const result = await this.chat(messages, options);
+    return { ...result, tool_calls: [] };
+  }
+
   async generate(prompt, options = {}) {
     this.ensureProviderConfig();
 

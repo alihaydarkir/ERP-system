@@ -132,6 +132,50 @@ Müşteri SADECE kendi siparişleri, çekleri ve ürün kataloğu hakkında OKUM
     return '';
   }
 
+  async planWithTools({ userMessage, fallbackTools = [], context = {} }) {
+    const ollamaTools = this.tools.toOllamaTools ? this.tools.toOllamaTools(context.role) : [];
+
+    if (!ollamaTools.length) {
+      return { steps: [], strategy: 'no_tools' };
+    }
+
+    const roleRestrictions = this.getRoleRestrictions(context.role);
+    const systemPrompt = `Sen bir ERP sistemi asistanısın. Kullanıcının sorusunu yanıtlamak için uygun araçları çağır.${roleRestrictions}
+
+Kurallar:
+- Sadece bilgi/liste/rapor sorularında OKUMA araçlarını kullan
+- Kayıt oluşturma, güncelleme, iptal gibi yazma isteklerinde YAZMA araçlarını kullan
+- Birden fazla araç gerekiyorsa hepsini çağır (max 5)
+- Sadece selamlama/genel konuşmaysa araç çağırma`;
+
+    try {
+      const result = await this.gateway.chatWithTools(
+        [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: String(userMessage || '').slice(0, 1000) }
+        ],
+        ollamaTools,
+        { temperature: 0.1, num_ctx: 2048 }
+      );
+
+      if (result.tool_calls && result.tool_calls.length > 0) {
+        const steps = result.tool_calls.slice(0, 5).map((tc) => ({
+          tool: tc.function.name,
+          args: tc.function.arguments || {}
+        }));
+        return { steps, strategy: 'tool_calling' };
+      }
+
+      // Model araç çağırmadı (selamlama, genel soru vb.)
+      return { steps: [], strategy: 'ask_for_info' };
+    } catch (_) {
+      return {
+        steps: (fallbackTools || []).map((t) => ({ tool: t.name, args: t.args || {} })),
+        strategy: 'fallback_keyword_plan'
+      };
+    }
+  }
+
   async plan({ userMessage, fallbackTools = [], context = {} }) {
     const allowedDefs = (this.tools.definitions || []).filter((def) => {
       const isMutation = this.tools.isMutationTool(def.name);
@@ -473,7 +517,7 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
       };
     }
 
-    const plan = await this.plan({ userMessage, fallbackTools, context });
+    const plan = await this.planWithTools({ userMessage, fallbackTools, context });
 
     // Zayıf planner düzeltmesi: "vadesi dolacak/yaklaşan" soruları gelecek vadeyi sorar,
     // planner sık sık get_overdue_cheques (geçmiş vade) seçiyor — deterministik düzelt.
