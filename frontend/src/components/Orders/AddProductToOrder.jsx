@@ -8,7 +8,15 @@ export default function AddProductToOrder({ onAddToCart }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [quantity, setQuantity] = useState(1);
+  const [disc1, setDisc1] = useState('');
+  const [disc2, setDisc2] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
+
+  // Brüt fiyat (ürün fiyatı) → 2 parçalı zincirleme iskonto → net birim fiyat
+  const grossPrice = Number(selectedProduct?.price || 0);
+  const d1 = Math.min(Math.max(Number(disc1) || 0, 0), 100);
+  const d2 = Math.min(Math.max(Number(disc2) || 0, 0), 100);
+  const netPrice = grossPrice * (1 - d1 / 100) * (1 - d2 / 100);
 
   useEffect(() => {
     fetchProducts();
@@ -33,6 +41,8 @@ export default function AddProductToOrder({ onAddToCart }) {
     setSearchTerm(product.name);
     setShowDropdown(false);
     setQuantity(1);
+    setDisc1('');
+    setDisc2('');
   };
 
   const handleAddToCart = () => {
@@ -56,7 +66,10 @@ export default function AddProductToOrder({ onAddToCart }) {
       id: selectedProduct.id,
       name: selectedProduct.name,
       sku: selectedProduct.sku,
-      price: selectedProduct.price,
+      gross_price: grossPrice,
+      disc1: d1,
+      disc2: d2,
+      price: Number(netPrice.toFixed(2)), // iskontolu net birim fiyat (sipariş kalemine yazılır)
       quantity: quantity,
       stock_quantity: Number(selectedProduct.stock_quantity ?? selectedProduct.stock ?? 0),
     });
@@ -65,6 +78,8 @@ export default function AddProductToOrder({ onAddToCart }) {
     setSelectedProduct(null);
     setSearchTerm('');
     setQuantity(1);
+    setDisc1('');
+    setDisc2('');
     showSuccess('Ürün sepete eklendi!');
   };
 
@@ -127,9 +142,37 @@ export default function AddProductToOrder({ onAddToCart }) {
               <p className="font-semibold text-gray-800 dark:text-gray-100">{selectedProduct.name}</p>
               <p className="text-sm text-gray-600 dark:text-gray-300">SKU: {selectedProduct.sku}</p>
             </div>
-            <span className="text-lg font-bold text-blue-600">
-              ₺{selectedProduct.price.toFixed(2)}
-            </span>
+            <div className="text-right">
+              <p className="text-xs text-gray-500 dark:text-gray-400">Brüt Fiyat</p>
+              <span className="text-lg font-bold text-blue-600">₺{grossPrice.toFixed(2)}</span>
+            </div>
+          </div>
+
+          {/* 2 Parçalı İskonto (zincirleme): brüt × (1-i1) × (1-i2) */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-3 mb-3 border border-blue-200 dark:border-blue-800">
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">İskonto (2 parçalı, %)</p>
+            <div className="flex items-center gap-2">
+              <input
+                type="number" min="0" max="100" value={disc1}
+                onChange={(e) => setDisc1(e.target.value)}
+                placeholder="İsk 1"
+                className="h-9 w-20 text-center border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700/80 text-gray-900 dark:text-gray-100"
+              />
+              <span className="text-gray-400">+</span>
+              <input
+                type="number" min="0" max="100" value={disc2}
+                onChange={(e) => setDisc2(e.target.value)}
+                placeholder="İsk 2"
+                className="h-9 w-20 text-center border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700/80 text-gray-900 dark:text-gray-100"
+              />
+              <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">
+                {(d1 > 0 || d2 > 0) ? `= ×${((1 - d1 / 100) * (1 - d2 / 100)).toFixed(4)}` : 'iskontosuz'}
+              </span>
+            </div>
+            <div className="flex justify-between items-center mt-2 pt-2 border-t border-blue-100 dark:border-blue-900/40">
+              <span className="text-sm text-gray-600 dark:text-gray-300">Net Birim Fiyat</span>
+              <span className="text-base font-bold text-green-600">₺{netPrice.toFixed(2)}</span>
+            </div>
           </div>
 
           <div className="flex items-center justify-between">
@@ -169,12 +212,12 @@ export default function AddProductToOrder({ onAddToCart }) {
             </div>
           </div>
 
-          {/* Total Price */}
+          {/* Total Price (net birim × miktar) */}
           <div className="mt-3 pt-3 border-t border-blue-200">
             <div className="flex justify-between items-center">
               <span className="text-gray-600 dark:text-gray-300">Toplam:</span>
               <span className="text-xl font-bold text-blue-600">
-                ₺{(selectedProduct.price * quantity).toFixed(2)}
+                ₺{(netPrice * quantity).toFixed(2)}
               </span>
             </div>
           </div>

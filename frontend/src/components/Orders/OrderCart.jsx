@@ -1,6 +1,6 @@
-export default function OrderCart({ items, onRemoveItem, onUpdateQuantity }) {
+export default function OrderCart({ items, onRemoveItem, onUpdateQuantity, onUpdatePrice }) {
   const getTotalPrice = () => {
-    return items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    return items.reduce((sum, item) => sum + ((Number(item.price) || 0) * item.quantity), 0);
   };
 
   if (items.length === 0) {
@@ -51,11 +51,25 @@ export default function OrderCart({ items, onRemoveItem, onUpdateQuantity }) {
                   </button>
                 </div>
 
-                {/* Price */}
-                <div className="w-24 text-right">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">₺{item.price.toFixed(2)}</p>
-                  <p className="font-semibold text-gray-800 dark:text-gray-100">
-                    ₺{(item.price * item.quantity).toFixed(2)}
+                {/* Price (düzenlenebilir net birim fiyat) */}
+                <div className="w-32 text-right">
+                  {(item.gross_price != null && (item.disc1 > 0 || item.disc2 > 0)) && (
+                    <p className="text-[11px] text-gray-400 dark:text-gray-500">
+                      Brüt ₺{Number(item.gross_price).toFixed(2)} · İsk {item.disc1 || 0}+{item.disc2 || 0}
+                    </p>
+                  )}
+                  <div className="flex items-center justify-end gap-1">
+                    <span className="text-xs text-gray-400">₺</span>
+                    <input
+                      type="number" step="0.01" min="0"
+                      value={item.price}
+                      onChange={(e) => onUpdatePrice && onUpdatePrice(index, e.target.value)}
+                      className="h-8 w-20 text-right border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700/80 text-gray-900 dark:text-gray-100 text-sm [appearance:textfield]"
+                      title="Birim fiyatı düzenle"
+                    />
+                  </div>
+                  <p className="font-semibold text-gray-800 dark:text-gray-100 mt-0.5">
+                    ₺{(Number(item.price) * item.quantity).toFixed(2)}
                   </p>
                 </div>
 

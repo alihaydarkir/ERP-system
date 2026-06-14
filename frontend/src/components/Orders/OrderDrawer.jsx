@@ -51,6 +51,14 @@ export default function OrderDrawer({ isOpen, onClose, onSuccess }) {
     setFormErrors((prev) => ({ ...prev, cart: '' }));
   };
 
+  // Kalem birim fiyatını elle düzenle (iskonto sonrası net fiyat üzerinde oynama)
+  const handleUpdatePrice = (index, newPrice) => {
+    const newItems = [...cartItems];
+    newItems[index] = { ...newItems[index], price: newPrice };
+    setCartItems(newItems);
+    setFormErrors((prev) => ({ ...prev, cart: '' }));
+  };
+
   const handleSubmit = async () => {
     const validationErrors = validateOrderDraft({ selectedCustomer, orderDate, cartItems });
     setFormErrors(validationErrors);
@@ -105,10 +113,10 @@ export default function OrderDrawer({ isOpen, onClose, onSuccess }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-900/20 flex justify-end z-50">
-      <div className="bg-white dark:bg-gray-800 w-full max-w-2xl h-full overflow-y-auto">
+    <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-900/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-800 w-full max-w-3xl max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="sticky top-0 bg-white dark:bg-gray-800 border-b p-6 flex justify-between items-center">
+        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-6 flex justify-between items-center">
           <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">✨ Yeni Sipariş Oluştur</h2>
           <button
             onClick={handleClose}
@@ -119,7 +127,7 @@ export default function OrderDrawer({ isOpen, onClose, onSuccess }) {
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 overflow-y-auto flex-1">
           {/* Customer Selection */}
           <CustomerSearch
             selectedCustomer={selectedCustomer}
@@ -153,6 +161,7 @@ export default function OrderDrawer({ isOpen, onClose, onSuccess }) {
               items={cartItems}
               onRemoveItem={handleRemoveFromCart}
               onUpdateQuantity={handleUpdateQuantity}
+              onUpdatePrice={handleUpdatePrice}
             />
             {formErrors.cart && <p className="text-sm text-red-600 dark:text-red-400 mt-1">{formErrors.cart}</p>}
           </div>
@@ -164,7 +173,7 @@ export default function OrderDrawer({ isOpen, onClose, onSuccess }) {
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 bg-white dark:bg-gray-800 border-t p-6 flex space-x-3">
+        <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-6 flex space-x-3">
           <button
             onClick={handleClose}
             className="flex-1 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700/60 text-gray-700 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-700 font-semibold"
