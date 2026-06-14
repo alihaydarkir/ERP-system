@@ -35,6 +35,12 @@ export const orderService = {
     const response = await api.post(`/api/orders/${id}/cancel`, { reason });
     return response.data;
   },
+
+  // Kısmi sevkiyat: items = [{ product_id, shipped_quantity }]
+  completePartial: async (id, items) => {
+    const response = await api.post(`/api/orders/${id}/complete-partial`, { items });
+    return response.data;
+  },
 };
 
 

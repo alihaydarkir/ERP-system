@@ -6,7 +6,7 @@ const { requirePermission, requireAnyPermission, logActivity } = require('../mid
 const { validate, orderSchemas, querySchemas } = require('../utils/validators');
 const {
   getAllOrders, getOrderById, createOrder, updateOrder,
-  updateOrderStatus, cancelOrder, deleteOrder,
+  updateOrderStatus, cancelOrder, deleteOrder, completePartialOrder,
 } = require('../controllers/orderController');
 
 
@@ -135,6 +135,10 @@ router.post('/', authMiddleware, requirePermission('orders.create'),
  */
 router.patch('/:id/status', authMiddleware, validateId, requireAnyPermission(['orders.complete', 'orders.edit']),
   validate(orderSchemas.updateStatus), logActivity('update_order_status', 'orders'), updateOrderStatus);
+
+// Kısmi sevkiyat (tamamlanan adetleri ayır, kalan bekleyende kalır)
+router.post('/:id/complete-partial', authMiddleware, validateId, requireAnyPermission(['orders.complete', 'orders.edit']),
+  logActivity('complete_partial_order', 'orders'), completePartialOrder);
 
 router.put('/:id', authMiddleware, validateId, requirePermission('orders.edit'),
   validate(orderSchemas.update), logActivity('update_order', 'orders'), updateOrder);

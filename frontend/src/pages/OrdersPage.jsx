@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { orderService } from '../services/orderService';
 import OrderDrawer from '../components/Orders/OrderDrawer';
 import OrderDetailModal from '../components/Orders/OrderDetailModal';
+import PartialShipModal from '../components/Orders/PartialShipModal';
 import PendingOrdersSection from '../components/Orders/PendingOrdersSection';
 import CompletedOrdersSection from '../components/Orders/CompletedOrdersSection';
 import PermissionButton from '../components/PermissionButton';
@@ -20,6 +21,7 @@ export default function OrdersPage() {
   const [showOrderDrawer, setShowOrderDrawer] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [partialOrderId, setPartialOrderId] = useState(null); // kısmi sevkiyat modal'ı
   const [searchTerm, setSearchTerm] = useState('');
 
   const { data: orders = [], isLoading, isError, error, refetch } = useOrders({ limit: 100 });
@@ -49,43 +51,21 @@ export default function OrdersPage() {
       return;
     }
 
-    showConfirm({
-      title: 'Siparişi Tamamla',
-      message: 'Bu siparişi tamamlamak istediğinize emin misiniz?',
-      confirmText: 'Tamamla',
-      cancelText: 'İptal',
-      type: 'info',
-      onConfirm: async () => {
-        try {
-          await updateStatus.mutateAsync({ id: orderId, status: 'completed' });
-          showSuccess('Sipariş tamamlandı!');
-        } catch (err) {
-          const message = err?.response?.data?.message || '';
+    // Kısmi sevkiyat modal'ını aç — sevk adedi sorulur, kalan bekleyende kalır
+    setPartialOrderId(orderId);
+  };
 
-          if (message.includes('Cannot change status') || err?.response?.status === 400) {
-            try {
-              const transitionFlow = ['confirmed', 'processing', 'shipped', 'delivered', 'completed'];
-              for (const nextStatus of transitionFlow) {
-                // eslint-disable-next-line no-await-in-loop
-                await orderService.updateStatus(orderId, nextStatus);
-              }
-              showSuccess('Sipariş tamamlandı!');
-              refetch();
-              return;
-            } catch (fallbackError) {
-              console.error('Complete order fallback error:', fallbackError);
-            }
-          }
-
-          if (err?.response?.status === 403) {
-            showError('Bu işlem için yetkiniz yok.');
-            return;
-          }
-
-          showError(message || 'Sipariş tamamlanamadı');
-        }
-      },
-    });
+  // Kısmi sevkiyat tamamlandığında
+  const handlePartialDone = (error) => {
+    setPartialOrderId(null);
+    if (error) {
+      const code = error?.response?.status;
+      if (code === 403) { showError('Bu işlem için yetkiniz yok.'); return; }
+      showError(error?.response?.data?.message || 'Sevkiyat başarısız');
+      return;
+    }
+    showSuccess('Sevkiyat işlendi! Tamamlanan ve bekleyen siparişler güncellendi.');
+    refetch();
   };
 
   const handleCancelOrder = async (orderOrId) => {
@@ -266,6 +246,14 @@ export default function OrdersPage() {
           setSelectedOrder(null);
         }}
       />
+
+      {partialOrderId && (
+        <PartialShipModal
+          orderId={partialOrderId}
+          onClose={() => setPartialOrderId(null)}
+          onDone={handlePartialDone}
+        />
+      )}
     </div>
   );
 }

@@ -399,6 +399,106 @@ const cancelOrder = async (req, res) => {
   }
 };
 
+/**
+ * POST /api/orders/:id/complete-partial
+ * Kısmi sevkiyat: bekleyen siparişten sevk edilen adetler yeni bir "tamamlandı"
+ * siparişe taşınır, kalan adetler orijinal siparişte bekleyende kalır.
+ * Stok sipariş oluşturulurken zaten düşüldüğü için burada stok değişmez.
+ * Body: { items: [{ product_id, shipped_quantity }] }
+ */
+const completePartialOrder = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    const { items = [] } = req.body;
+    const companyId = req.user.company_id;
+    const userId = req.user.id;
+
+    await client.query('BEGIN');
+
+    const orderRes = await client.query(
+      'SELECT * FROM orders WHERE id = $1 AND company_id = $2 FOR UPDATE',
+      [id, companyId]
+    );
+    if (orderRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json(formatError('Sipariş bulunamadı'));
+    }
+    const order = orderRes.rows[0];
+    if (order.status !== 'pending') {
+      await client.query('ROLLBACK');
+      return res.status(400).json(formatError('Sadece bekleyen siparişler kısmi sevk edilebilir'));
+    }
+
+    const itemsRes = await client.query('SELECT * FROM order_items WHERE order_id = $1', [id]);
+    const shippedMap = {};
+    for (const it of items) shippedMap[Number(it.product_id)] = Number(it.shipped_quantity) || 0;
+
+    const shippedItems = [];
+    const remainingItems = [];
+    let shippedTotal = 0;
+    let remainingTotal = 0;
+
+    for (const oi of itemsRes.rows) {
+      const ordered = Number(oi.quantity);
+      const shipped = Math.min(Math.max(shippedMap[Number(oi.product_id)] ?? 0, 0), ordered);
+      const remaining = ordered - shipped;
+      const price = Number(oi.price);
+      if (shipped > 0) { shippedItems.push({ product_id: oi.product_id, quantity: shipped, price }); shippedTotal += shipped * price; }
+      if (remaining > 0) { remainingItems.push({ product_id: oi.product_id, quantity: remaining, price }); remainingTotal += remaining * price; }
+    }
+
+    if (shippedItems.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json(formatError('En az 1 adet sevk edilmeli'));
+    }
+
+    // Hepsi sevk edildiyse → siparişi direkt tamamla (bölme yok)
+    if (remainingItems.length === 0) {
+      await client.query("UPDATE orders SET status = 'completed', completed_at = NOW(), updated_at = NOW() WHERE id = $1", [id]);
+      await client.query('COMMIT');
+      return res.json(formatSuccess({ split: false }, 'Sipariş tamamlandı'));
+    }
+
+    // Kısmi → yeni tamamlanan sipariş (stok DÜŞÜRMEDEN)
+    const newOrderNumber = Order.generateOrderNumber();
+    const newOrderRes = await client.query(
+      `INSERT INTO orders (user_id, customer_id, order_number, total_amount, status, company_id, completed_at)
+       VALUES ($1, $2, $3, $4, 'completed', $5, NOW()) RETURNING id, order_number`,
+      [userId, order.customer_id, newOrderNumber, shippedTotal, companyId]
+    );
+    const newOrderId = newOrderRes.rows[0].id;
+    for (const si of shippedItems) {
+      await client.query(
+        'INSERT INTO order_items (order_id, product_id, quantity, price, company_id) VALUES ($1, $2, $3, $4, $5)',
+        [newOrderId, si.product_id, si.quantity, si.price, companyId]
+      );
+    }
+
+    // Orijinal siparişi kalan adetlere indir (bekleyende kalır)
+    await client.query('DELETE FROM order_items WHERE order_id = $1', [id]);
+    for (const ri of remainingItems) {
+      await client.query(
+        'INSERT INTO order_items (order_id, product_id, quantity, price, company_id) VALUES ($1, $2, $3, $4, $5)',
+        [id, ri.product_id, ri.quantity, ri.price, companyId]
+      );
+    }
+    await client.query('UPDATE orders SET total_amount = $1, updated_at = NOW() WHERE id = $2', [remainingTotal, id]);
+
+    await client.query('COMMIT');
+    res.json(formatSuccess(
+      { split: true, completed_order_id: newOrderId, completed_order_number: newOrderRes.rows[0].order_number },
+      'Kısmi sevkiyat: tamamlanan sipariş oluşturuldu, kalan bekleyende'
+    ));
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Complete partial order error:', error);
+    res.status(500).json(formatError('Kısmi sevkiyat başarısız'));
+  } finally {
+    client.release();
+  }
+};
+
 module.exports = {
   getAllOrders,
   getOrderById,
@@ -406,6 +506,7 @@ module.exports = {
   updateOrder,
   updateOrderStatus,
   cancelOrder,
-  deleteOrder
+  deleteOrder,
+  completePartialOrder
 };
 
