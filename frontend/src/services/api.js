@@ -65,16 +65,15 @@ api.interceptors.response.use(
     }
 
     const isRefreshEndpoint = String(originalRequest.url || '').includes('/api/auth/refresh');
-    const isProfileEndpoint = String(originalRequest.url || '').includes('/api/auth/profile');
 
     if (isRefreshEndpoint) {
       useAuthStore.getState().logout();
       return Promise.reject(error);
     }
 
-    if (isProfileEndpoint && error.response?.status === 401) {
-      return Promise.reject(error);
-    }
+    // NOT: Eskiden /api/auth/profile 401'inde refresh ATLANIYORDU; bu yüzden access token
+    // (15dk) dolunca sayfa yenilemede 7 günlük refresh token geçerli olsa bile çıkış yapılıyordu.
+    // Artık profile 401'i de aşağıdaki refresh akışına giriyor → sessizce yeni token alınır.
 
     // If error is 401 and we haven't tried to refresh yet
     if (error.response?.status === 401 && !originalRequest._retry) {
