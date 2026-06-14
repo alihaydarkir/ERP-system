@@ -51,14 +51,6 @@ export default function OrderDrawer({ isOpen, onClose, onSuccess }) {
     setFormErrors((prev) => ({ ...prev, cart: '' }));
   };
 
-  // Kalem birim fiyatını elle düzenle (iskonto sonrası net fiyat üzerinde oynama)
-  const handleUpdatePrice = (index, newPrice) => {
-    const newItems = [...cartItems];
-    newItems[index] = { ...newItems[index], price: newPrice };
-    setCartItems(newItems);
-    setFormErrors((prev) => ({ ...prev, cart: '' }));
-  };
-
   const handleSubmit = async () => {
     const validationErrors = validateOrderDraft({ selectedCustomer, orderDate, cartItems });
     setFormErrors(validationErrors);
@@ -161,7 +153,6 @@ export default function OrderDrawer({ isOpen, onClose, onSuccess }) {
               items={cartItems}
               onRemoveItem={handleRemoveFromCart}
               onUpdateQuantity={handleUpdateQuantity}
-              onUpdatePrice={handleUpdatePrice}
             />
             {formErrors.cart && <p className="text-sm text-red-600 dark:text-red-400 mt-1">{formErrors.cart}</p>}
           </div>

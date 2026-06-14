@@ -1,4 +1,4 @@
-export default function OrderCart({ items, onRemoveItem, onUpdateQuantity, onUpdatePrice }) {
+export default function OrderCart({ items, onRemoveItem, onUpdateQuantity }) {
   const getTotalPrice = () => {
     return items.reduce((sum, item) => sum + ((Number(item.price) || 0) * item.quantity), 0);
   };
@@ -51,23 +51,14 @@ export default function OrderCart({ items, onRemoveItem, onUpdateQuantity, onUpd
                   </button>
                 </div>
 
-                {/* Price (düzenlenebilir net birim fiyat) */}
+                {/* Price (net birim fiyat — sepette kilitli, müdahale ürün eklemeden önce yapılır) */}
                 <div className="w-32 text-right">
                   {(item.gross_price != null && (item.disc1 > 0 || item.disc2 > 0)) && (
                     <p className="text-[11px] text-gray-400 dark:text-gray-500">
                       Brüt ₺{Number(item.gross_price).toFixed(2)} · İsk {item.disc1 || 0}+{item.disc2 || 0}
                     </p>
                   )}
-                  <div className="flex items-center justify-end gap-1">
-                    <span className="text-xs text-gray-400">₺</span>
-                    <input
-                      type="number" step="0.01" min="0"
-                      value={item.price}
-                      onChange={(e) => onUpdatePrice && onUpdatePrice(index, e.target.value)}
-                      className="h-8 w-20 text-right border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700/80 text-gray-900 dark:text-gray-100 text-sm [appearance:textfield]"
-                      title="Birim fiyatı düzenle"
-                    />
-                  </div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Birim ₺{Number(item.price).toFixed(2)}</p>
                   <p className="font-semibold text-gray-800 dark:text-gray-100 mt-0.5">
                     ₺{(Number(item.price) * item.quantity).toFixed(2)}
                   </p>
