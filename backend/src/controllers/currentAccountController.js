@@ -32,7 +32,8 @@ const getAccountList = async (req, res) => {
         COALESCE(inv.total_invoiced, 0)   AS total_invoiced,
         COALESCE(inv.total_paid, 0) + COALESCE(chq.cheque_paid, 0) AS total_paid,
         COALESCE(inv.invoice_count, 0)    AS invoice_count,
-        COALESCE(inv.total_invoiced, 0)
+        -- Borç (bakiye) = toplam satış (sipariş) − toplam ödeme (fatura ödemesi + ödenen çek)
+        COALESCE(ord.total_sales, 0)
           - (COALESCE(inv.total_paid, 0) + COALESCE(chq.cheque_paid, 0)) AS outstanding_balance
       FROM customers c
       LEFT JOIN (
@@ -104,20 +105,24 @@ const getAccountSummary = async (req, res) => {
   try {
     const { company_id } = req.user;
 
+    // Borç (bakiye) = toplam satış (sipariş) − toplam ödeme (fatura ödemesi + ödenen çek)
     const result = await pool.query(`
       SELECT
         COUNT(DISTINCT c.id)                                                                 AS total_customers,
-        COUNT(DISTINCT CASE WHEN (COALESCE(bal.outstanding,0) - COALESCE(chq.cheque_paid,0)) > 0 THEN c.id END) AS customers_with_balance,
-        COALESCE(SUM(COALESCE(bal.outstanding,0) - COALESCE(chq.cheque_paid,0)), 0)          AS total_outstanding,
+        COUNT(DISTINCT CASE WHEN (COALESCE(ord.total_sales,0) - COALESCE(bal.total_paid,0) - COALESCE(chq.cheque_paid,0)) > 0 THEN c.id END) AS customers_with_balance,
+        COALESCE(SUM(COALESCE(ord.total_sales,0) - COALESCE(bal.total_paid,0) - COALESCE(chq.cheque_paid,0)), 0) AS total_outstanding,
         COALESCE(SUM(bal.total_invoiced), 0)                                                 AS total_invoiced,
         COALESCE(SUM(COALESCE(bal.total_paid,0) + COALESCE(chq.cheque_paid,0)), 0)           AS total_paid
       FROM customers c
       LEFT JOIN (
+        SELECT customer_id, SUM(total_amount) AS total_sales
+        FROM orders WHERE company_id = $1 AND status != 'cancelled'
+        GROUP BY customer_id
+      ) ord ON ord.customer_id = c.id
+      LEFT JOIN (
         SELECT customer_id,
                SUM(total_amount)                                        AS total_invoiced,
-               SUM(CASE WHEN status='paid' THEN total_amount ELSE 0 END) AS total_paid,
-               SUM(total_amount)
-                 - SUM(CASE WHEN status='paid' THEN total_amount ELSE 0 END) AS outstanding
+               SUM(CASE WHEN status='paid' THEN total_amount ELSE 0 END) AS total_paid
         FROM invoices WHERE company_id = $1
         GROUP BY customer_id
       ) bal ON bal.customer_id = c.id
@@ -189,7 +194,8 @@ const getAccountDetail = async (req, res) => {
     const i = invoicesRes.rows[0];
     const ch = chequesRes.rows[0];
     const totalPaid = parseFloat(i.total_paid) + parseFloat(ch.cheque_paid);
-    const outstanding = parseFloat(i.total_invoiced) - totalPaid;
+    // Borç (bakiye) = toplam satış (sipariş) − toplam ödeme
+    const outstanding = parseFloat(o.total_sales) - totalPaid;
 
     res.json(formatSuccess({
       customer: customerRes.rows[0],

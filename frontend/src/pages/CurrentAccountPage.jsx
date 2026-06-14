@@ -89,7 +89,7 @@ function AccountDrawer({ customerId, onClose }) {
       documentTitle: `Cari Hesap — ${label}`,
       meta: [
         `Müşteri: ${label}${c.full_name ? ' / ' + c.full_name : ''}`,
-        `Toplam Satış: ${fmt(s.total_sales)}   Ödenen: ${fmt(s.total_paid)}   Açık Bakiye: ${fmt(s.outstanding_balance)}`,
+        `Toplam Satış: ${fmt(s.total_sales)}   Ödenen: ${fmt(s.total_paid)}   Bakiye (Borç): ${fmt(s.outstanding_balance)}`,
         `Tarih: ${new Date().toLocaleDateString('tr-TR')}`,
       ],
       columns: ['#', 'Tür', 'Belge No', 'Tarih', 'Tutar', 'Durum'],
@@ -275,17 +275,19 @@ export default function CurrentAccountPage() {
     try {
       const res = await currentAccountService.getList({ search: search || undefined, page: 1, limit: 10000 });
       const list = res?.data?.accounts || [];
+      const totalDebt = list.reduce((s, a) => s + (Number(a.outstanding_balance) || 0), 0);
       const payload = {
         companyName: companyName(),
         documentTitle: 'Cari Hesaplar',
-        meta: [`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, `Toplam: ${list.length} müşteri`],
-        columns: ['#', 'Firma', 'Müşteri', 'Toplam Satış', 'Sipariş', 'Faturalanan', 'Ödenen', 'Açık Bakiye'],
+        meta: [`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, `Toplam: ${list.length} müşteri`, `Toplam Borç (Bakiye): ${fmt(totalDebt)}`],
+        columns: ['#', 'Firma', 'Müşteri', 'Toplam Satış', 'Sipariş', 'Ödenen', 'Bakiye (Borç)'],
         rows: list.map((a, i) => [
           i + 1, a.company_name || '-', a.full_name || '-',
           Number(a.total_sales) || 0, a.order_count || 0,
-          Number(a.total_invoiced) || 0, Number(a.total_paid) || 0, Number(a.outstanding_balance) || 0,
+          Number(a.total_paid) || 0, Number(a.outstanding_balance) || 0,
         ]),
-        currencyColumns: ['Toplam Satış', 'Faturalanan', 'Ödenen', 'Açık Bakiye'],
+        currencyColumns: ['Toplam Satış', 'Ödenen', 'Bakiye (Borç)'],
+        footer: ['', '', '', '', '', 'TOPLAM BORÇ', totalDebt],
         filename: `Cari_Hesaplar_${today()}`,
       };
       if (kind === 'pdf') await downloadTablePdf(payload); else await downloadTableExcel(payload);
