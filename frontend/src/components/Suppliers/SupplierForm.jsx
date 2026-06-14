@@ -14,7 +14,12 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
     currency: 'TRY',
     notes: '',
     is_active: true,
-    rating: ''
+    rating: '',
+    website: '',
+    location: '',
+    lead_time_days: '',
+    min_order_quantity: '',
+    risk_level: ''
   });
 
   const [errors, setErrors] = useState({});
@@ -35,7 +40,12 @@ export default function SupplierForm({ supplier, onSave, onCancel }) {
         currency: supplier.currency || 'TRY',
         notes: supplier.notes || '',
         is_active: supplier.is_active !== undefined ? supplier.is_active : true,
-        rating: supplier.rating || ''
+        rating: supplier.rating || '',
+        website: supplier.website || '',
+        location: supplier.location || '',
+        lead_time_days: supplier.lead_time_days ?? '',
+        min_order_quantity: supplier.min_order_quantity ?? '',
+        risk_level: supplier.risk_level || ''
       });
     }
   }, [supplier]);

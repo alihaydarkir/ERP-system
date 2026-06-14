@@ -94,7 +94,12 @@ const createSupplier = async (req, res) => {
       payment_terms,
       currency,
       notes,
-      rating
+      rating,
+      website,
+      location,
+      lead_time_days,
+      min_order_quantity,
+      risk_level
     } = req.body;
 
     const userId = req.user.id;
@@ -109,13 +114,16 @@ const createSupplier = async (req, res) => {
     }
 
     const result = await db.query(
-      `INSERT INTO suppliers 
-       (supplier_name, contact_person, email, phone, address, tax_office, tax_number, 
-        iban, payment_terms, currency, notes, rating, created_by, company_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      `INSERT INTO suppliers
+       (supplier_name, contact_person, email, phone, address, tax_office, tax_number,
+        iban, payment_terms, currency, notes, rating, created_by, company_id,
+        website, location, lead_time_days, min_order_quantity, risk_level)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+               $15, $16, $17, $18, $19)
        RETURNING *`,
-      [supplier_name, contact_person, email, phone, address, tax_office, tax_number, 
-       iban, payment_terms || 'Net 30', currency || 'TRY', notes, rating, userId, company_id]
+      [supplier_name, contact_person, email, phone, address, tax_office, tax_number,
+       iban, payment_terms || 'Net 30', currency || 'TRY', notes, rating, userId, company_id,
+       website, location, lead_time_days, min_order_quantity, risk_level]
     );
 
     res.status(201).json({
