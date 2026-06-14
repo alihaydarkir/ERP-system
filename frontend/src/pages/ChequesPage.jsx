@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import useChequeStore from '../store/chequeStore';
 import chequeService from '../services/chequeService';
-import { exportChequesToPDF } from '../utils/exportUtils';
+import { exportChequesToPDF, exportChequesToExcel } from '../utils/exportUtils';
 import ChequeStatistics from '../components/Cheques/ChequeStatistics';
 import ChequeList from '../components/Cheques/ChequeList';
 import ChequeForm from '../components/Cheques/ChequeForm';
@@ -173,7 +173,7 @@ const ChequesPage = () => {
 
   const handleChangeStatus = async (chequeId, updateData) => {
     try {
-      const response = await chequeService.changeStatus(chequeId, updateData.status, updateData.notes || '');
+      const response = await chequeService.changeStatus(chequeId, updateData);
       if (response.success) {
         updateCheque(chequeId, response.data);
         setShowDetail(false);
@@ -222,7 +222,7 @@ const ChequesPage = () => {
 
   const handleStatusUpdate = async (chequeId, updateData) => {
     try {
-      const response = await chequeService.changeStatus(chequeId, updateData.status, updateData.notes || '');
+      const response = await chequeService.changeStatus(chequeId, updateData);
       if (response.success) {
         updateCheque(chequeId, response.data);
         setShowStatusModal(false);
@@ -247,21 +247,25 @@ const ChequesPage = () => {
 
   const handleExportToExcel = async () => {
     try {
-      const params = getQueryParams();
-      await chequeService.exportToExcel(params);
+      if (!cheques || cheques.length === 0) {
+        showError('Excel oluşturmak için önce çekleri yükleyin');
+        return;
+      }
+      await exportChequesToExcel(cheques);
+      showSuccess('Excel başarıyla indirildi');
     } catch (error) {
       console.error('Failed to export:', error);
       showError('Excel export sırasında hata oluştu');
     }
   };
 
-  const handleExportToPDF = () => {
+  const handleExportToPDF = async () => {
     try {
       if (!cheques || cheques.length === 0) {
         showError('PDF oluşturmak için önce çekleri yükleyin');
         return;
       }
-      exportChequesToPDF(cheques);
+      await exportChequesToPDF(cheques);
       showSuccess('PDF başarıyla indirildi');
     } catch (error) {
       console.error('PDF export error:', error);

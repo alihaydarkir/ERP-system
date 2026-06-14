@@ -219,6 +219,9 @@ class Cheque {
       'status', 'collateral_bank', 'given_to_customer_id'
     ];
 
+    // Boş string gelen integer FK alanlarını NULL'a çevir (PG integer kolonuna '' geçemez)
+    const nullableIntFields = ['customer_id', 'given_to_customer_id'];
+
     const fields = [];
     const values = [];
     let paramCount = 1;
@@ -226,8 +229,9 @@ class Cheque {
     // Build dynamic update query
     for (const [key, value] of Object.entries(data)) {
       if (allowedFields.includes(key) && value !== undefined) {
+        const sanitized = (nullableIntFields.includes(key) && value === '') ? null : value;
         fields.push(`${key} = $${paramCount}`);
-        values.push(value);
+        values.push(sanitized);
         paramCount++;
       }
     }
@@ -260,15 +264,33 @@ class Cheque {
   /**
    * Update cheque status (separate method for audit trail)
    */
-  static async updateStatus(id, new_status, company_id = null) {
+  static async updateStatus(id, new_status, company_id = null, extra = {}) {
+    const fields = ['status = $1', 'updated_at = NOW()'];
+    const values = [new_status];
+    let paramCount = 2;
+
+    // Teminat → collateral_bank, Müşteriye verildi → given_to_customer_id (yalnız gönderilenleri set et)
+    if (extra.collateral_bank !== undefined) {
+      fields.push(`collateral_bank = $${paramCount}`);
+      values.push(extra.collateral_bank === '' ? null : extra.collateral_bank);
+      paramCount++;
+    }
+    if (extra.given_to_customer_id !== undefined) {
+      fields.push(`given_to_customer_id = $${paramCount}`);
+      values.push(extra.given_to_customer_id === '' ? null : extra.given_to_customer_id);
+      paramCount++;
+    }
+
+    values.push(id);
     const query = `
       UPDATE cheques
-      SET status = $1, updated_at = NOW()
-      WHERE id = $2 ${company_id ? 'AND company_id = $3' : ''}
+      SET ${fields.join(', ')}
+      WHERE id = $${paramCount} ${company_id ? `AND company_id = $${paramCount + 1}` : ''}
       RETURNING *
     `;
+    if (company_id) values.push(company_id);
 
-    const result = await pool.query(query, company_id ? [new_status, id, company_id] : [new_status, id]);
+    const result = await pool.query(query, values);
     return result.rows[0];
   }
 

@@ -9,6 +9,9 @@ RUN npm ci --only=production --ignore-scripts && npm cache clean --force
 # ── Stage 2: Production runner ───────────────────────────────────────────
 FROM node:20-alpine AS runner
 
+# PDF raporlarında Türkçe karakter + ₺ için Unicode font (pdfkit gömülü Helvetica desteklemiyor)
+RUN apk add --no-cache font-dejavu
+
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && adduser -S erp -u 1001
 

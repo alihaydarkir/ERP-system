@@ -18,7 +18,10 @@ const createChequeSchema = Joi.object({
 });
 
 const updateChequeStatusSchema = Joi.object({
-  status: Joi.string().valid('pending', 'cleared', 'bounced', 'cancelled').required()
+  status: Joi.string().valid('pending', 'paid', 'cancelled', 'teminat', 'musteriye_verildi').required(),
+  notes:                Joi.string().optional().allow(''),
+  collateral_bank:      Joi.string().optional().allow(''),
+  given_to_customer_id: Joi.alternatives().try(Joi.number().integer(), Joi.string().allow('')).optional()
 });
 
 module.exports = {

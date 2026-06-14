@@ -25,9 +25,9 @@ export const chequeService = {
     return response.data;
   },
 
-  // Change cheque status
-  changeStatus: async (id, status, notes = '') => {
-    const response = await api.put(`/api/cheques/${id}/status`, { status, notes });
+  // Change cheque status (status, notes + duruma özel collateral_bank / given_to_customer_id)
+  changeStatus: async (id, updateData) => {
+    const response = await api.put(`/api/cheques/${id}/status`, updateData);
     return response.data;
   },
 

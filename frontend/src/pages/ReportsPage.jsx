@@ -5,6 +5,7 @@ import {
 } from 'recharts';
 import { TrendingUp, TrendingDown, Package, ShoppingCart, Users, FileText, RefreshCw, Download } from 'lucide-react';
 import dashboardService from '../services/dashboardService';
+import api from '../services/api';
 
 const fmt = (n) =>
   new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(n ?? 0);
@@ -99,19 +100,16 @@ export default function ReportsPage() {
 
   const downloadReport = async (format) => {
     try {
-      const params = new URLSearchParams({ type: reportType });
-      if (startDate) params.append('startDate', startDate);
-      if (endDate) params.append('endDate', endDate);
+      const params = { type: reportType };
+      if (startDate) params.startDate = startDate;
+      if (endDate) params.endDate = endDate;
 
-      const response = await fetch(`/api/reports/export/${format}?${params.toString()}`, {
-        credentials: 'include'
+      const response = await api.get(`/api/reports/export/${format}`, {
+        params,
+        responseType: 'blob',
       });
 
-      if (!response.ok) {
-        throw new Error(`İndirme başarısız (${response.status})`);
-      }
-
-      const blob = await response.blob();
+      const blob = new Blob([response.data]);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;

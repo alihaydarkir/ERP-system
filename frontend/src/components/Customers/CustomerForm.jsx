@@ -45,8 +45,14 @@ export default function CustomerForm({ customer, onSave, onCancel }) {
       newErrors.tax_number = 'Vergi Numarası en az 10 karakter olmalıdır';
     }
 
-    if (formData.phone_number && !/^[0-9+\-() ]+$/.test(formData.phone_number)) {
+    if (!formData.phone_number) {
+      newErrors.phone_number = 'Telefon numarası zorunludur';
+    } else if (!/^[0-9+\-() ]+$/.test(formData.phone_number)) {
       newErrors.phone_number = 'Geçerli bir telefon numarası giriniz';
+    } else if (formData.phone_number.length < 10) {
+      newErrors.phone_number = 'Telefon numarası en az 10 karakter olmalıdır';
+    } else if (formData.phone_number.length > 20) {
+      newErrors.phone_number = 'Telefon numarası en fazla 20 karakter olabilir';
     }
 
     setErrors(newErrors);
@@ -177,7 +183,7 @@ export default function CustomerForm({ customer, onSave, onCancel }) {
       {/* Phone Number */}
       <div>
         <label htmlFor="phone_number" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-          Telefon Numarası
+          Telefon Numarası <span className="text-red-500">*</span>
         </label>
         <input
           type="tel"

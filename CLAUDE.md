@@ -52,6 +52,19 @@ mutation'ları ele → araç çalıştır → respond (LLM)**.
   min_order_quantity/risk_level).
 - **Chatbot düzeltmeleri** (haritada): #1 aylık karşılaştırma, #2 envanter değeri aracı,
   #4 sipariş status enjeksiyonu, #5 migration idempotency. Kalan: #3 (3B model Türkçe kalitesi).
+- **Müşteri formu**: telefon zorunlu (frontend + `validators.js` create/update, 10-20 hane).
+- **Çek düzeltmeleri**: Excel export audit_log `company_id` eksiği (import de); update'te boş
+  integer FK (`customer_id`/`given_to_customer_id`) → NULL; status şeması gerçek durumlarla
+  hizalandı (`chequeValidator.js`: pending/paid/cancelled/teminat/musteriye_verildi) + durum
+  değişiminde teminat bankası / müşteri alanları kaydediliyor (`Cheque.updateStatus` extra).
+- **PDF/Excel export birleştirme**: TÜM liste export'ları (müşteri/ürün/sipariş/tedarikçi/çek +
+  raporlar) tek backend kaynağından — `utils/pdfTable.js` + `utils/excelTable.js`, generic
+  `POST /api/export/pdf|excel` (`exportController`/`routes/export.js`). Frontend
+  `services/exportService.js` → `exportUtils.js` ham Türkçe veri gönderir (eski jsPDF
+  transliterasyonu kalktı). Stil: Kurumsal Lacivert (`#1e3a5f`), DejaVu font (Türkçe + ₺,
+  `Dockerfile.backend`'de `apk font-dejavu`), dar `#` kolonu, tek satır (`lineBreak:false`+ellipsis),
+  TR saati (`Europe/Istanbul`), tek sayfa (footer alt-margin hilesi). **E-Fatura PDF hariç**
+  (hâlâ frontend jsPDF, `exportInvoiceToPDF`). Raporlar `#` sütunu 1'den artan (ASC).
 
 ## Bilinen kalan işler
 - 3B modelin Türkçe respond kalitesi (model kaynaklı; Mac'te büyük model çözer).

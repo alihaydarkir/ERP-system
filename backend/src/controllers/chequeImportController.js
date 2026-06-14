@@ -269,6 +269,7 @@ const validateChequeImport = async (req, res) => {
 const importCheques = async (req, res) => {
   try {
     const userId = req.user.id;
+    const { company_id } = req.user; // MULTI-TENANCY
 
     if (!req.file) {
       return res.status(400).json(formatError('No file uploaded'));
@@ -320,7 +321,8 @@ const importCheques = async (req, res) => {
         total_rows: parseResult.data.length,
         imported: bulkResult.insertedCheques.length,
         failed: validationResult.errors.length + bulkResult.errors.length
-      }
+      },
+      company_id // MULTI-TENANCY
     });
 
     res.json(formatSuccess({
@@ -343,6 +345,7 @@ const importCheques = async (req, res) => {
 const exportChequesToExcel = async (req, res) => {
   try {
     const userId = req.user.id;
+    const { company_id } = req.user; // MULTI-TENANCY
     const {
       status,
       customer_id,
@@ -417,7 +420,8 @@ const exportChequesToExcel = async (req, res) => {
       entity_type: 'cheque',
       entity_id: null,
       ip_address: getClientIP(req),
-      changes: { count: cheques.length, filters }
+      changes: { count: cheques.length, filters },
+      company_id // MULTI-TENANCY
     });
 
     // Send file

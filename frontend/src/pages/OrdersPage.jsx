@@ -171,14 +171,14 @@ export default function OrdersPage() {
         </div>
         <div className="flex flex-wrap gap-3">
           <button
-            onClick={() => { exportOrdersToPDF(filteredOrders); toast.success('PDF olarak indirildi!'); }}
+            onClick={async () => { try { await exportOrdersToPDF(filteredOrders); toast.success('PDF olarak indirildi!'); } catch { toast.error('PDF indirilemedi'); } }}
             className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5"
           >
             <FileDown className="w-5 h-5" />
             <span>PDF</span>
           </button>
           <button
-            onClick={() => { exportOrdersToExcel(filteredOrders); toast.success('Excel olarak indirildi!'); }}
+            onClick={async () => { try { await exportOrdersToExcel(filteredOrders); toast.success('Excel olarak indirildi!'); } catch { toast.error('Excel indirilemedi'); } }}
             className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5"
           >
             <FileSpreadsheet className="w-5 h-5" />

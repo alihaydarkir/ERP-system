@@ -139,13 +139,13 @@ export default function ProductsPage() {
   return (
     <div className="p-6">
       <ProductsHeader
-        onExportPdf={() => {
-          exportProductsToPDF(visibleProducts);
-          toast.success('PDF olarak indirildi!');
+        onExportPdf={async () => {
+          try { await exportProductsToPDF(visibleProducts); toast.success('PDF olarak indirildi!'); }
+          catch { toast.error('PDF indirilemedi'); }
         }}
-        onExportExcel={() => {
-          exportProductsToExcel(visibleProducts);
-          toast.success('Excel olarak indirildi!');
+        onExportExcel={async () => {
+          try { await exportProductsToExcel(visibleProducts); toast.success('Excel olarak indirildi!'); }
+          catch { toast.error('Excel indirilemedi'); }
         }}
         onOpenImport={() => setShowImportDialog(true)}
         onOpenCreate={() => setShowModal(true)}

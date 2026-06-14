@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
 import useSettingsStore from '../store/settingsStore';
+import { downloadTablePdf, downloadTableExcel } from '../services/exportService';
 
 /* ─── Türkçe karakter normalizer ─────────────────────────────────── */
 const TR = (s) => {
@@ -42,7 +42,6 @@ const LIGHT   = [248, 250, 252]; // açık arka plan
 const MUTED   = [100, 116, 139]; // gri
 const WHITE   = [255, 255, 255];
 const GREEN   = [16, 185, 129];
-const PURPLE  = [109, 40, 217];
 const AMBER   = [217, 119, 6];
 
 /* ─── Yardımcı formatlayıcılar ───────────────────────────────────── */
@@ -51,6 +50,12 @@ const fmtMoney = (n) =>
 
 const fmtDate = (d) =>
   d ? new Date(d).toLocaleDateString('tr-TR') : new Date().toLocaleDateString('tr-TR');
+
+/* ─── Ortak (backend) export yardımcıları ─────────────────────────── */
+const today = () => new Date().toISOString().split('T')[0];
+const companyName = () => company().companyName || 'ERP SİSTEMİ';
+// Meta satırında para — ₺ DejaVu fontunda destekleniyor
+const moneyMeta = (n) => Number(n || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 }) + ' ₺';
 
 /* ─── Ortak Şirket Başlığı ───────────────────────────────────────── */
 function drawCompanyHeader(doc, opts = {}) {
@@ -292,232 +297,140 @@ export const exportInvoiceToPDF = (invoice) => {
 /* ══════════════════════════════════════════════════════════════════
    ÜRÜN LİSTESİ PDF
    ══════════════════════════════════════════════════════════════════ */
-export const exportProductsToPDF = (products) => {
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  addTurkishSupport(doc);
-
-  drawCompanyHeader(doc, {
-    title: 'URUN LISTESI',
-    badgeColor: GREEN,
-    rightLines: [`Tarih: ${fmtDate()}`, `Toplam: ${products.length} urun`],
-  });
-
-  autoTable(doc, {
-    startY: 46,
-    head: [['#', 'Urun Adi', 'SKU', 'Kategori', 'Stok', 'Fiyat', 'Durum']],
-    body: products.map((p, i) => [
+export const exportProductsToPDF = (products) =>
+  downloadTablePdf({
+    companyName: companyName(),
+    documentTitle: 'Ürün Listesi',
+    meta: [`Tarih: ${fmtDate()}`, `Toplam: ${products.length} ürün`],
+    columns: ['#', 'Ürün Adı', 'SKU', 'Kategori', 'Stok', 'Fiyat', 'Durum'],
+    rows: products.map((p, i) => [
       i + 1,
-      TR(p.name || '-'),
+      p.name || '-',
       p.sku || '-',
-      TR(p.category || '-'),
+      p.category || '-',
       p.stock_quantity ?? 0,
-      fmtMoney(p.price),
+      Number(p.price) || 0,
       p.is_active ? 'Aktif' : 'Pasif',
     ]),
-    headStyles: { fillColor: GREEN, textColor: WHITE, fontStyle: 'bold', fontSize: 8 },
-    bodyStyles: { fontSize: 8 },
-    alternateRowStyles: { fillColor: LIGHT },
-    columnStyles: {
-      0: { cellWidth: 10, halign: 'center' },
-      4: { halign: 'right' },
-      5: { halign: 'right' },
-      6: { halign: 'center' },
-    },
-    margin: { left: 14, right: 14 },
+    currencyColumns: ['Fiyat'],
+    filename: `Urunler_${today()}`,
   });
-
-  drawFooter(doc);
-  doc.save(`Urunler_${new Date().toISOString().split('T')[0]}.pdf`);
-};
 
 /* ══════════════════════════════════════════════════════════════════
    SİPARİŞ LİSTESİ PDF
    ══════════════════════════════════════════════════════════════════ */
+const ORDER_STATUS = (s) => ({ pending: 'Bekleyen', completed: 'Tamamlandı', processing: 'İşlemde', cancelled: 'İptal', shipped: 'Kargoda', delivered: 'Teslim' }[s] || s);
+
 export const exportOrdersToPDF = (orders) => {
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  addTurkishSupport(doc);
-
-  const statusLabel = (s) => ({ pending: 'Bekleyen', completed: 'Tamamlandi', processing: 'Islemde', cancelled: 'Iptal' }[s] || s);
   const total = orders.reduce((s, o) => s + (parseFloat(o.total_amount) || 0), 0);
-
-  drawCompanyHeader(doc, {
-    title: 'SIPARIS LISTESI',
-    badgeColor: BRAND,
-    rightLines: [`Tarih: ${fmtDate()}`, `${orders.length} siparis`, `Toplam: ${fmtMoney(total)}`],
-  });
-
-  autoTable(doc, {
-    startY: 46,
-    head: [['#', 'Siparis No', 'Musteri', 'Tarih', 'Durum', 'Tutar']],
-    body: orders.map((o, i) => [
+  return downloadTablePdf({
+    companyName: companyName(),
+    documentTitle: 'Sipariş Listesi',
+    meta: [`Tarih: ${fmtDate()}`, `${orders.length} sipariş`, `Toplam: ${moneyMeta(total)}`],
+    columns: ['#', 'Sipariş No', 'Müşteri', 'Tarih', 'Durum', 'Tutar'],
+    rows: orders.map((o, i) => [
       i + 1,
       o.order_number || o.id,
-      TR(o.customer_name || '-'),
+      o.customer_name || '-',
       fmtDate(o.created_at),
-      statusLabel(o.status),
-      fmtMoney(o.total_amount),
+      ORDER_STATUS(o.status),
+      Number(o.total_amount) || 0,
     ]),
-    headStyles: { fillColor: BRAND, textColor: WHITE, fontStyle: 'bold', fontSize: 8 },
-    bodyStyles: { fontSize: 8 },
-    alternateRowStyles: { fillColor: LIGHT },
-    columnStyles: {
-      0: { cellWidth: 10, halign: 'center' },
-      3: { halign: 'center' },
-      4: { halign: 'center' },
-      5: { halign: 'right' },
-    },
-    margin: { left: 14, right: 14 },
-    foot: [['', '', '', '', 'TOPLAM', fmtMoney(total)]],
-    footStyles: { fillColor: DARK, textColor: WHITE, fontStyle: 'bold', fontSize: 8 },
+    currencyColumns: ['Tutar'],
+    footer: ['', '', '', '', 'TOPLAM', total],
+    filename: `Siparisler_${today()}`,
   });
-
-  drawFooter(doc);
-  doc.save(`Siparisler_${new Date().toISOString().split('T')[0]}.pdf`);
 };
 
 /* ══════════════════════════════════════════════════════════════════
    MÜŞTERİ LİSTESİ PDF
    ══════════════════════════════════════════════════════════════════ */
-export const exportCustomersToPDF = (customers) => {
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  addTurkishSupport(doc);
-
-  drawCompanyHeader(doc, {
-    title: 'MUSTERI LISTESI',
-    badgeColor: PURPLE,
-    rightLines: [`Tarih: ${fmtDate()}`, `Toplam: ${customers.length} musteri`],
-  });
-
-  autoTable(doc, {
-    startY: 46,
-    head: [['#', 'Ad Soyad', 'Sirket', 'Telefon', 'E-posta', 'Konum']],
-    body: customers.map((c, i) => [
+export const exportCustomersToPDF = (customers) =>
+  downloadTablePdf({
+    companyName: companyName(),
+    documentTitle: 'Müşteri Listesi',
+    meta: [`Tarih: ${fmtDate()}`, `Toplam: ${customers.length} müşteri`],
+    columns: ['#', 'Ad Soyad', 'Şirket', 'Telefon', 'E-posta', 'Konum'],
+    rows: customers.map((c, i) => [
       i + 1,
-      TR(c.full_name || c.name || '-'),
-      TR(c.company_name || c.company || '-'),
+      c.full_name || c.name || '-',
+      c.company_name || c.company || '-',
       c.phone_number || c.phone || '-',
       c.email || '-',
-      TR(c.company_location || c.location || '-'),
+      c.company_location || c.location || '-',
     ]),
-    headStyles: { fillColor: PURPLE, textColor: WHITE, fontStyle: 'bold', fontSize: 8 },
-    bodyStyles: { fontSize: 8 },
-    alternateRowStyles: { fillColor: LIGHT },
-    columnStyles: { 0: { cellWidth: 10, halign: 'center' } },
-    margin: { left: 14, right: 14 },
+    filename: `Musteriler_${today()}`,
   });
-
-  drawFooter(doc);
-  doc.save(`Musteriler_${new Date().toISOString().split('T')[0]}.pdf`);
-};
 
 /* ══════════════════════════════════════════════════════════════════
    ÇEK LİSTESİ PDF — Yatay A4
    ══════════════════════════════════════════════════════════════════ */
+const CHEQUE_STATUS = (s) => ({
+  pending: 'Beklemede', paid: 'Ödendi', cancelled: 'İptal',
+  teminat: 'Teminat', musteriye_verildi: 'Müşteriye Verildi',
+  cleared: 'Tahsil Edildi', bounced: 'Karşılıksız',
+}[s] || s);
+
+// Vadesi geçmiş = kırmızı, 7 gün içinde = amber (sadece beklemedeki çekler)
+const chequeRowColor = (c) => {
+  if (c.status !== 'pending') return null;
+  const due = new Date(c.due_date);
+  if (due < new Date()) return '#dc2626';
+  if ((due - new Date()) / 86400000 <= 7) return '#d97706';
+  return null;
+};
+
 export const exportChequesToPDF = (cheques) => {
-  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' });
-  addTurkishSupport(doc);
-
-  const statusLabel = (s) => ({
-    pending: 'Beklemede', cleared: 'Tahsil Edildi',
-    bounced: 'Karsilıksiz', cancelled: 'Iptal',
-    paid: 'Odendi', teminat: 'Teminat',
-  }[s] || s);
-
   const total = cheques.reduce((s, c) => s + (parseFloat(c.amount) || 0), 0);
-
-  drawCompanyHeader(doc, {
-    title: 'CEK LISTESI',
-    badgeColor: AMBER,
-    rightLines: [`Tarih: ${fmtDate()}`, `${cheques.length} cek`, `Toplam: ${fmtMoney(total)}`],
+  const rowStyles = {};
+  cheques.forEach((c, i) => {
+    const color = chequeRowColor(c);
+    if (color) rowStyles[i] = { color };
   });
-
-  const overdueStyle = (c) => {
-    if (c.status !== 'pending') return {};
-    const due = new Date(c.due_date);
-    if (due < new Date()) return { textColor: [220, 38, 38] };
-    const diff = (due - new Date()) / 86400000;
-    if (diff <= 7) return { textColor: AMBER };
-    return {};
-  };
-
-  autoTable(doc, {
-    startY: 46,
-    head: [['#', 'Seri No', 'Kesideci', 'Musteri', 'Banka', 'Alınan', 'Vade', 'Tutar', 'Durum']],
-    body: cheques.map((c, i) => [
+  return downloadTablePdf({
+    companyName: companyName(),
+    documentTitle: 'Çek Listesi',
+    orientation: 'landscape',
+    meta: [`Tarih: ${fmtDate()}`, `${cheques.length} çek`, `Toplam: ${moneyMeta(total)}`],
+    columns: ['#', 'Seri No', 'Keşideci', 'Müşteri', 'Banka', 'Alınan', 'Vade', 'Tutar', 'Durum'],
+    rows: cheques.map((c, i) => [
       i + 1,
       c.check_serial_no || '-',
-      TR(c.check_issuer || '-'),
-      TR(c.customer_company_name || c.customer_contact_name || c.customer_name || '-'),
-      TR(c.bank_name || '-'),
+      c.check_issuer || '-',
+      c.customer_company_name || c.customer_contact_name || c.customer_name || '-',
+      c.bank_name || '-',
       fmtDate(c.received_date),
       fmtDate(c.due_date),
-      fmtMoney(c.amount),
-      statusLabel(c.status),
+      Number(c.amount) || 0,
+      CHEQUE_STATUS(c.status),
     ]),
-    headStyles: { fillColor: AMBER, textColor: WHITE, fontStyle: 'bold', fontSize: 8 },
-    bodyStyles: { fontSize: 8 },
-    alternateRowStyles: { fillColor: LIGHT },
-    didParseCell: (data) => {
-      if (data.section === 'body' && data.column.index === 8) {
-        const c = cheques[data.row.index];
-        Object.assign(data.cell.styles, overdueStyle(c));
-      }
-    },
-    columnStyles: {
-      0: { cellWidth: 10, halign: 'center' },
-      5: { halign: 'center' },
-      6: { halign: 'center' },
-      7: { halign: 'right' },
-      8: { halign: 'center' },
-    },
-    margin: { left: 14, right: 14 },
-    foot: [['', '', '', '', '', '', 'TOPLAM', fmtMoney(total), '']],
-    footStyles: { fillColor: DARK, textColor: WHITE, fontStyle: 'bold', fontSize: 8 },
+    currencyColumns: ['Tutar'],
+    rowStyles,
+    footer: ['', '', '', '', '', '', 'TOPLAM', total, ''],
+    filename: `Cekler_${today()}`,
   });
-
-  drawFooter(doc);
-  doc.save(`Cekler_${new Date().toISOString().split('T')[0]}.pdf`);
 };
 
 /* ══════════════════════════════════════════════════════════════════
    TEDARİKÇİ LİSTESİ PDF
    ══════════════════════════════════════════════════════════════════ */
-export const exportSuppliersToPDF = (suppliers) => {
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  addTurkishSupport(doc);
-
-  drawCompanyHeader(doc, {
-    title: 'TEDARIKCI LISTESI',
-    badgeColor: PURPLE,
-    rightLines: [`Tarih: ${fmtDate()}`, `Toplam: ${suppliers.length} tedarikci`],
-  });
-
-  autoTable(doc, {
-    startY: 46,
-    head: [['#', 'Tedarikci Adi', 'Iletisim Kisisi', 'Telefon', 'E-posta', 'Odeme Vadesi', 'Durum']],
-    body: suppliers.map((s, i) => [
+export const exportSuppliersToPDF = (suppliers) =>
+  downloadTablePdf({
+    companyName: companyName(),
+    documentTitle: 'Tedarikçi Listesi',
+    meta: [`Tarih: ${fmtDate()}`, `Toplam: ${suppliers.length} tedarikçi`],
+    columns: ['#', 'Tedarikçi Adı', 'İletişim Kişisi', 'Telefon', 'E-posta', 'Ödeme Vadesi', 'Durum'],
+    rows: suppliers.map((s, i) => [
       i + 1,
-      TR(s.supplier_name || s.company_name || '-'),
-      TR(s.contact_person || s.contact_name || '-'),
+      s.supplier_name || s.company_name || '-',
+      s.contact_person || s.contact_name || '-',
       s.phone || s.phone_number || '-',
       s.email || '-',
       s.payment_terms || '-',
       s.is_active ? 'Aktif' : 'Pasif',
     ]),
-    headStyles: { fillColor: PURPLE, textColor: WHITE, fontStyle: 'bold', fontSize: 8 },
-    bodyStyles: { fontSize: 8 },
-    alternateRowStyles: { fillColor: LIGHT },
-    columnStyles: {
-      0: { cellWidth: 10, halign: 'center' },
-      5: { halign: 'center' },
-      6: { halign: 'center' },
-    },
-    margin: { left: 14, right: 14 },
+    filename: `Tedarikciler_${today()}`,
   });
-
-  drawFooter(doc);
-  doc.save(`Tedarikciler_${new Date().toISOString().split('T')[0]}.pdf`);
-};
 
 /* ══════════════════════════════════════════════════════════════════
    RAPOR PDF (genel)
@@ -561,53 +474,87 @@ export const exportReportToPDF = (reportData, reportTitle) => {
 };
 
 /* ══════════════════════════════════════════════════════════════════
-   EXCEL EXPORT FONKSIYONLARI (değişmedi, sadece temizlendi)
+   EXCEL EXPORT FONKSIYONLARI — ortak backend stili (utils/excelTable)
    ══════════════════════════════════════════════════════════════════ */
-export const exportProductsToExcel = (products) => {
-  const ws = XLSX.utils.json_to_sheet(products.map(p => ({
-    'ID': p.id, 'Urun Adi': p.name || '-', 'SKU': p.sku || '-',
-    'Kategori': p.category || '-', 'Stok': p.stock_quantity ?? 0,
-    'Fiyat (TL)': p.price || 0, 'Aciklama': p.description || '-',
-  })));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Urunler');
-  XLSX.writeFile(wb, `Urunler_${Date.now()}.xlsx`);
-};
+export const exportProductsToExcel = (products) =>
+  downloadTableExcel({
+    companyName: companyName(),
+    documentTitle: 'Ürün Listesi',
+    sheetName: 'Ürünler',
+    meta: [`Tarih: ${fmtDate()}`, `Toplam: ${products.length} ürün`],
+    columns: ['ID', 'Ürün Adı', 'SKU', 'Kategori', 'Stok', 'Fiyat', 'Açıklama'],
+    rows: products.map(p => [
+      p.id, p.name || '-', p.sku || '-', p.category || '-',
+      p.stock_quantity ?? 0, Number(p.price) || 0, p.description || '-',
+    ]),
+    currencyColumns: ['Fiyat'],
+    filename: `Urunler_${today()}`,
+  });
 
-export const exportOrdersToExcel = (orders) => {
-  const statusLabel = (s) => ({ pending: 'Bekleyen', completed: 'Tamamlandi', cancelled: 'Iptal' }[s] || s);
-  const ws = XLSX.utils.json_to_sheet(orders.map(o => ({
-    'Siparis No': o.order_number || o.id, 'Musteri': o.customer_name || '-',
-    'Tarih': fmtDate(o.created_at), 'Durum': statusLabel(o.status),
-    'Toplam Tutar (TL)': o.total_amount || 0, 'Notlar': o.notes || '-',
-  })));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Siparisler');
-  XLSX.writeFile(wb, `Siparisler_${Date.now()}.xlsx`);
-};
+export const exportOrdersToExcel = (orders) =>
+  downloadTableExcel({
+    companyName: companyName(),
+    documentTitle: 'Sipariş Listesi',
+    sheetName: 'Siparişler',
+    meta: [`Tarih: ${fmtDate()}`, `Toplam: ${orders.length} sipariş`],
+    columns: ['Sipariş No', 'Müşteri', 'Tarih', 'Durum', 'Toplam Tutar', 'Notlar'],
+    rows: orders.map(o => [
+      o.order_number || o.id, o.customer_name || '-', fmtDate(o.created_at),
+      ORDER_STATUS(o.status), Number(o.total_amount) || 0, o.notes || '-',
+    ]),
+    currencyColumns: ['Toplam Tutar'],
+    filename: `Siparisler_${today()}`,
+  });
 
-export const exportCustomersToExcel = (customers) => {
-  const ws = XLSX.utils.json_to_sheet(customers.map(c => ({
-    'ID': c.id, 'Ad Soyad': c.full_name || c.name || '-',
-    'E-posta': c.email || '-', 'Telefon': c.phone_number || c.phone || '-',
-    'Sirket': c.company_name || '-', 'Adres': c.address || '-',
-    'Kayit Tarihi': fmtDate(c.created_at),
-  })));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Musteriler');
-  XLSX.writeFile(wb, `Musteriler_${Date.now()}.xlsx`);
-};
+export const exportCustomersToExcel = (customers) =>
+  downloadTableExcel({
+    companyName: companyName(),
+    documentTitle: 'Müşteri Listesi',
+    sheetName: 'Müşteriler',
+    meta: [`Tarih: ${fmtDate()}`, `Toplam: ${customers.length} müşteri`],
+    columns: ['ID', 'Ad Soyad', 'Şirket', 'E-posta', 'Telefon', 'Vergi Dairesi', 'Vergi No', 'Konum'],
+    rows: customers.map(c => [
+      c.id, c.full_name || c.name || '-', c.company_name || '-', c.email || '-',
+      c.phone_number || c.phone || '-', c.tax_office || '-', c.tax_number || '-',
+      c.company_location || c.address || '-',
+    ]),
+    filename: `Musteriler_${today()}`,
+  });
 
-export const exportSuppliersToExcel = (suppliers) => {
-  const ws = XLSX.utils.json_to_sheet(suppliers.map(s => ({
-    'ID': s.id, 'Tedarikci Adi': s.supplier_name || s.company_name || '',
-    'Iletisim Kisisi': s.contact_person || s.contact_name || '',
-    'E-posta': s.email || '', 'Telefon': s.phone || s.phone_number || '',
-    'Adres': s.address || s.location || '', 'Vergi Dairesi': s.tax_office || '',
-    'Vergi No': s.tax_number || '', 'IBAN': s.iban || '',
-    'Odeme Vadesi': s.payment_terms || '', 'Durum': s.is_active ? 'Aktif' : 'Pasif',
-  })));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Tedarikciler');
-  XLSX.writeFile(wb, `Tedarikciler_${Date.now()}.xlsx`);
-};
+export const exportChequesToExcel = (cheques) =>
+  downloadTableExcel({
+    companyName: companyName(),
+    documentTitle: 'Çek Listesi',
+    sheetName: 'Çekler',
+    meta: [`Tarih: ${fmtDate()}`, `Toplam: ${cheques.length} çek`],
+    columns: ['#', 'Seri No', 'Keşideci', 'Müşteri', 'Banka', 'Alınan', 'Vade', 'Tutar', 'Durum'],
+    rows: cheques.map((c, i) => [
+      i + 1,
+      c.check_serial_no || '-',
+      c.check_issuer || '-',
+      c.customer_company_name || c.customer_contact_name || c.customer_name || '-',
+      c.bank_name || '-',
+      fmtDate(c.received_date),
+      fmtDate(c.due_date),
+      Number(c.amount) || 0,
+      CHEQUE_STATUS(c.status),
+    ]),
+    currencyColumns: ['Tutar'],
+    filename: `Cekler_${today()}`,
+  });
+
+export const exportSuppliersToExcel = (suppliers) =>
+  downloadTableExcel({
+    companyName: companyName(),
+    documentTitle: 'Tedarikçi Listesi',
+    sheetName: 'Tedarikçiler',
+    meta: [`Tarih: ${fmtDate()}`, `Toplam: ${suppliers.length} tedarikçi`],
+    columns: ['ID', 'Tedarikçi Adı', 'İletişim Kişisi', 'E-posta', 'Telefon', 'Adres', 'Vergi Dairesi', 'Vergi No', 'IBAN', 'Ödeme Vadesi', 'Durum'],
+    rows: suppliers.map(s => [
+      s.id, s.supplier_name || s.company_name || '', s.contact_person || s.contact_name || '',
+      s.email || '', s.phone || s.phone_number || '', s.address || s.location || '',
+      s.tax_office || '', s.tax_number || '', s.iban || '',
+      s.payment_terms || '', s.is_active ? 'Aktif' : 'Pasif',
+    ]),
+    filename: `Tedarikciler_${today()}`,
+  });

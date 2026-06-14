@@ -366,7 +366,7 @@ const updateCheque = async (req, res) => {
 const changeChequeStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, notes } = req.body;
+    const { status, notes, collateral_bank, given_to_customer_id } = req.body;
     const userId = req.user.id;
     const companyId = req.user.company_id;
 
@@ -374,6 +374,14 @@ const changeChequeStatus = async (req, res) => {
     const normalizedStatus = normalizeChequeStatus(status);
     if (!normalizedStatus || !VALID_CHEQUE_STATUSES.includes(normalizedStatus)) {
       return res.status(400).json(formatError(`Status must be one of: ${VALID_CHEQUE_STATUSES.join(', ')}`));
+    }
+
+    // Teminat → banka, Müşteriye verildi → müşteri zorunlu
+    if (normalizedStatus === 'teminat' && !collateral_bank) {
+      return res.status(400).json(formatError('Teminat durumu için teminat bankası zorunludur'));
+    }
+    if (normalizedStatus === 'musteriye_verildi' && !given_to_customer_id) {
+      return res.status(400).json(formatError('Müşteriye verildi durumu için müşteri seçimi zorunludur'));
     }
 
     // Check if cheque exists and belongs to user
@@ -384,8 +392,11 @@ const changeChequeStatus = async (req, res) => {
 
     const oldStatus = existingCheque.status;
 
-    // Update status
-    const updatedCheque = await Cheque.updateStatus(id, normalizedStatus, companyId);
+    // Update status + duruma özel alanlar
+    const extra = {};
+    if (normalizedStatus === 'teminat') extra.collateral_bank = collateral_bank;
+    if (normalizedStatus === 'musteriye_verildi') extra.given_to_customer_id = given_to_customer_id;
+    const updatedCheque = await Cheque.updateStatus(id, normalizedStatus, companyId, extra);
 
     // Create transaction record
     await ChequeTransaction.create({
