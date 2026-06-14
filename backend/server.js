@@ -365,6 +365,8 @@ const aiRoutes = require('./src/routes/ai');
 console.log('✓ AI routes loaded');
 const exportRoutes = require('./src/routes/export');
 console.log('✓ Export routes loaded');
+const bankTransferRoutes = require('./src/routes/bankTransfers');
+console.log('✓ Bank transfer routes loaded');
 
 console.log('✓ Employee approval routes loaded');
 
@@ -383,6 +385,8 @@ app.use('/api/reports', reportRoutes);
 console.log('✓ /api/reports registered');
 app.use('/api/export', exportRoutes);
 console.log('✓ /api/export registered');
+app.use('/api/bank-transfers', bankTransferRoutes);
+console.log('✓ /api/bank-transfers registered');
 app.use('/api/admin', adminRoutes);
 console.log('✓ /api/admin registered');
 app.use('/api/customers', customerRoutes);

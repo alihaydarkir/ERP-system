@@ -87,7 +87,7 @@ export default function Layout({ children }) {
     { path: '/orders', label: 'Siparişler', perm: 'orders.view' },
     { path: '/customers', label: 'Müşteriler', perm: 'customers.view' },
     { path: '/suppliers', label: 'Tedarikçiler', perm: 'suppliers.view' },
-    { path: '/cheques', label: 'Çekler', perm: 'cheques.view' },
+    { path: '/cheques', label: 'Ödemeler', perm: 'cheques.view' },
     { path: '/invoices', label: 'Faturalar', perm: 'invoices.view' },
     { path: '/current-accounts', label: 'Cari Hesaplar', perm: 'invoices.view' },
     { path: '/chat', label: 'AI Asistan' },
