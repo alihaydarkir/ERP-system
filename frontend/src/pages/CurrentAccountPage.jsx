@@ -1,9 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Search, RefreshCw, ChevronRight, X, TrendingUp, TrendingDown, Users, FileText, ShoppingCart, AlertCircle } from 'lucide-react';
+import { Search, RefreshCw, ChevronRight, X, TrendingUp, TrendingDown, Users, FileText, ShoppingCart, AlertCircle, FileDown, FileSpreadsheet } from 'lucide-react';
+import toast from 'react-hot-toast';
 import currentAccountService from '../services/currentAccountService';
+import useSettingsStore from '../store/settingsStore';
+import { downloadTablePdf, downloadTableExcel } from '../services/exportService';
 
 const fmt = (n) =>
   new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(n ?? 0);
+
+const companyName = () => {
+  try { return useSettingsStore.getState()?.settings?.general?.companyName || 'ERP SİSTEMİ'; }
+  catch { return 'ERP SİSTEMİ'; }
+};
+const today = () => new Date().toISOString().split('T')[0];
 
 const fmtDate = (d) =>
   d ? new Date(d).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
@@ -67,6 +76,41 @@ function AccountDrawer({ customerId, onClose }) {
     ? transactions.filter(tx => tx.src === txFilter)
     : transactions;
 
+  // Müşteri-bazlı cari hesabı PDF/Excel'e aktar (özet meta + hareketler)
+  const buildPayload = () => {
+    const c = detail?.customer || {};
+    const s = detail?.summary || {};
+    const label = c.company_name || c.full_name || 'Müşteri';
+    return {
+      companyName: companyName(),
+      documentTitle: `Cari Hesap — ${label}`,
+      meta: [
+        `Müşteri: ${label}${c.full_name ? ' / ' + c.full_name : ''}`,
+        `Toplam Satış: ${fmt(s.total_sales)}   Ödenen: ${fmt(s.total_paid)}   Açık Bakiye: ${fmt(s.outstanding_balance)}`,
+        `Tarih: ${new Date().toLocaleDateString('tr-TR')}`,
+      ],
+      columns: ['#', 'Tür', 'Belge No', 'Tarih', 'Tutar', 'Durum'],
+      rows: filtered.map((tx, i) => [
+        i + 1,
+        tx.src === 'order' ? 'Sipariş' : tx.src === 'cheque' ? 'Çek' : 'Fatura',
+        tx.ref_number || '-',
+        fmtDate(tx.date),
+        Number(tx.amount) || 0,
+        STATUS_TR[tx.display_status] || tx.display_status || '-',
+      ]),
+      currencyColumns: ['Tutar'],
+      filename: `Cari_${label.replace(/\s+/g, '_')}_${today()}`,
+    };
+  };
+  const exportPdf = async () => {
+    try { await downloadTablePdf(buildPayload()); toast.success('PDF indirildi'); }
+    catch { toast.error('PDF indirilemedi'); }
+  };
+  const exportExcel = async () => {
+    try { await downloadTableExcel(buildPayload()); toast.success('Excel indirildi'); }
+    catch { toast.error('Excel indirilemedi'); }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="flex-1 bg-black/40" onClick={onClose} />
@@ -79,9 +123,23 @@ function AccountDrawer({ customerId, onClose }) {
             </h2>
             <p className="text-xs text-gray-500 dark:text-gray-400">{detail?.customer?.full_name}</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-lg">
-            <X size={18} />
-          </button>
+          <div className="flex items-center gap-2">
+            {!loading && detail && (
+              <>
+                <button onClick={exportPdf} title="PDF indir"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-gradient-to-r from-red-500 to-red-600 rounded-lg hover:from-red-600 hover:to-red-700">
+                  <FileDown size={14} /> PDF
+                </button>
+                <button onClick={exportExcel} title="Excel indir"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-gradient-to-r from-green-500 to-green-600 rounded-lg hover:from-green-600 hover:to-green-700">
+                  <FileSpreadsheet size={14} /> Excel
+                </button>
+              </>
+            )}
+            <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-lg">
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         {loading ? (
@@ -207,6 +265,29 @@ export default function CurrentAccountPage() {
     load(search, 1);
   };
 
+  // Tüm cari hesap listesini PDF/Excel'e aktar (sayfalamayı atlayıp hepsini çeker)
+  const exportList = async (kind) => {
+    try {
+      const res = await currentAccountService.getList({ search: search || undefined, page: 1, limit: 10000 });
+      const list = res?.data?.accounts || [];
+      const payload = {
+        companyName: companyName(),
+        documentTitle: 'Cari Hesaplar',
+        meta: [`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, `Toplam: ${list.length} müşteri`],
+        columns: ['#', 'Firma', 'Müşteri', 'Toplam Satış', 'Sipariş', 'Faturalanan', 'Ödenen', 'Açık Bakiye'],
+        rows: list.map((a, i) => [
+          i + 1, a.company_name || '-', a.full_name || '-',
+          Number(a.total_sales) || 0, a.order_count || 0,
+          Number(a.total_invoiced) || 0, Number(a.total_paid) || 0, Number(a.outstanding_balance) || 0,
+        ]),
+        currencyColumns: ['Toplam Satış', 'Faturalanan', 'Ödenen', 'Açık Bakiye'],
+        filename: `Cari_Hesaplar_${today()}`,
+      };
+      if (kind === 'pdf') await downloadTablePdf(payload); else await downloadTableExcel(payload);
+      toast.success(kind === 'pdf' ? 'PDF indirildi' : 'Excel indirildi');
+    } catch { toast.error('İndirilemedi'); }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -216,12 +297,26 @@ export default function CurrentAccountPage() {
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Cari Hesaplar</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Müşteri bakiyeleri ve hareket geçmişi</p>
         </div>
-        <button
-          onClick={() => load()}
-          className="group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow-md hover:from-blue-700 hover:to-blue-800 hover:shadow-blue-500/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-        >
-          <RefreshCw size={15} /> Yenile
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => exportList('pdf')}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-red-500 to-red-600 rounded-lg shadow-md hover:from-red-600 hover:to-red-700"
+          >
+            <FileDown size={15} /> PDF
+          </button>
+          <button
+            onClick={() => exportList('excel')}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-green-500 to-green-600 rounded-lg shadow-md hover:from-green-600 hover:to-green-700"
+          >
+            <FileSpreadsheet size={15} /> Excel
+          </button>
+          <button
+            onClick={() => load()}
+            className="group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow-md hover:from-blue-700 hover:to-blue-800 hover:shadow-blue-500/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            <RefreshCw size={15} /> Yenile
+          </button>
+        </div>
       </div>
 
       {/* Özet Kartları */}

@@ -43,9 +43,6 @@ export default function SupplierList({ suppliers, onEdit, onDelete, onViewDetail
               Ödeme Vadesi
             </th>
             <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              Vergi Dairesi
-            </th>
-            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
               Rating
             </th>
             <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -83,11 +80,6 @@ export default function SupplierList({ suppliers, onEdit, onDelete, onViewDetail
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="text-sm text-gray-900 dark:text-gray-300">
                   {supplier.payment_terms || '-'}
-                </div>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <div className="text-sm text-gray-900 dark:text-gray-300">
-                  {supplier.tax_office || '-'}
                 </div>
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
