@@ -1,12 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth');
+const { requirePermission } = require('../middleware/permissions');
 const {
   getAccountList,
   getAccountSummary,
   getAccountDetail,
   getTransactions,
 } = require('../controllers/currentAccountController');
+
+// Cari hesaplar finansal veridir → manager+ (invoices.view). user (operatör) finansalı görmez.
+const requireFinancial = requirePermission('invoices.view');
 
 /**
  * @openapi
@@ -37,7 +41,7 @@ const {
  *                     total_invoiced:         { type: number }
  *                     total_paid:             { type: number }
  */
-router.get('/summary', authMiddleware, getAccountSummary);
+router.get('/summary', authMiddleware, requireFinancial, getAccountSummary);
 
 /**
  * @openapi
@@ -65,7 +69,7 @@ router.get('/summary', authMiddleware, getAccountSummary);
  *       200:
  *         description: Cari hesap listesi
  */
-router.get('/', authMiddleware, getAccountList);
+router.get('/', authMiddleware, requireFinancial, getAccountList);
 
 /**
  * @openapi
@@ -88,7 +92,7 @@ router.get('/', authMiddleware, getAccountList);
  *       404:
  *         description: Müşteri bulunamadı
  */
-router.get('/:customerId', authMiddleware, getAccountDetail);
+router.get('/:customerId', authMiddleware, requireFinancial, getAccountDetail);
 
 /**
  * @openapi
@@ -119,6 +123,6 @@ router.get('/:customerId', authMiddleware, getAccountDetail);
  *       200:
  *         description: Hareketler listesi
  */
-router.get('/:customerId/transactions', authMiddleware, getTransactions);
+router.get('/:customerId/transactions', authMiddleware, requireFinancial, getTransactions);
 
 module.exports = router;

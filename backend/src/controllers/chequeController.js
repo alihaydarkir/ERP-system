@@ -24,6 +24,11 @@ const normalizeChequeStatus = (status) => {
 
 const VALID_CHEQUE_STATUSES = ['pending', 'paid', 'cancelled', 'teminat', 'musteriye_verildi'];
 
+// user rolü yalnızca kendi oluşturduğu çeke (tekil erişim/işlem) erişebilir; manager/admin hepsine.
+// Şirket içi tahsilat gizliliği — başka kullanıcının çekine ID ile erişimi engeller.
+const canAccessCheque = (req, cheque) =>
+  req.user.role !== 'user' || cheque.user_id === (req.user.id || req.user.userId);
+
 /**
  * Get all cheques with filtering and pagination
  */
@@ -54,9 +59,14 @@ const getAllCheques = async (req, res) => {
       customer_id = custR.rows[0].id;
     }
 
+    // user rolü: yalnızca KENDİ oluşturduğu çekleri görür (şirket içi tahsilat gizliliği).
+    // manager/admin şirketteki tüm çekleri görür (denetim).
+    const ownerUserId = req.user.role === 'user' ? (req.user.id || req.user.userId) : undefined;
+
     // Build filters
     const filters = {
       company_id: companyId,
+      user_id: ownerUserId,
       status,
       customer_id: customer_id ? parseInt(customer_id) : undefined,
       bank_name,
@@ -69,7 +79,7 @@ const getAllCheques = async (req, res) => {
     };
 
     const cheques = await Cheque.findAll(filters);
-    const total = await Cheque.count({ company_id: companyId, status, customer_id, bank_name, start_date, end_date });
+    const total = await Cheque.count({ company_id: companyId, user_id: ownerUserId, status, customer_id, bank_name, start_date, end_date });
 
     const result = formatPaginated(
       cheques,
@@ -100,7 +110,7 @@ const getChequeById = async (req, res) => {
 
     const cheque = await Cheque.findById(id, companyId);
 
-    if (!cheque) {
+    if (!cheque || !canAccessCheque(req, cheque)) {
       return res.status(404).json(formatError('Cheque not found'));
     }
     // Get transaction history
@@ -268,7 +278,7 @@ const updateCheque = async (req, res) => {
 
     // Check if cheque exists and belongs to user
     const existingCheque = await Cheque.findById(id, companyId);
-    if (!existingCheque) {
+    if (!existingCheque || !canAccessCheque(req, existingCheque)) {
       return res.status(404).json(formatError('Cheque not found'));
     }
 
@@ -386,7 +396,7 @@ const changeChequeStatus = async (req, res) => {
 
     // Check if cheque exists and belongs to user
     const existingCheque = await Cheque.findById(id, companyId);
-    if (!existingCheque) {
+    if (!existingCheque || !canAccessCheque(req, existingCheque)) {
       return res.status(404).json(formatError('Cheque not found'));
     }
 
@@ -448,7 +458,7 @@ const deleteCheque = async (req, res) => {
 
     // Check if cheque exists and belongs to user
     const existingCheque = await Cheque.findById(id, companyId);
-    if (!existingCheque) {
+    if (!existingCheque || !canAccessCheque(req, existingCheque)) {
       return res.status(404).json(formatError('Cheque not found'));
     }
 
@@ -506,8 +516,11 @@ const getDueSoonCheques = async (req, res) => {
       scopedCustomerId = custR.rows[0].id;
     }
 
-    const dueSoonCheques = await Cheque.getDueSoon(companyId, days, scopedCustomerId);
-    const overdueCheques = await Cheque.getOverdue(companyId, scopedCustomerId);
+    // user rolü: vade uyarıları da yalnızca kendi çeklerini kapsasın (tahsilat gizliliği)
+    const ownerUserId = req.user.role === 'user' ? (req.user.id || req.user.userId) : null;
+
+    const dueSoonCheques = await Cheque.getDueSoon(companyId, days, scopedCustomerId, ownerUserId);
+    const overdueCheques = await Cheque.getOverdue(companyId, scopedCustomerId, ownerUserId);
 
     const totalDueSoonAmount = dueSoonCheques.reduce((sum, cheque) => sum + parseFloat(cheque.amount), 0);
     const totalOverdueAmount = overdueCheques.reduce((sum, cheque) => sum + parseFloat(cheque.amount), 0);
@@ -550,7 +563,10 @@ const getChequeStatistics = async (req, res) => {
       scopedCustomerId = custR.rows[0].id;
     }
 
-    const stats = await Cheque.getStatistics(companyId, scopedCustomerId);
+    // user rolü: istatistikler yalnızca kendi çeklerini kapsasın (liste izolasyonuyla tutarlı)
+    const ownerUserId = req.user.role === 'user' ? (req.user.id || req.user.userId) : null;
+
+    const stats = await Cheque.getStatistics(companyId, scopedCustomerId, ownerUserId);
 
     // Convert string numbers to floats for amounts
     const formattedStats = {

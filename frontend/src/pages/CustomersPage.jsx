@@ -62,7 +62,7 @@ export default function CustomersPage() {
           await deleteCustomer.mutateAsync(customer.id);
           showSuccess('Müşteri başarıyla silindi');
         } catch (error) {
-          showError('Müşteri silinirken bir hata oluştu');
+          showError(error.response?.data?.message || 'Müşteri silinirken bir hata oluştu');
         }
       },
     });

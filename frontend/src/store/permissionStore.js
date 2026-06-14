@@ -12,7 +12,9 @@ const usePermissionStore = create((set, get) => ({
     try {
       const response = await api.get('/api/permissions/my-permissions');
       if (response.data.success) {
-        set({ permissions: response.data.data, loading: false });
+        // Backend {name, module, action, ...} objesi döner; izin adlarına indir (hasPermission string bekliyor)
+        const names = (response.data.data || []).map((p) => (typeof p === 'string' ? p : p.name));
+        set({ permissions: names, loading: false });
       }
     } catch (error) {
       console.error('Failed to fetch permissions:', error);

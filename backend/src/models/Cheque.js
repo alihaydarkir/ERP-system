@@ -324,12 +324,16 @@ class Cheque {
   /**
    * Get cheques due soon (within specified days)
    */
-  static async getDueSoon(company_id, days = 7, customer_id = null) {
+  static async getDueSoon(company_id, days = 7, customer_id = null, user_id = null) {
     const values = [company_id];
     let customerFilter = '';
     if (customer_id) {
       values.push(customer_id);
-      customerFilter = ` AND ch.customer_id = $${values.length}`;
+      customerFilter += ` AND ch.customer_id = $${values.length}`;
+    }
+    if (user_id) {
+      values.push(user_id);
+      customerFilter += ` AND ch.user_id = $${values.length}`;
     }
     const query = `
       SELECT
@@ -354,12 +358,16 @@ class Cheque {
   /**
    * Get overdue cheques (past due date and still pending)
    */
-  static async getOverdue(company_id, customer_id = null) {
+  static async getOverdue(company_id, customer_id = null, user_id = null) {
     const values = [company_id];
     let customerFilter = '';
     if (customer_id) {
       values.push(customer_id);
-      customerFilter = ` AND ch.customer_id = $${values.length}`;
+      customerFilter += ` AND ch.customer_id = $${values.length}`;
+    }
+    if (user_id) {
+      values.push(user_id);
+      customerFilter += ` AND ch.user_id = $${values.length}`;
     }
     const query = `
       SELECT
@@ -383,12 +391,17 @@ class Cheque {
   /**
    * Get statistics for cheques
    */
-  static async getStatistics(company_id, customer_id = null) {
+  static async getStatistics(company_id, customer_id = null, user_id = null) {
     const values = [company_id];
     let customerFilter = '';
     if (customer_id) {
       values.push(customer_id);
-      customerFilter = ` AND customer_id = $${values.length}`;
+      customerFilter += ` AND customer_id = $${values.length}`;
+    }
+    // user rolü: istatistik de yalnızca kendi çeklerini kapsar (tahsilat gizliliği)
+    if (user_id) {
+      values.push(user_id);
+      customerFilter += ` AND user_id = $${values.length}`;
     }
     const query = `
       SELECT

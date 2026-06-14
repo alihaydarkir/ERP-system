@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
+import usePermissionStore from '../store/permissionStore';
 import { authService } from '../services/authService';
 import CurrencyTicker from './CurrencyTicker';
 import NotificationBell from './Notifications/NotificationBell';
@@ -16,6 +17,9 @@ export default function Layout({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, company, logout: logoutFn } = useAuthStore();
+  // permissions dizisine abone ol (izinler async yüklenince menü yeniden render olsun)
+  const permissions = usePermissionStore((s) => s.permissions);
+  const hasPermission = (name) => permissions.includes(name);
   
   // Theme state
   const [theme, setTheme] = useState(localStorage.getItem('userPreferences') ? JSON.parse(localStorage.getItem('userPreferences')).theme : 'light');
@@ -73,18 +77,21 @@ export default function Layout({ children }) {
     { path: '/chat', label: 'AI Asistan' },
   ];
 
+  // perm: gerektirdiği izin (yoksa herkese görünür). Menü gerçek izinlere göre filtrelenir,
+  // böylece rol farkı (örn. manager>user) menüde de görünür. Cari Hesaplar finansal grupla
+  // invoices.view'a bağlandı (ayrı izin modülü yok).
   const baseMenuItems = [
     { path: '/dashboard', label: 'Dashboard' },
-    { path: '/products', label: 'Ürünler' },
-    { path: '/warehouses', label: 'Depolar' },
-    { path: '/orders', label: 'Siparişler' },
-    { path: '/customers', label: 'Müşteriler' },
-    { path: '/suppliers', label: 'Tedarikçiler' },
-    { path: '/cheques', label: 'Çekler' },
-    { path: '/invoices', label: 'Faturalar' },
-    { path: '/current-accounts', label: 'Cari Hesaplar' },
+    { path: '/products', label: 'Ürünler', perm: 'products.view' },
+    { path: '/warehouses', label: 'Depolar', perm: 'warehouses.view' },
+    { path: '/orders', label: 'Siparişler', perm: 'orders.view' },
+    { path: '/customers', label: 'Müşteriler', perm: 'customers.view' },
+    { path: '/suppliers', label: 'Tedarikçiler', perm: 'suppliers.view' },
+    { path: '/cheques', label: 'Çekler', perm: 'cheques.view' },
+    { path: '/invoices', label: 'Faturalar', perm: 'invoices.view' },
+    { path: '/current-accounts', label: 'Cari Hesaplar', perm: 'invoices.view' },
     { path: '/chat', label: 'AI Asistan' },
-    { path: '/reports', label: 'Raporlar' },
+    { path: '/reports', label: 'Raporlar', perm: 'reports.view' },
   ];
 
   const adminMenuItems = [
@@ -92,11 +99,15 @@ export default function Layout({ children }) {
     { path: '/settings', label: 'Ayarlar' }
   ];
 
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+  // Admin tüm izinlere sahip (bypass); diğer roller gerçek izinlerine göre filtrelenir
+  const visibleBase = baseMenuItems.filter((i) => !i.perm || isAdmin || hasPermission(i.perm));
+
   const menuItems = user?.role === 'customer'
     ? customerMenuItems
-    : user?.role === 'admin' || user?.role === 'super_admin'
-    ? [...baseMenuItems, ...adminMenuItems]
-    : baseMenuItems;
+    : isAdmin
+    ? [...visibleBase, ...adminMenuItems]
+    : visibleBase;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex font-sans text-gray-900 dark:text-gray-100 transition-colors duration-300">

@@ -12,8 +12,9 @@ const createChequeSchema = Joi.object({
   amount:              Joi.number().min(0.01).required(),
   currency:            Joi.string().valid('TRY', 'USD', 'EUR', 'GBP').default('TRY'),
   status:              Joi.string().optional(),
-  collateral_bank:     Joi.string().optional(),
-  given_to_customer_id: Joi.number().integer().optional(),
+  // Form bu ikisini durum pending iken hep '' gönderiyor → boş'u kabul et ('' → yok say)
+  collateral_bank:     Joi.string().allow('').optional(),
+  given_to_customer_id: Joi.number().integer().empty('').optional(),
   notes:               Joi.string().optional().allow(''),
 });
 
