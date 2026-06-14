@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Search, RefreshCw, ChevronRight, X, TrendingUp, TrendingDown, Users, FileText, ShoppingCart, AlertCircle, FileDown, FileSpreadsheet } from 'lucide-react';
+import { Search, RefreshCw, ChevronRight, X, TrendingUp, TrendingDown, Users, FileText, ShoppingCart, AlertCircle, FileDown, FileSpreadsheet, CreditCard } from 'lucide-react';
 import toast from 'react-hot-toast';
 import currentAccountService from '../services/currentAccountService';
 import useSettingsStore from '../store/settingsStore';
@@ -26,12 +26,15 @@ const STATUS_BADGE = {
   sent:       'bg-blue-100 text-blue-700',
   overdue:    'bg-red-100 text-red-700',
   draft:      'bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300',
+  teminat:    'bg-blue-100 text-blue-700',
+  musteriye_verildi: 'bg-purple-100 text-purple-700',
 };
 
 const STATUS_TR = {
   pending: 'Bekliyor', completed: 'Tamamlandı', cancelled: 'İptal',
   processing: 'İşleniyor', paid: 'Ödendi', sent: 'Gönderildi',
   overdue: 'Vadesi Geçti', draft: 'Taslak',
+  teminat: 'Teminat', musteriye_verildi: 'Müşteriye Verildi',
 };
 
 function SummaryCard({ title, value, sub, icon: Icon, color, shadow, children }) {
@@ -183,7 +186,7 @@ function AccountDrawer({ customerId, onClose }) {
 
             {/* Hareket Filtresi */}
             <div className="flex gap-2">
-              {[['', 'Tümü'], ['order', 'Siparişler'], ['invoice', 'Faturalar']].map(([v, l]) => (
+              {[['', 'Tümü'], ['order', 'Siparişler'], ['invoice', 'Faturalar'], ['cheque', 'Çekler']].map(([v, l]) => (
                 <button key={v} onClick={() => setTxFilter(v)}
                   className={`px-3 py-1 text-xs rounded-full transition-colors ${txFilter === v ? 'bg-gray-800 text-white' : 'bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300 hover:bg-gray-200'}`}>
                   {l}
@@ -198,9 +201,11 @@ function AccountDrawer({ customerId, onClose }) {
               ) : filtered.map((tx, i) => (
                 <div key={i} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 dark:bg-gray-800/50 transition-colors">
                   <div className="flex items-center gap-3">
-                    <div className={`p-1.5 rounded-lg ${tx.src === 'order' ? 'bg-purple-100' : 'bg-blue-100'}`}>
+                    <div className={`p-1.5 rounded-lg ${tx.src === 'order' ? 'bg-purple-100' : tx.src === 'cheque' ? 'bg-amber-100' : 'bg-blue-100'}`}>
                       {tx.src === 'order'
                         ? <ShoppingCart size={14} className="text-purple-600" />
+                        : tx.src === 'cheque'
+                        ? <CreditCard size={14} className="text-amber-600" />
                         : <FileText size={14} className="text-blue-600" />}
                     </div>
                     <div>

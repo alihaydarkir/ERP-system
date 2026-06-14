@@ -30,10 +30,10 @@ const getAccountList = async (req, res) => {
         COALESCE(ord.total_sales, 0)      AS total_sales,
         COALESCE(ord.order_count, 0)      AS order_count,
         COALESCE(inv.total_invoiced, 0)   AS total_invoiced,
-        COALESCE(inv.total_paid, 0)       AS total_paid,
+        COALESCE(inv.total_paid, 0) + COALESCE(chq.cheque_paid, 0) AS total_paid,
         COALESCE(inv.invoice_count, 0)    AS invoice_count,
         COALESCE(inv.total_invoiced, 0)
-          - COALESCE(inv.total_paid, 0)   AS outstanding_balance
+          - (COALESCE(inv.total_paid, 0) + COALESCE(chq.cheque_paid, 0)) AS outstanding_balance
       FROM customers c
       LEFT JOIN (
         SELECT customer_id,
@@ -53,6 +53,14 @@ const getAccountList = async (req, res) => {
         WHERE company_id = $1
         GROUP BY customer_id
       ) inv ON inv.customer_id = c.id
+      LEFT JOIN (
+        -- Ödenen (tahsil edilen) çekler de müşterinin ödemesi sayılır
+        SELECT customer_id,
+               SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END) AS cheque_paid
+        FROM cheques
+        WHERE company_id = $1
+        GROUP BY customer_id
+      ) chq ON chq.customer_id = c.id
       WHERE c.company_id = $1
       ${searchClause}
       ORDER BY outstanding_balance DESC, c.company_name ASC
@@ -98,11 +106,11 @@ const getAccountSummary = async (req, res) => {
 
     const result = await pool.query(`
       SELECT
-        COUNT(DISTINCT c.id)                                           AS total_customers,
-        COUNT(DISTINCT CASE WHEN bal.outstanding > 0 THEN c.id END)   AS customers_with_balance,
-        COALESCE(SUM(bal.outstanding), 0)                             AS total_outstanding,
-        COALESCE(SUM(bal.total_invoiced), 0)                          AS total_invoiced,
-        COALESCE(SUM(bal.total_paid), 0)                              AS total_paid
+        COUNT(DISTINCT c.id)                                                                 AS total_customers,
+        COUNT(DISTINCT CASE WHEN (COALESCE(bal.outstanding,0) - COALESCE(chq.cheque_paid,0)) > 0 THEN c.id END) AS customers_with_balance,
+        COALESCE(SUM(COALESCE(bal.outstanding,0) - COALESCE(chq.cheque_paid,0)), 0)          AS total_outstanding,
+        COALESCE(SUM(bal.total_invoiced), 0)                                                 AS total_invoiced,
+        COALESCE(SUM(COALESCE(bal.total_paid,0) + COALESCE(chq.cheque_paid,0)), 0)           AS total_paid
       FROM customers c
       LEFT JOIN (
         SELECT customer_id,
@@ -113,6 +121,12 @@ const getAccountSummary = async (req, res) => {
         FROM invoices WHERE company_id = $1
         GROUP BY customer_id
       ) bal ON bal.customer_id = c.id
+      LEFT JOIN (
+        SELECT customer_id,
+               SUM(CASE WHEN status='paid' THEN amount ELSE 0 END) AS cheque_paid
+        FROM cheques WHERE company_id = $1
+        GROUP BY customer_id
+      ) chq ON chq.customer_id = c.id
       WHERE c.company_id = $1
     `, [company_id]);
 
@@ -163,9 +177,19 @@ const getAccountDetail = async (req, res) => {
       WHERE customer_id = $1 AND company_id = $2
     `, [customerId, company_id]);
 
+    // Çek özeti — ödenen (tahsil edilen) çekler müşterinin ödemesi sayılır
+    const chequesRes = await pool.query(`
+      SELECT COUNT(*) FILTER (WHERE status='paid') AS paid_cheque_count,
+             COALESCE(SUM(CASE WHEN status='paid' THEN amount ELSE 0 END), 0) AS cheque_paid
+      FROM cheques
+      WHERE customer_id = $1 AND company_id = $2
+    `, [customerId, company_id]);
+
     const o = ordersRes.rows[0];
     const i = invoicesRes.rows[0];
-    const outstanding = parseFloat(i.total_invoiced) - parseFloat(i.total_paid);
+    const ch = chequesRes.rows[0];
+    const totalPaid = parseFloat(i.total_paid) + parseFloat(ch.cheque_paid);
+    const outstanding = parseFloat(i.total_invoiced) - totalPaid;
 
     res.json(formatSuccess({
       customer: customerRes.rows[0],
@@ -175,7 +199,9 @@ const getAccountDetail = async (req, res) => {
         pending_orders:   parseInt(o.pending_count),
         completed_orders: parseInt(o.completed_count),
         total_invoiced:   parseFloat(i.total_invoiced),
-        total_paid:       parseFloat(i.total_paid),
+        total_paid:       totalPaid,
+        cheque_paid:      parseFloat(ch.cheque_paid),
+        paid_cheque_count: parseInt(ch.paid_cheque_count),
         outstanding_balance: outstanding,
         invoice_count:    parseInt(i.invoice_count),
         open_invoices:    parseInt(i.open_invoices),
@@ -201,6 +227,7 @@ const getTransactions = async (req, res) => {
 
     const typeFilter = type === 'order' ? "WHERE src = 'order'"
                      : type === 'invoice' ? "WHERE src = 'invoice'"
+                     : type === 'cheque' ? "WHERE src = 'cheque'"
                      : '';
 
     const result = await pool.query(`
@@ -230,6 +257,20 @@ const getTransactions = async (req, res) => {
           inv.status         AS display_status
         FROM invoices inv
         WHERE inv.customer_id = $1 AND inv.company_id = $2
+
+        UNION ALL
+
+        SELECT
+          'cheque'           AS src,
+          ch.id,
+          ch.check_serial_no AS ref_number,
+          ch.due_date        AS date,
+          ch.amount          AS amount,
+          ch.status,
+          NULL               AS invoice_status,
+          ch.status          AS display_status
+        FROM cheques ch
+        WHERE ch.customer_id = $1 AND ch.company_id = $2
       ) combined
       ${typeFilter}
       ORDER BY date DESC
