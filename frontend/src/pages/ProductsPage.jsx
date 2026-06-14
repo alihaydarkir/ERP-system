@@ -157,7 +157,7 @@ export default function ProductsPage() {
       {showStockEntry && (
         <StockEntryModal
           onClose={() => setShowStockEntry(false)}
-          onDone={() => { setShowStockEntry(false); refetch(); toast.success('Gelen stok eklendi'); }}
+          onDone={() => { setShowStockEntry(false); refetch(); toast.success('Stok eklendi'); }}
         />
       )}
 

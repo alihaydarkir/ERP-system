@@ -318,8 +318,13 @@ const addStock = async (req, res) => {
       return res.status(400).json(formatError('Geçerli bir adet girin'));
     }
 
+    // Açık varsa (stok < 0) → gelen stoğa ekle (sevkte netleşir).
+    // Açık yoksa (stok >= 0) → doğrudan stoğa ekle (anında görünür).
     const result = await pool.query(
-      `UPDATE products SET incoming_stock = incoming_stock + $1, updated_at = NOW()
+      `UPDATE products
+         SET incoming_stock = incoming_stock + CASE WHEN stock_quantity < 0 THEN $1 ELSE 0 END,
+             stock_quantity = stock_quantity + CASE WHEN stock_quantity < 0 THEN 0 ELSE $1 END,
+             updated_at = NOW()
        WHERE id = $2 AND company_id = $3
        RETURNING id, name, stock_quantity, incoming_stock`,
       [quantity, id, company_id]
@@ -328,7 +333,11 @@ const addStock = async (req, res) => {
       return res.status(404).json(formatError('Ürün bulunamadı'));
     }
 
-    res.json(formatSuccess(result.rows[0], `${quantity} adet gelen stok eklendi`));
+    const r = result.rows[0];
+    const msg = r.incoming_stock > 0
+      ? `${quantity} adet gelen stoğa eklendi (sevkte açığa işlenecek)`
+      : `${quantity} adet stok eklendi`;
+    res.json(formatSuccess(r, msg));
   } catch (error) {
     console.error('Add stock error:', error);
     res.status(500).json(formatError('Stok eklenemedi'));
