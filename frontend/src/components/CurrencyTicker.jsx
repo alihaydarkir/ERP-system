@@ -16,25 +16,37 @@ const CurrencyTicker = () => {
   }, []);
 
   const fetchRates = async () => {
-    // Mock Data Update
-    setRates(prev => ({
-      USD: { 
-        buy: '34.50', 
-        sell: '34.65', 
-        change: '0.15' 
-      },
-      EUR: { 
-        buy: '37.20', 
-        sell: '37.45', 
-        change: '-0.08' 
-      },
-      GBP: { 
-        buy: '43.80', 
-        sell: '44.10', 
-        change: '0.22' 
+    try {
+      // Ücretsiz, anahtarsız, CORS açık kur API'si (USD bazlı)
+      const res = await fetch('https://open.er-api.com/v6/latest/USD');
+      const data = await res.json();
+      const r = data?.rates;
+      if (r && r.TRY) {
+        const usd = r.TRY;                          // 1 USD = ? TRY
+        const eur = r.EUR ? r.TRY / r.EUR : usd;    // 1 EUR = ? TRY (çapraz)
+        const gbp = r.GBP ? r.TRY / r.GBP : usd;    // 1 GBP = ? TRY (çapraz)
+        setRates(prev => {
+          const mk = (val, prevData) => {
+            const prevBuy = parseFloat(prevData?.buy) || val;
+            const change = prevBuy ? ((val - prevBuy) / prevBuy) * 100 : 0;
+            return { buy: val.toFixed(2), sell: (val * 1.004).toFixed(2), change: change.toFixed(2) };
+          };
+          return { USD: mk(usd, prev.USD), EUR: mk(eur, prev.EUR), GBP: mk(gbp, prev.GBP) };
+        });
+        setLoading(false);
+        return;
       }
-    }));
-    setLoading(false);
+      throw new Error('Kur verisi alınamadı');
+    } catch (e) {
+      console.error('Kur verisi alınamadı:', e);
+      // Erişilemezse mevcut değerleri koru; ilk yüklemede makul bir fallback göster
+      setRates(prev => (parseFloat(prev.USD.buy) > 0 ? prev : {
+        USD: { buy: '34.50', sell: '34.65', change: '0.00' },
+        EUR: { buy: '37.20', sell: '37.45', change: '0.00' },
+        GBP: { buy: '43.80', sell: '44.10', change: '0.00' },
+      }));
+      setLoading(false);
+    }
   };
 
   const getCurrencyIcon = (currency) => {
