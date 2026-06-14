@@ -55,7 +55,7 @@ export default function AddProductToOrder({ onAddToCart }) {
       return;
     }
 
-    if (quantity <= 0) {
+    if (!Number(quantity) || Number(quantity) <= 0) {
       showWarning('Miktar 0\'dan büyük olmalıdır');
       return;
     }
@@ -74,7 +74,7 @@ export default function AddProductToOrder({ onAddToCart }) {
       disc1: d1,
       disc2: d2,
       price: Number(netPrice.toFixed(2)), // iskontolu net birim fiyat (sipariş kalemine yazılır)
-      quantity: quantity,
+      quantity: Number(quantity),
       stock_quantity: Number(selectedProduct.stock_quantity ?? selectedProduct.stock ?? 0),
     });
 
@@ -90,12 +90,12 @@ export default function AddProductToOrder({ onAddToCart }) {
 
   const incrementQuantity = () => {
     // Stok sınırı yok — stok aşılabilir (tedarik uyarısına düşer)
-    if (selectedProduct) setQuantity(quantity + 1);
+    if (selectedProduct) setQuantity((Number(quantity) || 0) + 1);
   };
 
   const decrementQuantity = () => {
-    if (quantity > 1) {
-      setQuantity(quantity - 1);
+    if (Number(quantity) > 1) {
+      setQuantity(Number(quantity) - 1);
     }
   };
 
@@ -204,8 +204,8 @@ export default function AddProductToOrder({ onAddToCart }) {
                 type="number"
                 value={quantity}
                 onChange={(e) => {
-                  const val = parseInt(e.target.value) || 1;
-                  setQuantity(Math.max(1, val)); // stok sınırı yok
+                  const v = e.target.value;
+                  setQuantity(v === '' ? '' : Math.max(1, parseInt(v) || 1)); // boş bırakılabilir
                 }}
                 className="h-9 w-16 text-center border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700/80 text-gray-900 dark:text-gray-100 [appearance:textfield]"
                 min="1"
@@ -224,7 +224,7 @@ export default function AddProductToOrder({ onAddToCart }) {
             <div className="flex justify-between items-center">
               <span className="text-gray-600 dark:text-gray-300">Toplam:</span>
               <span className="text-xl font-bold text-blue-600">
-                ₺{(netPrice * quantity).toFixed(2)}
+                ₺{(netPrice * (Number(quantity) || 0)).toFixed(2)}
               </span>
             </div>
           </div>

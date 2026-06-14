@@ -25,6 +25,7 @@ export default function PartialShipModal({ orderId, onClose, onDone }) {
   const items = order?.items || [];
 
   const setItemQty = (pid, val, max) => {
+    if (val === '') { setQty((q) => ({ ...q, [pid]: '' })); return; } // boş bırakmaya izin ver
     const n = Math.min(Math.max(parseInt(val) || 0, 0), max);
     setQty((q) => ({ ...q, [pid]: n }));
   };

@@ -1,4 +1,4 @@
-import { FileDown, FileSpreadsheet, Plus, Upload, PackagePlus } from 'lucide-react';
+import { FileDown, FileSpreadsheet, Plus, Upload, PackagePlus, RefreshCw } from 'lucide-react';
 import PermissionButton from '../PermissionButton';
 import useAuthStore from '../../store/authStore';
 
@@ -7,7 +7,8 @@ export default function ProductsHeader({
   onExportExcel,
   onOpenImport,
   onOpenCreate,
-  onOpenStockEntry
+  onOpenStockEntry,
+  onRefresh
 }) {
   const { user } = useAuthStore();
   const isCustomer = user?.role === 'customer';
@@ -19,6 +20,16 @@ export default function ProductsHeader({
       </div>
 
       <div className="flex flex-wrap gap-3">
+        {onRefresh && (
+          <button
+            onClick={onRefresh}
+            className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-gradient-to-r from-slate-500 to-slate-600 rounded-lg shadow-sm hover:from-slate-600 hover:to-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500"
+            title="Listeyi yenile"
+          >
+            <RefreshCw className="w-5 h-5 mr-2" />
+            <span>Yenile</span>
+          </button>
+        )}
         <button
           onClick={onExportPdf}
           className="group relative inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-gradient-to-r from-red-500 to-red-600 rounded-lg shadow-sm hover:from-red-600 hover:to-red-700 hover:shadow-red-500/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"

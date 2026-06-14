@@ -152,6 +152,7 @@ export default function ProductsPage() {
         onOpenImport={() => setShowImportDialog(true)}
         onOpenCreate={() => setShowModal(true)}
         onOpenStockEntry={() => setShowStockEntry(true)}
+        onRefresh={() => { refetch(); toast.success('Liste yenilendi'); }}
       />
 
       {showStockEntry && (

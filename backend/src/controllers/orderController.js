@@ -447,13 +447,12 @@ const completePartialOrder = async (req, res) => {
       if (shipped > 0) {
         shippedItems.push({ product_id: oi.product_id, quantity: shipped, price });
         shippedTotal += shipped * price;
-        // Sevkte gelen stoğu (incoming_stock) açığı (negatif stok) kapatacak kadar uygula.
-        // applied = min(gelen stok, açık miktarı) → eksik kadar gelen eklenip sipariş tamamlanınca stok 0 olur.
-        // Gelen stok yoksa veya açık yoksa değişmez.
+        // Sevkte gelen stoğun TAMAMINI stok_quantity'ye aktar: açığı kapatır, artan stoğa kalır.
+        // Örn: -15 + 30 gelen → sipariş tamamlanınca stok 15 (açık 15 kapanır + 15 artar).
         await client.query(
           `UPDATE products
-             SET stock_quantity = stock_quantity + LEAST(incoming_stock, GREATEST(0, -stock_quantity)),
-                 incoming_stock = incoming_stock - LEAST(incoming_stock, GREATEST(0, -stock_quantity)),
+             SET stock_quantity = stock_quantity + incoming_stock,
+                 incoming_stock = 0,
                  updated_at = NOW()
            WHERE id = $1`,
           [oi.product_id]
