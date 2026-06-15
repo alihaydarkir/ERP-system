@@ -486,7 +486,9 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
       return { success: false, answer: 'Bu işlem için yetkiniz yok.', steps: [], meta: { permission_denied: true } };
     }
 
-    if (this.shouldRequireApproval({ toolName, risk })) {
+    // runDirect = kullanıcı formu bilinçli doldurdu, bu zaten onay demek.
+    // Sadece HIGH risk araçlar (iptal, çek durum, deaktivasyon) onay gerektirir.
+    if (risk.level === 'high' || risk.requiresApproval) {
       const approval = await requestApproval({ tool: toolName, args: validation.sanitizedArgs, risk });
       return {
         success: true,
