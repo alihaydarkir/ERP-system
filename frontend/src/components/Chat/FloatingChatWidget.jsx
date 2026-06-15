@@ -140,7 +140,6 @@ export default function FloatingChatWidget() {
     });
 
     if (['approved', 'executed', 'rejected', 'failed'].includes(payload.status)) {
-      setApprovalState(null);
       const tool = payload.agent_tool || 'İşlem';
       const text =
         payload.status === 'approved' || payload.status === 'executed'
@@ -149,8 +148,17 @@ export default function FloatingChatWidget() {
           ? `❌ ${tool} yürütülemedi: ${payload.execution_error || payload.error || 'Bilinmeyen hata'}`
           : `❌ ${tool} reddedildi.`;
 
-      const aiMsg = { id: Date.now(), role: 'ai', text, timestamp: new Date() };
-      setMessages((prev) => [...prev, aiMsg]);
+      setApprovalState((prev) => {
+        // Bekleyen mesajı güncelle — yeni mesaj ekleme, mevcut ⏳ mesajını ✅/❌ ile değiştir
+        if (prev?.pendingMsgId) {
+          setMessages((msgs) => msgs.map((m) =>
+            m.id === prev.pendingMsgId ? { ...m, text } : m
+          ));
+        } else {
+          setMessages((msgs) => [...msgs, { id: Date.now(), role: 'ai', text }]);
+        }
+        return null;
+      });
       if (!open) setUnread((n) => n + 1);
 
       if (['approved', 'executed'].includes(payload.status)) {
@@ -198,7 +206,8 @@ export default function FloatingChatWidget() {
           approvalId: agentMeta.approval_id || null,
           status: 'pending',
           tool: agentMeta.mutation_tool || null,
-          requiresApproval: true
+          requiresApproval: true,
+          pendingMsgId: thinkingId
         });
       }
 
@@ -229,13 +238,14 @@ export default function FloatingChatWidget() {
       const agentMeta = result?.meta || {};
       const text = result?.answer || '✅ İşlem tamamlandı.';
 
+      const newMsgId = Date.now();
       if (agentMeta.requires_human_approval) {
-        setApprovalState({ approvalId: agentMeta.approval_id, status: 'pending', tool: toolName, requiresApproval: true });
+        setApprovalState({ approvalId: agentMeta.approval_id, status: 'pending', tool: toolName, requiresApproval: true, pendingMsgId: newMsgId });
       } else {
         window.dispatchEvent(new CustomEvent('erp:data_changed', { detail: { tool: toolName } }));
       }
 
-      setMessages((prev) => [...prev, { id: Date.now(), role: 'ai', text }]);
+      setMessages((prev) => [...prev, { id: newMsgId, role: 'ai', text }]);
       if (!open) setUnread((n) => n + 1);
     } catch (err) {
       const reason = err?.responseData?.message || err?.message || 'Bilinmeyen hata';
@@ -263,13 +273,14 @@ export default function FloatingChatWidget() {
       const agentMeta = result?.meta || {};
       const text = result?.answer || '✅ İşlem tamamlandı.';
 
+      const selMsgId = Date.now();
       if (agentMeta.requires_human_approval) {
-        setApprovalState({ approvalId: agentMeta.approval_id, status: 'pending', tool: selection.action, requiresApproval: true });
+        setApprovalState({ approvalId: agentMeta.approval_id, status: 'pending', tool: selection.action, requiresApproval: true, pendingMsgId: selMsgId });
       } else {
         window.dispatchEvent(new CustomEvent('erp:data_changed', { detail: { tool: selection.action } }));
       }
 
-      setMessages((prev) => [...prev, { id: Date.now(), role: 'ai', text }]);
+      setMessages((prev) => [...prev, { id: selMsgId, role: 'ai', text }]);
       if (!open) setUnread((n) => n + 1);
     } catch (err) {
       const reason = err?.responseData?.message || err?.message || 'Bilinmeyen hata';
