@@ -583,12 +583,9 @@ const queryTools = {
     const recommendations = result.rows.map(r => {
       const dailySales = Number(r.sold_last_30_days || 0) / 30;
       const daysLeft = dailySales > 0 ? Math.floor(r.stock_quantity / dailySales) : null;
-      const suggestedQty = Math.max(Number(r.low_stock_threshold || 10) * 3, Number(r.sold_last_30_days || 0) * 2, 20);
       return {
         ...r,
-        daily_sales_rate: dailySales.toFixed(2),
         days_of_stock_left: daysLeft,
-        suggested_order_qty: Math.ceil(suggestedQty),
         urgency: r.stock_quantity === 0 ? 'Kritik' : daysLeft !== null && daysLeft <= 7 ? 'Yüksek' : 'Orta'
       };
     });
