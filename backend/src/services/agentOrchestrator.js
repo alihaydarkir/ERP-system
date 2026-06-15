@@ -440,8 +440,18 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
     const completion = await this.gateway.chat(chatMessages, { temperature: 0.1, max_tokens: 600 });
 
     let raw = completion.content || 'Kayıt bulunamadı.';
-    // LLM placeholder'ı yanıt içine sızdırırsa temizle
     raw = raw.replace(/__BOŞ_SONU[ÇC]__/gi, 'veri bulunamadı').trim();
+
+    // CJK (Çince/Japonca/Korece) karakter içeriyorsa temizle
+    const CJK = /[一-鿿぀-ヿ가-힯　-〿]/;
+    if (CJK.test(raw)) {
+      raw = raw
+        .replace(/[一-鿿぀-ヿ가-힯　-〿]+/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .replace(/([:\-,])\s*([:\-,])/g, '$1')
+        .trim();
+    }
+
     if (!raw) raw = 'Kayıt bulunamadı.';
     return this.sanitizeCurrencyInAnswer(raw);
   }
