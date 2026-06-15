@@ -553,6 +553,23 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
       }
     }
 
+    // "Finansal özet" sorgularında model araç seçmeyebiliyor — zorla ekle.
+    if (/finansal\s*(özet|durum|rapor)|mali\s*(özet|durum)|genel\s*finansal/.test(lowerMsg)) {
+      if (!(plan.steps || []).some((s) => s.tool === 'get_financial_summary')) {
+        plan.steps = [{ tool: 'get_financial_summary', args: {} }, ...(plan.steps || [])];
+      }
+    }
+
+    // "Düşük stok" soruları recommend_reorder'a gidebiliyor — get_low_stock_products'a yönlendir.
+    if (/düşük\s*stok|kritik\s*stok|az\s*stok|stok\s*(uyar|azal|bit|tüken)/.test(lowerMsg)) {
+      plan.steps = (plan.steps || []).map((s) =>
+        s.tool === 'recommend_reorder' ? { tool: 'get_low_stock_products', args: {} } : s
+      );
+      if (!(plan.steps || []).some((s) => s.tool === 'get_low_stock_products')) {
+        plan.steps = [{ tool: 'get_low_stock_products', args: {} }, ...(plan.steps || [])];
+      }
+    }
+
     // "Envanter/stok değeri" parasal hesaptır; planner sık sık get_warehouse_stock (adet)
     // veya get_low_stock_products seçip aritmetik halüsinasyona yol açıyor. Deterministik düzelt.
     if (/envanter\s*değer|stok\s*değer|stoğun\s*değer|depo.*değer|mal.*değer/.test(lowerMsg)) {
@@ -611,7 +628,7 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
       };
     }
 
-    if (plan.strategy === 'ask_for_info' || !plan.steps?.length) {
+    if (!plan.steps?.length) {
       const isRbacDenied = this.isRbacDeniedByKeyword(userMessage, context?.role);
       const answer = isRbacDenied
         ? 'Bu bilgiye erişim yetkiniz yok.'
