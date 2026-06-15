@@ -397,7 +397,9 @@ Aşağıdaki konularla ilgili soru gelirse — veri mevcut olsa bile, kısmi de 
     });
 
     // Data in system role — never masked by PII filter, never corrupted
-    const systemPrompt = `Sen Türkçe konuşan bir ERP asistanısın. Aşağıdaki veriyi kullanarak kullanıcının sorusunu yanıtla.${roleContext}
+    const systemPrompt = `[DİL KURALI - EN ÖNEMLİ KURAL] YANITI MUTLAKA VE YALNIZCA TÜRKÇE YAZ. Başka hiçbir dil (İngilizce, Çince, Arapça vb.) kullanma. Tek bir kelime bile başka dilde olmasın.
+
+Sen Türkçe konuşan bir ERP asistanısın. Aşağıdaki veriyi kullanarak kullanıcının sorusunu yanıtla.${roleContext}
 
 Kurallar:
 - Sadece verilen veriyi kullan, kesinlikle uydurma yapma
