@@ -555,6 +555,13 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
       }
     }
 
+    // Döviz kuru soruları → get_currency_rates
+    if (/dolar|euro|gbp|sterlin|döviz|kur\s*(nedir|söyle|göster|kaç)|kaç\s*(tl|lira)/.test(lowerMsg)) {
+      if (!(plan.steps || []).some((s) => s.tool === 'get_currency_rates')) {
+        plan.steps = [{ tool: 'get_currency_rates', args: {} }];
+      }
+    }
+
     // "Finansal özet" sorgularında model araç seçmeyebiliyor — zorla ekle.
     if (/finansal\s*(özet|durum|rapor)|mali\s*(özet|durum)|genel\s*finansal/.test(lowerMsg)) {
       if (!(plan.steps || []).some((s) => s.tool === 'get_financial_summary')) {

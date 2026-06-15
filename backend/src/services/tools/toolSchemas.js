@@ -797,6 +797,11 @@ const definitions = [
     name: 'get_payment_risk_assessment',
     description: 'Ödeme riski yüksek müşterileri listeler: gecikmiş çek sayısı, toplam borç, risk seviyesi (Yüksek/Orta/Düşük).',
     parameters: { type: 'object', properties: {} }
+  },
+  {
+    name: 'get_currency_rates',
+    description: 'Güncel döviz kurlarını getirir: USD/TRY, EUR/TRY, GBP/TRY. "Dolar kaç", "euro kuru", "kur nedir", "döviz" gibi sorular için kullan.',
+    parameters: { type: 'object', properties: {} }
   }
 ];
 

@@ -1,4 +1,5 @@
 const pool = require('../../config/database');
+const axios = require('axios');
 
 // Türkçe büyük/küçük harf duyarsız LIKE: C/POSIX collation'da ILIKE Türkçe
 // büyük harfleri (İ, Ş, Ğ...) eşleyemez — "yılmaz inşaat" araması
@@ -635,6 +636,23 @@ const queryTools = {
       count: customers.length,
       summary_text: summaryText
     };
+  },
+
+  async get_currency_rates() {
+    try {
+      const res = await axios.get('https://open.er-api.com/v6/latest/USD', { timeout: 5000 });
+      const r = res.data?.rates || {};
+      const usd = r.TRY || null;
+      const eur = (r.EUR && r.TRY) ? r.TRY / r.EUR : null;
+      const gbp = (r.GBP && r.TRY) ? r.TRY / r.GBP : null;
+      const fmt = (n) => n ? Number(n).toFixed(2) : null;
+      const summary = usd
+        ? `USD: ${fmt(usd)} TL, EUR: ${fmt(eur)} TL, GBP: ${fmt(gbp)} TL`
+        : 'Kur verisi alınamadı.';
+      return { USD: fmt(usd), EUR: fmt(eur), GBP: fmt(gbp), summary_text: summary, updated_at: res.data?.time_last_update_utc || null };
+    } catch {
+      return { USD: null, EUR: null, GBP: null, summary_text: 'Kur verisi şu an alınamıyor.' };
+    }
   }
 };
 
