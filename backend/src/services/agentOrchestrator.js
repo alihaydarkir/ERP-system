@@ -457,18 +457,20 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
   }
 
   detectFormTool(message) {
-    const msg = String(message || '').toLowerCase();
+    const msg = String(message || '').toLowerCase()
+      .replace(/ş/g, 's').replace(/ğ/g, 'g').replace(/ü/g, 'u')
+      .replace(/ö/g, 'o').replace(/ç/g, 'c').replace(/ı/g, 'i').replace(/İ/g, 'i');
     // Sorgu/rapor niyeti varsa form gösterme — "yeni müşteriler" gibi ifadeler
     // karşılaştırma sorularında geçebilir, create niyeti değildir
-    if (/karşılaştır|kıyasla|göster|listele|raporla|özetle|analiz|hesapla|sırala|sayısı|kaç\s|neler|hangi|var\s*mı|durumu/.test(msg)) {
+    if (/karsılastır|kiyasla|goster|listele|raporla|ozetle|analiz|hesapla|sirala|sayisi|kac\s|neler|hangi|var\s*mi|durumu/.test(msg)) {
       return null;
     }
-    if (/çek\S*\s+(ekle|oluştur|kaydet|gir)|yeni\s+(bir\s+)?çek/.test(msg)) return 'create_cheque';
-    if (/(ürün|urun)\S*\s+(ekle|oluştur|kaydet)|yeni\s+(bir\s+)?(ürün|urun)/.test(msg)) return 'create_product';
-    if (/sipariş\S*\s+(ekle|oluştur|aç)|yeni\s+(bir\s+)?sipariş/.test(msg)) return 'create_order';
-    if (/müşteri\S*\s+(ekle|oluştur|kaydet)|yeni\s+(bir\s+)?müşteri/.test(msg)) return 'create_customer';
-    if (/(tedarikçi|tedarikci)\S*\s+(ekle|oluştur|kaydet)|yeni\s+(bir\s+)?(tedarikçi|tedarikci)/.test(msg)) return 'create_supplier';
-    if (/(depo|warehouse)\S*\s+(ekle|oluştur|kaydet|aç)|yeni\s+(bir\s+)?(depo|warehouse)/.test(msg)) return 'create_warehouse';
+    if (/cek\S*\s+(ekle|olustur|kaydet|gir)|yeni\s+(bir\s+)?cek/.test(msg)) return 'create_cheque';
+    if (/(urun)\S*\s+(ekle|olustur|kaydet)|yeni\s+(bir\s+)?(urun)/.test(msg)) return 'create_product';
+    if (/siparis\S*\s+(ekle|olustur|ac)|yeni\s+(bir\s+)?siparis/.test(msg)) return 'create_order';
+    if (/musteri\S*\s+(ekle|olustur|kaydet)|yeni\s+(bir\s+)?musteri/.test(msg)) return 'create_customer';
+    if (/tedarikci\S*\s+(ekle|olustur|kaydet)|yeni\s+(bir\s+)?tedarikci/.test(msg)) return 'create_supplier';
+    if (/(depo|warehouse)\S*\s+(ekle|olustur|kaydet|ac)|yeni\s+(bir\s+)?(depo|warehouse)/.test(msg)) return 'create_warehouse';
     return null;
   }
 
