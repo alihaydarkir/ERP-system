@@ -140,13 +140,15 @@ Müşteri SADECE kendi siparişleri, çekleri ve ürün kataloğu hakkında OKUM
     }
 
     const roleRestrictions = this.getRoleRestrictions(context.role);
-    const systemPrompt = `Sen bir ERP sistemi asistanısın. Kullanıcının sorusunu yanıtlamak için uygun araçları çağır.${roleRestrictions}
+    const systemPrompt = `Sen bir ERP (Kurumsal Kaynak Planlama) sistemi asistanısın.
+Kullanıcının ERP verilerine erişmek için MUTLAKA uygun aracı çağır.${roleRestrictions}
 
-Kurallar:
-- Sadece bilgi/liste/rapor sorularında OKUMA araçlarını kullan
-- Kayıt oluşturma, güncelleme, iptal gibi yazma isteklerinde YAZMA araçlarını kullan
-- Birden fazla araç gerekiyorsa hepsini çağır (max 5)
-- Sadece selamlama/genel konuşmaysa araç çağırma`;
+ZORUNLU KURALLAR:
+- Kullanıcı sipariş, ürün, müşteri, çek, tedarikçi, depo, finansal veri soruyorsa ARAÇ ÇAĞIR
+- "kaç tane", "listele", "göster", "var mı", "söyle", "nedir" → veritabanında arama yap, araç çağır
+- Kısa/belirsiz sorular için en uygun aracı tahmin et ve çağır
+- Sadece "merhaba/selam/teşekkür" gibi saf selamlamalarda araç çağırma
+- Birden fazla araç gerekiyorsa hepsini çağır (max 5)`;
 
     try {
       const result = await this.gateway.chatWithTools(
@@ -600,6 +602,50 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
           ? { tool: 'get_orders_list', args: { ...(s.args || {}), status: matchedStatus[1] } }
           : s
       );
+    }
+
+    // "Müşteri listele/göster" → search_customers (model get_customer_detail seçiyor)
+    if (/müşteri.*(listele|göster|söyle|hepsi|tümü|kaç|say)|tüm\s*müşteri|bütün\s*müşteri/.test(lowerMsg)) {
+      plan.steps = (plan.steps || []).map((s) =>
+        s.tool === 'get_customer_detail' ? { tool: 'search_customers', args: {} } : s
+      );
+      if (!(plan.steps || []).some((s) => s.tool === 'search_customers')) {
+        plan.steps = [{ tool: 'search_customers', args: {} }];
+      }
+    }
+
+    // "Siparişleri söyle/listele" → orders araçlarına yönlendir (model get_customer_detail seçiyor)
+    if (/sipariş.*(söyle|göster|listele|var\s*mı|hepsi|ne\s*var|say)|siparişlerim/.test(lowerMsg)
+        && !(plan.steps || []).some((s) => ['get_orders_list', 'get_orders_summary', 'search_orders'].includes(s.tool))) {
+      plan.steps = (plan.steps || []).map((s) =>
+        s.tool === 'get_customer_detail' ? { tool: 'get_orders_summary', args: {} } : s
+      );
+      if (!(plan.steps || []).some((s) => ['get_orders_list', 'get_orders_summary', 'search_orders'].includes(s.tool))) {
+        plan.steps = [{ tool: 'get_orders_summary', args: {} }, ...(plan.steps || [])];
+      }
+    }
+
+    // "Genel özet/dashboard" → get_dashboard_summary
+    if (/genel\s*(özet|durum)|özet\s*(göster|ver)|dashboard|sistemi\s*özetle/.test(lowerMsg)) {
+      if (!(plan.steps || []).some((s) => s.tool === 'get_dashboard_summary')) {
+        plan.steps = [{ tool: 'get_dashboard_summary', args: {} }];
+      }
+    }
+
+    // Model araç seçmediyse anahtar-kelime tabanlı fallback
+    if (!(plan.steps || []).length) {
+      const kw = [
+        [/sipariş.*(var|kaç|listele|göster|söyle|özet|say)|kaç\s+sipariş|siparişleri/, { tool: 'get_orders_summary', args: {} }],
+        [/müşteri.*(listele|göster|söyle|var|kaç|say)|kaç\s+müşteri/, { tool: 'search_customers', args: {} }],
+        [/ürün.*(listele|göster|söyle|var|kaç|say)|kaç\s+ürün/, { tool: 'search_products', args: {} }],
+        [/çek.*(listele|göster|söyle|var|kaç|say)|kaç\s+çek/, { tool: 'search_cheques', args: {} }],
+        [/tedarikçi.*(listele|göster|söyle|var|kaç)|kaç\s+tedarikçi/, { tool: 'get_suppliers_list', args: {} }],
+        [/özet|dashboard|genel durum|durumu ne/, { tool: 'get_dashboard_summary', args: {} }],
+        [/depo|warehouse|stok durumu|depolardaki/, { tool: 'get_warehouse_stock', args: {} }],
+        [/gelir|ciro|bu ay|aylık gelir/, { tool: 'get_orders_summary', args: { period: 'month' } }],
+      ];
+      const matched = kw.find(([re]) => re.test(lowerMsg));
+      if (matched) plan.steps = [matched[1]];
     }
 
     // Bu yol sorgu yoludur — mutation niyeti aiService'te ayrı akışta (onaylı) işlenir.
