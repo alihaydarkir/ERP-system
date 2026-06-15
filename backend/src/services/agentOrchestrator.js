@@ -523,9 +523,11 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
 
     // Zayıf planner düzeltmesi: "vadesi dolacak/yaklaşan" soruları gelecek vadeyi sorar,
     // planner sık sık get_overdue_cheques (geçmiş vade) seçiyor — deterministik düzelt.
-    const lowerMsg = String(userMessage || '').toLowerCase();
-    if (/vadesi (dol|yaklaş|gel)|yaklaşan (çek|vade|ödeme)/.test(lowerMsg) && !/vadesi geç|gecikmiş/.test(lowerMsg)) {
-      const days = /ay\b|30 gün/.test(lowerMsg) ? 30 : 7;
+    const lowerMsg = String(userMessage || '').toLowerCase()
+      .replace(/ş/g, 's').replace(/ğ/g, 'g').replace(/ü/g, 'u')
+      .replace(/ö/g, 'o').replace(/ç/g, 'c').replace(/ı/g, 'i').replace(/İ/g, 'i');
+    if (/vadesi (dol|yaklas|gel)|yaklasan (cek|vade|odeme)/.test(lowerMsg) && !/vadesi gec|gecikmis/.test(lowerMsg)) {
+      const days = /ay\b|30 gun/.test(lowerMsg) ? 30 : 7;
       let swapped = false;
       plan.steps = (plan.steps || []).map((s) => {
         if (s.tool === 'get_overdue_cheques' || s.tool === 'search_cheques') {
@@ -541,7 +543,7 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
 
     // "Ödeme riski" sorularında zayıf planner sık sık get_low_stock_products seçiyor.
     // Deterministik düzelt: risk niyeti → get_payment_risk_assessment.
-    if (/ödeme\s*risk|riskli\s*müşteri|risk\s*(analiz|değerlend)|tahsilat\s*risk/.test(lowerMsg)) {
+    if (/odeme\s*risk|riskli\s*musteri|risk\s*(analiz|degerlend)|tahsilat\s*risk/.test(lowerMsg)) {
       let swapped = false;
       plan.steps = (plan.steps || []).map((s) => {
         if (s.tool === 'get_low_stock_products' || s.tool === 'get_financial_summary') {
@@ -556,21 +558,21 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
     }
 
     // Döviz kuru soruları → get_currency_rates
-    if (/dolar|euro|gbp|sterlin|döviz|kur\s*(nedir|söyle|göster|kaç)|kaç\s*(tl|lira)/.test(lowerMsg)) {
+    if (/dolar|euro|gbp|sterlin|doviz|kur\s*(nedir|soyle|goster|kac)|kac\s*(tl|lira)/.test(lowerMsg)) {
       if (!(plan.steps || []).some((s) => s.tool === 'get_currency_rates')) {
         plan.steps = [{ tool: 'get_currency_rates', args: {} }];
       }
     }
 
     // "Finansal özet" sorgularında model araç seçmeyebiliyor — zorla ekle.
-    if (/finansal\s*(özet|durum|rapor)|mali\s*(özet|durum)|genel\s*finansal/.test(lowerMsg)) {
+    if (/finansal\s*(ozet|durum|rapor)|mali\s*(ozet|durum)|genel\s*finansal/.test(lowerMsg)) {
       if (!(plan.steps || []).some((s) => s.tool === 'get_financial_summary')) {
         plan.steps = [{ tool: 'get_financial_summary', args: {} }, ...(plan.steps || [])];
       }
     }
 
     // "Düşük stok" soruları recommend_reorder'a gidebiliyor — get_low_stock_products'a yönlendir.
-    if (/düşük\s*stok|kritik\s*stok|az\s*stok|stok\s*(uyar|azal|bit|tüken)/.test(lowerMsg)) {
+    if (/dusuk\s*stok|kritik\s*stok|az\s*stok|stok\s*(uyar|azal|bit|tuken)/.test(lowerMsg)) {
       plan.steps = (plan.steps || []).map((s) =>
         s.tool === 'recommend_reorder' ? { tool: 'get_low_stock_products', args: {} } : s
       );
@@ -581,7 +583,7 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
 
     // "Envanter/stok değeri" parasal hesaptır; planner sık sık get_warehouse_stock (adet)
     // veya get_low_stock_products seçip aritmetik halüsinasyona yol açıyor. Deterministik düzelt.
-    if (/envanter\s*değer|stok\s*değer|stoğun\s*değer|depo.*değer|mal.*değer/.test(lowerMsg)) {
+    if (/envanter\s*deger|stok\s*deger|stogun\s*deger|depo.*deger|mal.*deger/.test(lowerMsg)) {
       let swapped = false;
       plan.steps = (plan.steps || []).map((s) => {
         if (s.tool === 'get_warehouse_stock' || s.tool === 'get_low_stock_products') {
@@ -600,7 +602,7 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
     const orderStatusMap = [
       [/tamamlan/, 'completed'],
       [/iptal\s*edil|iptal\s*olan/, 'cancelled'],
-      [/bekleyen\s*sipariş|sipariş.*bekle/, 'pending']
+      [/bekleyen\s*siparis|siparis.*bekle/, 'pending']
     ];
     const matchedStatus = orderStatusMap.find(([re]) => re.test(lowerMsg));
     if (matchedStatus) {
@@ -612,7 +614,7 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
     }
 
     // "Müşteri listele/göster" → search_customers (model get_customer_detail seçiyor)
-    if (/müşteri.*(listele|göster|söyle|hepsi|tümü|kaç|say)|tüm\s*müşteri|bütün\s*müşteri/.test(lowerMsg)) {
+    if (/musteri.*(listele|goster|soyle|hepsi|tumu|kac|say)|tum\s*musteri|butun\s*musteri/.test(lowerMsg)) {
       plan.steps = (plan.steps || []).map((s) =>
         s.tool === 'get_customer_detail' ? { tool: 'search_customers', args: {} } : s
       );
@@ -622,7 +624,7 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
     }
 
     // "Siparişleri söyle/listele" → orders araçlarına yönlendir (model get_customer_detail seçiyor)
-    if (/sipariş.*(söyle|göster|listele|var\s*mı|hepsi|ne\s*var|say)|siparişlerim/.test(lowerMsg)
+    if (/siparis.*(soyle|goster|listele|var\s*mi|hepsi|ne\s*var|say|kac|ne)|siparislerim|siparis.*var/.test(lowerMsg)
         && !(plan.steps || []).some((s) => ['get_orders_list', 'get_orders_summary', 'search_orders'].includes(s.tool))) {
       plan.steps = (plan.steps || []).map((s) =>
         s.tool === 'get_customer_detail' ? { tool: 'get_orders_summary', args: {} } : s
@@ -633,7 +635,7 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
     }
 
     // "Genel özet/dashboard" → get_dashboard_summary
-    if (/genel\s*(özet|durum)|özet\s*(göster|ver)|dashboard|sistemi\s*özetle/.test(lowerMsg)) {
+    if (/genel\s*(ozet|durum)|ozet\s*(goster|ver)|dashboard|sistemi\s*ozetle/.test(lowerMsg)) {
       if (!(plan.steps || []).some((s) => s.tool === 'get_dashboard_summary')) {
         plan.steps = [{ tool: 'get_dashboard_summary', args: {} }];
       }
@@ -642,14 +644,14 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
     // Model araç seçmediyse anahtar-kelime tabanlı fallback
     if (!(plan.steps || []).length) {
       const kw = [
-        [/sipariş.*(var|kaç|listele|göster|söyle|özet|say)|kaç\s+sipariş|siparişleri/, { tool: 'get_orders_summary', args: {} }],
-        [/müşteri.*(listele|göster|söyle|var|kaç|say)|kaç\s+müşteri/, { tool: 'search_customers', args: {} }],
-        [/ürün.*(listele|göster|söyle|var|kaç|say)|kaç\s+ürün/, { tool: 'search_products', args: {} }],
-        [/çek.*(listele|göster|söyle|var|kaç|say)|kaç\s+çek/, { tool: 'search_cheques', args: {} }],
-        [/tedarikçi.*(listele|göster|söyle|var|kaç)|kaç\s+tedarikçi/, { tool: 'get_suppliers_list', args: {} }],
-        [/özet|dashboard|genel durum|durumu ne/, { tool: 'get_dashboard_summary', args: {} }],
+        [/siparis.*(var|kac|listele|goster|soyle|ozet|say|ne)|kac\s+siparis|siparisler/, { tool: 'get_orders_summary', args: {} }],
+        [/musteri.*(listele|goster|soyle|var|kac|say)|kac\s+musteri/, { tool: 'search_customers', args: {} }],
+        [/urun.*(listele|goster|soyle|var|kac|say)|kac\s+urun/, { tool: 'search_products', args: {} }],
+        [/cek.*(listele|goster|soyle|var|kac|say)|kac\s+cek/, { tool: 'search_cheques', args: {} }],
+        [/tedarikci.*(listele|goster|soyle|var|kac)|kac\s+tedarikci/, { tool: 'get_suppliers_list', args: {} }],
+        [/ozet|dashboard|genel durum|durumu ne/, { tool: 'get_dashboard_summary', args: {} }],
         [/depo|warehouse|stok durumu|depolardaki/, { tool: 'get_warehouse_stock', args: {} }],
-        [/gelir|ciro|bu ay|aylık gelir/, { tool: 'get_orders_summary', args: { period: 'month' } }],
+        [/gelir|ciro|bu ay|aylik gelir/, { tool: 'get_orders_summary', args: { period: 'month' } }],
       ];
       const matched = kw.find(([re]) => re.test(lowerMsg));
       if (matched) plan.steps = [matched[1]];
