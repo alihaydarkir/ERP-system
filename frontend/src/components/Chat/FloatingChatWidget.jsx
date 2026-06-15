@@ -113,6 +113,7 @@ export default function FloatingChatWidget() {
   const [loading, setLoading] = useState(false);
   const [unread, setUnread] = useState(0);
   const [approvalState, setApprovalState] = useState(null);
+  const pendingMsgIdRef = useRef(null);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -148,17 +149,14 @@ export default function FloatingChatWidget() {
           ? `❌ ${tool} yürütülemedi: ${payload.execution_error || payload.error || 'Bilinmeyen hata'}`
           : `❌ ${tool} reddedildi.`;
 
-      setApprovalState((prev) => {
-        // Bekleyen mesajı güncelle — yeni mesaj ekleme, mevcut ⏳ mesajını ✅/❌ ile değiştir
-        if (prev?.pendingMsgId) {
-          setMessages((msgs) => msgs.map((m) =>
-            m.id === prev.pendingMsgId ? { ...m, text } : m
-          ));
-        } else {
-          setMessages((msgs) => [...msgs, { id: Date.now(), role: 'ai', text }]);
-        }
-        return null;
-      });
+      setApprovalState(null);
+      const savedId = pendingMsgIdRef.current;
+      pendingMsgIdRef.current = null;
+      if (savedId) {
+        setMessages((msgs) => msgs.map((m) => m.id === savedId ? { ...m, text } : m));
+      } else {
+        setMessages((msgs) => [...msgs, { id: Date.now(), role: 'ai', text }]);
+      }
       if (!open) setUnread((n) => n + 1);
 
       if (['approved', 'executed'].includes(payload.status)) {
@@ -202,6 +200,7 @@ export default function FloatingChatWidget() {
       }
 
       if (agentMeta.requires_approval || agentMeta.requires_human_approval) {
+        pendingMsgIdRef.current = thinkingId;
         setApprovalState({
           approvalId: agentMeta.approval_id || null,
           status: 'pending',
@@ -240,6 +239,7 @@ export default function FloatingChatWidget() {
 
       const newMsgId = Date.now();
       if (agentMeta.requires_human_approval) {
+        pendingMsgIdRef.current = newMsgId;
         setApprovalState({ approvalId: agentMeta.approval_id, status: 'pending', tool: toolName, requiresApproval: true, pendingMsgId: newMsgId });
       } else {
         window.dispatchEvent(new CustomEvent('erp:data_changed', { detail: { tool: toolName } }));
@@ -275,6 +275,7 @@ export default function FloatingChatWidget() {
 
       const selMsgId = Date.now();
       if (agentMeta.requires_human_approval) {
+        pendingMsgIdRef.current = selMsgId;
         setApprovalState({ approvalId: agentMeta.approval_id, status: 'pending', tool: selection.action, requiresApproval: true, pendingMsgId: selMsgId });
       } else {
         window.dispatchEvent(new CustomEvent('erp:data_changed', { detail: { tool: selection.action } }));
