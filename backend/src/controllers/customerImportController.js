@@ -20,7 +20,7 @@ const validateCustomerImport = async (req, res) => {
     }
 
     // Parse Excel file
-    const parseResult = ExcelService.parseCustomerExcelFile(req.file.buffer);
+    const parseResult = await ExcelService.parseCustomerExcelFile(req.file.buffer);
 
     if (!parseResult.success) {
       return res.status(400).json({

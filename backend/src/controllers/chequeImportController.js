@@ -1,4 +1,4 @@
-const xlsx = require('xlsx');
+const { readObjects, buildXlsx } = require('../utils/spreadsheet');
 const { Cheque, ChequeTransaction } = require('../models/Cheque');
 const Customer = require('../models/Customer');
 const AuditLog = require('../models/AuditLog');
@@ -8,15 +8,9 @@ const { getClientIP } = require('../utils/helpers');
 /**
  * Parse Excel file and return data
  */
-const parseExcelFile = (fileBuffer) => {
+const parseExcelFile = async (fileBuffer) => {
   try {
-    const workbook = xlsx.read(fileBuffer, { type: 'buffer' });
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
-
-    // Convert to JSON
-    const data = xlsx.utils.sheet_to_json(worksheet, { raw: false });
-
+    const data = await readObjects(fileBuffer);
     return { success: true, data };
   } catch (error) {
     return { success: false, error: error.message };
@@ -235,7 +229,7 @@ const validateChequeImport = async (req, res) => {
     }
 
     // Parse Excel file
-    const parseResult = parseExcelFile(req.file.buffer);
+    const parseResult = await parseExcelFile(req.file.buffer);
 
     if (!parseResult.success) {
       return res.status(400).json(formatError(`Failed to parse Excel file: ${parseResult.error}`));
@@ -276,7 +270,7 @@ const importCheques = async (req, res) => {
     }
 
     // Parse Excel file
-    const parseResult = parseExcelFile(req.file.buffer);
+    const parseResult = await parseExcelFile(req.file.buffer);
 
     if (!parseResult.success) {
       return res.status(400).json(formatError(`Failed to parse Excel file: ${parseResult.error}`));
@@ -388,30 +382,9 @@ const exportChequesToExcel = async (req, res) => {
       'Notlar': cheque.notes || ''
     }));
 
-    // Create workbook
-    const workbook = xlsx.utils.book_new();
-    const worksheet = xlsx.utils.json_to_sheet(excelData);
-
-    // Set column widths
-    worksheet['!cols'] = [
-      { wch: 15 }, // Seri No
-      { wch: 25 }, // Keşideci
-      { wch: 25 }, // Müşteri Şirketi
-      { wch: 20 }, // Müşteri İlgili
-      { wch: 20 }, // Banka
-      { wch: 12 }, // Alınma Tarihi
-      { wch: 12 }, // Vade Tarihi
-      { wch: 12 }, // Tutar
-      { wch: 8 },  // Para Birimi
-      { wch: 12 }, // Durum
-      { wch: 10 }, // Kalan Gün
-      { wch: 30 }  // Notlar
-    ];
-
-    xlsx.utils.book_append_sheet(workbook, worksheet, 'Çekler');
-
-    // Generate buffer
-    const excelBuffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    // Sütun genişlikleri: Seri No, Keşideci, Müşteri Şirketi, Müşteri İlgili, Banka,
+    // Alınma Tarihi, Vade Tarihi, Tutar, Para Birimi, Durum, Kalan Gün, Notlar
+    const excelBuffer = await buildXlsx(excelData, 'Çekler', [15, 25, 25, 20, 20, 12, 12, 12, 8, 12, 10, 30]);
 
     // Log the action
     await AuditLog.create({
@@ -457,27 +430,9 @@ const downloadTemplate = async (req, res) => {
       }
     ];
 
-    // Create workbook
-    const workbook = xlsx.utils.book_new();
-    const worksheet = xlsx.utils.json_to_sheet(templateData);
-
-    // Set column widths
-    worksheet['!cols'] = [
-      { wch: 15 }, // Seri No
-      { wch: 25 }, // Keşideci
-      { wch: 25 }, // Müşteri
-      { wch: 20 }, // Banka
-      { wch: 12 }, // Alınma Tarihi
-      { wch: 12 }, // Vade Tarihi
-      { wch: 12 }, // Tutar
-      { wch: 12 }, // Para Birimi
-      { wch: 30 }  // Notlar
-    ];
-
-    xlsx.utils.book_append_sheet(workbook, worksheet, 'Çekler');
-
-    // Generate buffer
-    const excelBuffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    // Sütun genişlikleri: Seri No, Keşideci, Müşteri, Banka, Alınma Tarihi,
+    // Vade Tarihi, Tutar, Para Birimi, Notlar
+    const excelBuffer = await buildXlsx(templateData, 'Çekler', [15, 25, 25, 20, 12, 12, 12, 12, 30]);
 
     // Send file
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

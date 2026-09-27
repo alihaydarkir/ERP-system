@@ -149,11 +149,11 @@ const testEmail = async (req, res) => {
     }
 
     // Create transporter
-    const transporter = nodemailer.createTransporter({
+    const transporter = nodemailer.createTransport({
       host: smtpHost.value,
       port: parseInt(smtpPort.parsedValue),
       secure: parseInt(smtpPort.parsedValue) === 465,
-      auth: smtpUsername.value && smtpPassword.value ? {
+      auth: smtpUsername?.value && smtpPassword?.value ? {
         user: smtpUsername.value,
         pass: smtpPassword.value
       } : undefined
