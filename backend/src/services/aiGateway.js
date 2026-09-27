@@ -15,6 +15,11 @@ class AIGateway {
     this.azureEmbeddingDeployment = process.env.AZURE_OPENAI_EMBEDDING_DEPLOYMENT || process.env.AZURE_OPENAI_DEPLOYMENT || '';
     this.timeout = parseInt(process.env.AI_REQUEST_TIMEOUT_MS, 10) || 180000;
     this.fallbackModel = process.env.AI_FALLBACK_MODEL || this.defaultModel;
+    this.thinkByDefault = String(process.env.AI_THINK_RESPOND ?? 'false').toLowerCase() !== 'false';
+    // Tüm Ollama çağrılarında TEK bağlam boyutu: num_ctx değişince Ollama modeli yeniden
+    // yükler (plan 8192 / cevap 4096 iken her soruda ~15 sn kayıp ölçüldü).
+    // 8192: 40 aracın şeması ~4.4K token, daha küçüğünde plan aşamasında kırpılıyor.
+    this.ollamaNumCtx = parseInt(process.env.OLLAMA_NUM_CTX, 10) || 8192;
   }
 
   resolveDefaultModel() {
@@ -31,6 +36,14 @@ class AIGateway {
 
   getProvider() {
     return this.provider;
+  }
+
+  // Ollama "think" kontrolü: sadece false gönderilir. think:true düşünmeyen modellerde
+  // (qwen2.5 vb.) 400 hatası verir; düşünen modeller (qwen3.5 vb.) zaten varsayılan olarak düşünür.
+  // Çağıran belirtmezse AI_THINK_RESPOND geçerli (varsayılan kapalı — cevap hızı için).
+  ollamaThinkParam(options = {}) {
+    const think = options.think ?? this.thinkByDefault;
+    return think === false ? { think: false } : {};
   }
 
   getDefaultModel() {
@@ -140,10 +153,11 @@ class AIGateway {
           messages: builtMessages,
           stream: false,
           keep_alive: -1,
+          ...this.ollamaThinkParam(options),
           options: {
             temperature: options.temperature ?? 0.3,
             top_p: options.top_p ?? 0.9,
-            num_ctx: options.num_ctx ?? 4096,
+            num_ctx: options.num_ctx ?? this.ollamaNumCtx,
             num_predict: options.num_predict,
             ...(numGpuLayers !== undefined && { num_gpu: numGpuLayers }),
           }
@@ -247,10 +261,11 @@ class AIGateway {
           tools: tools || [],
           stream: false,
           keep_alive: -1,
+          ...this.ollamaThinkParam(options),
           options: {
             temperature: options.temperature ?? 0.1,
             top_p: options.top_p ?? 0.9,
-            num_ctx: options.num_ctx ?? 4096,
+            num_ctx: options.num_ctx ?? this.ollamaNumCtx,
             ...(numGpuLayers !== undefined && { num_gpu: numGpuLayers }),
           }
         },
@@ -291,10 +306,11 @@ class AIGateway {
         prompt: this.maskPII(prompt),
         stream: false,
         keep_alive: -1,
+        ...this.ollamaThinkParam(options),
         options: {
           temperature: options.temperature ?? 0.7,
           top_p: options.top_p ?? 0.9,
-          num_ctx: 2048,
+          num_ctx: options.num_ctx ?? this.ollamaNumCtx,
           max_tokens: options.max_tokens,
           ...(numGpuLayers !== undefined && { num_gpu: numGpuLayers }),
         }
