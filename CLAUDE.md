@@ -32,9 +32,14 @@ docker compose exec backend npm run seed     # Turkce demo veri (idempotent degi
 `admin@erp.local` / `Admin123!` · ayrıca `manager@erp.local`, `user@erp.local` (aynı şifre).
 
 ## Model
-- **Önerilen**: `qwen2.5:7b` — native tool calling desteği var, Türkçe kalitesi 3b'den çok daha iyi.
-- **Düşük VRAM (4GB)**: `qwen2.5:3b` (performans düşer, tool calling yine çalışır).
-- `.env`'de `OLLAMA_MODEL=qwen2.5:7b`.
+- **Windows RTX 4060 (8GB)**: `qwen3.5:9b` — %100 GPU (5.6GB), soru başına ~4-8 sn, 6/6 doğru araç.
+  (gemma4:12b sığmıyor → timeout; qwen3.5:4b daha zayıf araç seçimi.)
+- **Diğer**: `qwen2.5:7b` · **Düşük VRAM (4GB)**: `qwen2.5:3b`. Root `.env`'de `OLLAMA_MODEL`.
+- `OLLAMA_NUM_CTX=8192` (tüm çağrılarda ortak): 40 aracın şeması ~4.4K token — 2048'de kırpılıp
+  araç seçimi bozuluyordu; plan/cevap farklı ctx kullanınca Ollama her soruda modeli yeniden yüklüyordu.
+- `AI_THINK_PLAN` / `AI_THINK_RESPOND` (varsayılan false): düşünen modellerde thinking kontrolü.
+  Açmak kaliteyi ölçülür şekilde artırmadı, yanıtı 4-10x yavaşlattı.
+- Backend host portu: `BACKEND_PORT` (varsayılan 5000; macOS'ta AirPlay yüzünden root `.env`'e 5001).
 
 ## AI chatbot mimarisi
 `POST /api/chat` veya `/api/ai/chat` → `aiService.runAgent` (`backend/src/services/aiService.js`)

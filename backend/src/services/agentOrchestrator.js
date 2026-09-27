@@ -7,6 +7,10 @@ class AgentOrchestrator {
     this.tools = deps.tools || agentTools;
     this.gateway = deps.gateway || aiGateway;
     this.mode = (process.env.AI_AUTOMATION_MODE || 'copilot').toLowerCase();
+    // Düşünen modellerde (qwen3.5 vb.) plan aşamasında düşünme. Ölçümde doğruluğa katkısı
+    // olmadı (qwen3.5:9b: 6/6 her iki durumda) ama ~4x yavaşlattı → varsayılan kapalı.
+    // Cevap aşaması gateway varsayılanını (AI_THINK_RESPOND) kullanır. Düşünmeyen modellerde etkisiz.
+    this.thinkPlan = String(process.env.AI_THINK_PLAN ?? 'false').toLowerCase() !== 'false';
 
     this.riskMatrix = {
       cancel_order: { level: 'high', requiresApproval: true, requiredRole: 'manager' },
@@ -157,7 +161,10 @@ ZORUNLU KURALLAR:
           { role: 'user', content: String(userMessage || '').slice(0, 1000) }
         ],
         ollamaTools,
-        { temperature: 0.1, num_ctx: 2048 }
+        // num_ctx burada verilmez → gateway'in ortak değeri (8192). Eskiden 2048'di: 40 aracın
+        // şeması ~4.4K token olduğundan Ollama listeyi kırpıyor, model araçların çoğunu
+        // göremiyordu (qwen3.5:9b ölçümü: 2048'de 4 sorunun 1'i, 8192'de 6/6 doğru araç).
+        { temperature: 0.1, think: this.thinkPlan }
       );
 
       if (result.tool_calls && result.tool_calls.length > 0) {
@@ -212,7 +219,7 @@ Kurallar:
       const completion = await this.gateway.chat([
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
-      ], { temperature: 0.1 });
+      ], { temperature: 0.1, think: this.thinkPlan });
 
       return this.parsePlan(completion.content || '', fallbackTools);
     } catch (_) {
@@ -405,7 +412,8 @@ Kurallar:
 - Sadece verilen veriyi kullan, kesinlikle uydurma yapma
 - "__BOŞ_SONUÇ__" olan araç veri içermiyor demektir — o konuda "kayıt bulunamadı" veya "bu kategori boş" de
 - JSON, kod bloğu veya teknik format yazma
-- Sayıları Türkçe formatında yaz: 172600 → "172.600 TL" (nokta binlik ayırıcı, TL para birimi)
+- Sayıları Türkçe formatında yaz (nokta binlik ayırıcı). SADECE para tutarlarına (price, total, amount, value, balance vb.) "TL" ekle: 172600 → "172.600 TL"
+- Miktar/adet alanlarına (stock_quantity, quantity, count vb.) ASLA "TL" ekleme, "adet" yaz: stock_quantity 3 → "3 adet"
 - Tarihleri Türkçe yaz: "15 Ocak 2026" gibi
 - Yanıtı kısa ve net tut, gereksiz açıklama ekleme
 - ZORUNLU: Yanıtı her zaman Türkçe yaz — başka dil kullanma

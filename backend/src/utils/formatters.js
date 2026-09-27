@@ -8,8 +8,16 @@
 const formatUser = (user) => {
   if (!user) return null;
 
-  const { password, ...userWithoutPassword } = user;
-  return userWithoutPassword;
+  // DB kolonu password_hash; ayrıca doğrulama token'ı istemciye asla dönmemeli
+  // (dönerse e-posta doğrulaması atlatılabilir).
+  const {
+    password,
+    password_hash,
+    email_verify_token,
+    email_verify_expires,
+    ...safeUser
+  } = user;
+  return safeUser;
 };
 
 /**

@@ -50,18 +50,21 @@ services:
       BACKUP_DIR: /backups
       RETENTION_DAYS: 7
     entrypoint: ["sh", "-c"]
-    command: >
-      mkdir -p "$${BACKUP_DIR}";
-      echo "[postgres_backup] started - daily pg_dump with $${RETENTION_DAYS}-day retention";
-      while true; do
-        TS=$$(date +"%Y-%m-%d_%H-%M-%S");
-        FILE="$${BACKUP_DIR}/$${DB_NAME}_$${TS}.dump";
-        echo "[postgres_backup] creating backup: $${FILE}";
-        PGPASSWORD="$${DB_PASSWORD}" pg_dump -h "$${DB_HOST}" -p "$${DB_PORT}" -U "$${DB_USER}" -d "$${DB_NAME}" -F c -f "$${FILE}";
-        echo "[postgres_backup] pruning backups older than $${RETENTION_DAYS} days";
-        find "$${BACKUP_DIR}" -type f -name "*.dump" -mtime +$${RETENTION_DAYS} -delete;
-        sleep 86400;
-      done
+    # Liste formu: script tek arguman olarak sh -c'ye gitsin (string formu
+    # compose tarafindan kelimelere bolunuyor ve sadece "mkdir" calisiyordu).
+    command:
+      - >
+        mkdir -p "$${BACKUP_DIR}";
+        echo "[postgres_backup] started - daily pg_dump with $${RETENTION_DAYS}-day retention";
+        while true; do
+          TS=$$(date +"%Y-%m-%d_%H-%M-%S");
+          FILE="$${BACKUP_DIR}/$${DB_NAME}_$${TS}.dump";
+          echo "[postgres_backup] creating backup: $${FILE}";
+          PGPASSWORD="$${DB_PASSWORD}" pg_dump -h "$${DB_HOST}" -p "$${DB_PORT}" -U "$${DB_USER}" -d "$${DB_NAME}" -F c -f "$${FILE}";
+          echo "[postgres_backup] pruning backups older than $${RETENTION_DAYS} days";
+          find "$${BACKUP_DIR}" -type f -name "*.dump" -mtime +$${RETENTION_DAYS} -delete;
+          sleep 86400;
+        done
     volumes:
       - postgres_backups:/backups
     depends_on:
