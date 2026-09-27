@@ -1,4 +1,4 @@
-const XLSX = require('xlsx');
+const { readRows } = require('../utils/spreadsheet');
 
 /**
  * Excel Service - Handles Excel file parsing and validation
@@ -17,23 +17,12 @@ class ExcelService {
   /**
    * Parse Excel file buffer
    * @param {Buffer} buffer - Excel file buffer
-   * @returns {Object} - { headers, data, rowCount, errors }
+   * @returns {Promise<Object>} - { headers, data, rowCount, errors }
    */
-  static parseExcelFile(buffer) {
+  static async parseExcelFile(buffer) {
     try {
-      // Read workbook from buffer
-      const workbook = XLSX.read(buffer, { type: 'buffer' });
-
-      // Get first sheet
-      const sheetName = workbook.SheetNames[0];
-      if (!sheetName) {
-        throw new Error('Excel dosyası boş');
-      }
-
-      const worksheet = workbook.Sheets[sheetName];
-
-      // Convert sheet to JSON
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+      // İlk sayfanın satırları (başlık dahil)
+      const jsonData = await readRows(buffer);
 
       if (jsonData.length === 0) {
         throw new Error('Excel dosyasında veri bulunamadı');
@@ -142,23 +131,12 @@ class ExcelService {
   /**
    * Parse Excel file buffer for customers
    * @param {Buffer} buffer - Excel file buffer
-   * @returns {Object} - { headers, data, rowCount, errors }
+   * @returns {Promise<Object>} - { headers, data, rowCount, errors }
    */
-  static parseCustomerExcelFile(buffer) {
+  static async parseCustomerExcelFile(buffer) {
     try {
-      // Read workbook from buffer
-      const workbook = XLSX.read(buffer, { type: 'buffer' });
-
-      // Get first sheet
-      const sheetName = workbook.SheetNames[0];
-      if (!sheetName) {
-        throw new Error('Excel dosyası boş');
-      }
-
-      const worksheet = workbook.Sheets[sheetName];
-
-      // Convert sheet to JSON
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+      // İlk sayfanın satırları (başlık dahil)
+      const jsonData = await readRows(buffer);
 
       if (jsonData.length === 0) {
         throw new Error('Excel dosyasında veri bulunamadı');
