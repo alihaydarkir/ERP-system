@@ -319,6 +319,7 @@ const importCheques = async (req, res) => {
     for (const cheque of bulkResult.insertedCheques) {
       await ChequeTransaction.create({
         cheque_id: cheque.id,
+        company_id, // cheque_transactions.company_id NOT NULL
         old_status: null,
         new_status: 'pending',
         changed_by: userId,

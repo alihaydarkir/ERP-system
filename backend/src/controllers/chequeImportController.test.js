@@ -91,6 +91,7 @@ describe('chequeImportController', () => {
     expect(mockCheque.bulkCreate).toHaveBeenCalledWith([
       expect.objectContaining({ customer_id: 99, company_id: 42, amount: 50000, due_date: '2025-12-05' })
     ]);
+    expect(mockChequeTransaction.create).toHaveBeenCalledWith(expect.objectContaining({ cheque_id: 1, company_id: 42 }));
     expect(res.json.mock.calls[0][0].data.imported).toBe(1);
   });
 });
