@@ -183,7 +183,9 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push' && github.ref_protected == true
     environment:
       name: production
-      url: https://${{ secrets.SSH_HOST }}
+      # environment.url'de secrets context'i kullanılamaz (workflow dosyası geçersiz
+      # sayılıyordu); adres repo değişkeninden gelir: Settings → Variables → APP_URL
+      url: ${{ vars.APP_URL }}
 
     steps:
       - name: 📦 Checkout
