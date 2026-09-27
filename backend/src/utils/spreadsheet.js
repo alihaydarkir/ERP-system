@@ -56,7 +56,7 @@ const loadWorksheet = async (buffer) => {
   if (format === 'xlsx') {
     await workbook.xlsx.load(buffer);
   } else {
-    const text = buffer.toString('utf8').replace(/^﻿/, '');
+    const text = buffer.toString('utf8').replace(/^\uFEFF/, '');
     await workbook.csv.read(Readable.from([text]), {
       // Değerleri metin olarak bırak: tarih/sayı dönüşümü çağıran tarafta yapılıyor
       map: (v) => v,

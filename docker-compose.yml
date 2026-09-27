@@ -164,6 +164,8 @@ services:
     build:
       context: ./frontend
       dockerfile: ../Dockerfile.frontend
+      additional_contexts:
+        nginx: ./nginx          # Dockerfile'daki COPY --from=nginx için
       args:
         VITE_API_URL: ""        # Empty = relative URLs, nginx proxies /api → backend
         VITE_SOCKET_URL: ""     # Empty = same origin WebSocket

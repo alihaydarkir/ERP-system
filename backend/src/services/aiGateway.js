@@ -82,6 +82,7 @@ class AIGateway {
 
   sanitizeText(text = '') {
     return String(text)
+      // eslint-disable-next-line no-control-regex -- amaç kontrol karakterlerini temizlemek
       .replace(/[\u0000-\u001F\u007F]/g, ' ')
       .replace(/```/g, "'''")
       .replace(/ignore\s+previous\s+instructions/gi, '[filtered]')

@@ -89,10 +89,10 @@ jobs:
       - name: 📦 Checkout
         uses: actions/checkout@v4
 
-      - name: ⚙️ Setup Node.js 20
+      - name: ⚙️ Setup Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: |
             backend/package-lock.json
@@ -163,6 +163,8 @@ jobs:
         with:
           context: ./frontend
           file: ./Dockerfile.frontend
+          build-contexts: |
+            nginx=./nginx
           push: true
           tags: |
             ${{ env.FRONTEND_IMAGE }}:latest

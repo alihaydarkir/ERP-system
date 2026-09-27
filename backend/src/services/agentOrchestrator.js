@@ -451,10 +451,10 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
     raw = raw.replace(/__BOŞ_SONU[ÇC]__/gi, 'veri bulunamadı').trim();
 
     // CJK (Çince/Japonca/Korece) karakter içeriyorsa temizle
-    const CJK = /[一-鿿぀-ヿ가-힯　-〿]/;
+    const CJK = /[\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF\u3000-\u303F]/;
     if (CJK.test(raw)) {
       raw = raw
-        .replace(/[一-鿿぀-ヿ가-힯　-〿]+/g, '')
+        .replace(/[\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF\u3000-\u303F]+/g, '')
         .replace(/\s{2,}/g, ' ')
         .replace(/([:\-,])\s*([:\-,])/g, '$1')
         .trim();

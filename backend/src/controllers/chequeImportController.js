@@ -19,8 +19,13 @@ const parseExcelFile = async (fileBuffer) => {
 
 /**
  * Validate and transform Excel data
+ * @param {Object[]} data - Excel satırları
+ * @param {Object} opts
+ * @param {number} opts.userId
+ * @param {number} opts.companyId - arama/oluşturma bu şirketle sınırlı (multi-tenancy)
+ * @param {boolean} opts.createMissingCustomers - false: önizleme, DB'ye yazmaz
  */
-const validateExcelData = async (data, userId) => {
+const validateExcelData = async (data, { userId, companyId, createMissingCustomers }) => {
   const validRows = [];
   const errors = [];
 
@@ -95,26 +100,32 @@ const validateExcelData = async (data, userId) => {
         continue;
       }
 
-       // Find or create customer
+      // Find or create customer
       let customerId = null;
+      let newCustomer = null;
       const customerIdentifier = row['Müşteri'];
 
-      // Try to find customer by company name or tax number
-      const customers = await Customer.findAll({ user_id: userId, search: customerIdentifier });
+      // Müşteriyi yalnızca kullanıcının şirketi içinde ara (findAll user_id filtresi tanımıyor;
+      // company_id verilmezse tüm şirketlerde arıyordu)
+      const customers = await Customer.findAll({ company_id: companyId, search: customerIdentifier });
 
-      if (customers.length === 0) {
+      if (customers.length === 0 && !createMissingCustomers) {
+        // Önizleme: DB'ye yazma, import sırasında oluşturulacağını bildir
+        newCustomer = customerIdentifier;
+      } else if (customers.length === 0) {
         // Customer not found - auto-create with minimal info
         try {
-          const newCustomer = await Customer.create({
+          const created = await Customer.create({
             user_id: userId,
             full_name: customerIdentifier,
             company_name: customerIdentifier,
             tax_office: 'Unknown',
             tax_number: '0000000000',
             phone_number: null,
-            company_location: null
+            company_location: null,
+            company_id: companyId
           });
-          customerId = newCustomer.id;
+          customerId = created.id;
         } catch (createError) {
           errors.push({
             row: rowNum,
@@ -137,7 +148,8 @@ const validateExcelData = async (data, userId) => {
       // Check for duplicate cheque
       const existingCheque = await Cheque.findBySerialAndBank(
         String(row['Seri No']).trim(),
-        String(row['Banka']).trim()
+        String(row['Banka']).trim(),
+        companyId
       );
 
       if (existingCheque) {
@@ -161,7 +173,9 @@ const validateExcelData = async (data, userId) => {
         amount: amount,
         currency: currency.toUpperCase(),
         status: 'pending',
-        notes: row['Notlar'] || null
+        notes: row['Notlar'] || null,
+        company_id: companyId,
+        ...(newCustomer && { new_customer: newCustomer })
       });
 
     } catch (error) {
@@ -223,6 +237,7 @@ const parseExcelDate = (dateValue) => {
 const validateChequeImport = async (req, res) => {
   try {
     const userId = req.user.id;
+    const { company_id } = req.user; // MULTI-TENANCY
 
     if (!req.file) {
       return res.status(400).json(formatError('No file uploaded'));
@@ -240,7 +255,11 @@ const validateChequeImport = async (req, res) => {
     }
 
     // Validate data
-    const validationResult = await validateExcelData(parseResult.data, userId);
+    const validationResult = await validateExcelData(parseResult.data, {
+      userId,
+      companyId: company_id,
+      createMissingCustomers: false // önizleme: DB'ye yazma
+    });
 
     res.json(formatSuccess({
       totalRows: parseResult.data.length,
@@ -281,7 +300,11 @@ const importCheques = async (req, res) => {
     }
 
     // Validate data
-    const validationResult = await validateExcelData(parseResult.data, userId);
+    const validationResult = await validateExcelData(parseResult.data, {
+      userId,
+      companyId: company_id,
+      createMissingCustomers: true
+    });
 
     if (validationResult.validRows.length === 0) {
       return res.status(400).json(formatError('No valid rows to import', {

@@ -17,7 +17,7 @@ const getActorUserId = (req) => req.user?.userId || req.user?.id;
  */
 const getAllOrders = async (req, res) => {
   try {
-    let { status, start_date, end_date, page = 1, limit = 20 } = req.query;
+    const { status, start_date, end_date, page = 1, limit = 20 } = req.query;
     const { company_id } = req.user; // MULTI-TENANCY
 
     // Customer role: scope to their own orders only
