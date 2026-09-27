@@ -36,7 +36,7 @@ describe('ProductForm', () => {
 
     expect(screen.getByPlaceholderText('Ürün Adı')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('SKU')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Fiyat')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Brüt Fiyat (₺)')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Stok')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Kaydet' })).toBeInTheDocument();
   });
@@ -89,7 +89,7 @@ describe('ProductForm', () => {
 
     fireEvent.change(screen.getByPlaceholderText('Ürün Adı'), { target: { value: 'Klavye' } });
     fireEvent.change(screen.getByPlaceholderText('SKU'), { target: { value: 'KLV-01' } });
-    fireEvent.change(screen.getByPlaceholderText('Fiyat'), { target: { value: '450' } });
+    fireEvent.change(screen.getByPlaceholderText('Brüt Fiyat (₺)'), { target: { value: '450' } });
     fireEvent.change(screen.getByPlaceholderText('Stok'), { target: { value: '12' } });
 
     fireEvent.click(screen.getByRole('button', { name: 'Kaydet' }));

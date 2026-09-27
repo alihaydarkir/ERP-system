@@ -24,7 +24,7 @@ const createOrder = (status = 'pending') => ({
   created_at: '2026-04-27T08:00:00.000Z',
   customer_name: 'Acme Ltd',
   customer_company: 'Acme Ltd',
-  items: [{ product_name: 'Demo Urun' }],
+  items: [{ product_id: 1, product_name: 'Demo Urun', quantity: 5 }],
 });
 
 async function mockAuthAndPermissions(page) {
@@ -48,7 +48,7 @@ async function mockAuthAndPermissions(page) {
 test.describe('Orders critical actions', () => {
   test('can complete a pending order', async ({ page }) => {
     let orderStatus = 'pending';
-    let patchCallCount = 0;
+    let shipRequest = null;
 
     await mockAuthAndPermissions(page);
 
@@ -75,12 +75,10 @@ test.describe('Orders critical actions', () => {
         return;
       }
 
-      if (method === 'PATCH' && /\/api\/orders\/\d+\/status$/.test(url)) {
-        const body = request.postDataJSON();
-        if (body?.status === 'completed') {
-          orderStatus = 'completed';
-        }
-        patchCallCount += 1;
+      // Tamamla → Sevkiyat Adedi penceresi → kısmi/tam sevk (PartialShipModal)
+      if (method === 'POST' && /\/api\/orders\/\d+\/complete-partial$/.test(url)) {
+        shipRequest = request.postDataJSON();
+        orderStatus = 'completed';
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -97,11 +95,12 @@ test.describe('Orders critical actions', () => {
     await expect(page.locator('main').getByRole('heading', { name: 'Siparişler', level: 1 })).toBeVisible();
 
     await page.getByRole('button', { name: /Tamamla/ }).first().click();
-    const confirmDialog = page.getByRole('dialog');
-    await expect(confirmDialog.getByRole('heading', { name: 'Siparişi Tamamla' })).toBeVisible();
-    await confirmDialog.getByRole('button', { name: 'Tamamla', exact: true }).click();
+    await expect(page.getByRole('heading', { name: /Sevkiyat Adedi/ })).toBeVisible();
+    // Adet varsayılan olarak siparişin tamamı → buton "Tamamla" olur
+    await expect(page.getByText('Sipariş: 5 adet · Kalan: 0')).toBeVisible();
+    await page.getByRole('button', { name: 'Tamamla', exact: true }).click();
 
-    await expect.poll(() => patchCallCount).toBeGreaterThan(0);
+    await expect.poll(() => shipRequest).toEqual({ items: [{ product_id: 1, shipped_quantity: 5 }] });
     await expect(page.getByText('✅ Tamamlandı')).toBeVisible();
   });
 
