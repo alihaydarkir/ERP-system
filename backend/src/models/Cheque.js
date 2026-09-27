@@ -440,14 +440,17 @@ class Cheque {
       await client.query('BEGIN');
 
       for (let i = 0; i < chequesData.length; i++) {
+        // Satır başına savepoint: bir satırın hatası transaction'ı "aborted" durumuna
+        // düşürüp sonraki tüm satırları da başarısız yapmasın.
+        await client.query('SAVEPOINT cheque_row');
         try {
           const cheque = chequesData[i];
           const query = `
             INSERT INTO cheques (
               user_id, check_serial_no, check_issuer, customer_id, bank_name,
-              received_date, due_date, amount, currency, status, notes
+              received_date, due_date, amount, currency, status, notes, company_id
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             RETURNING *
           `;
 
@@ -462,12 +465,15 @@ class Cheque {
             cheque.amount,
             cheque.currency || 'TRY',
             cheque.status || 'pending',
-            cheque.notes || null
+            cheque.notes || null,
+            cheque.company_id
           ];
 
           const result = await client.query(query, values);
+          await client.query('RELEASE SAVEPOINT cheque_row');
           insertedCheques.push(result.rows[0]);
         } catch (error) {
+          await client.query('ROLLBACK TO SAVEPOINT cheque_row');
           errors.push({
             row: i + 1,
             data: chequesData[i],
