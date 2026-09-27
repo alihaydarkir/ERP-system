@@ -31,6 +31,8 @@ jobs:
         run: npm test
         env:
           NODE_ENV: test
+          # Yalnızca test için sahte değer (config/env.js zorunlu tutuyor; .env CI'da yok)
+          JWT_SECRET: ci_test_jwt_secret_at_least_32_characters_long
 
   frontend-test:
     runs-on: ubuntu-latest
