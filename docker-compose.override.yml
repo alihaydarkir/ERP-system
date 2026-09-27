@@ -37,8 +37,10 @@ services:
     volumes:
       - ./backend:/app
       - /app/node_modules          # Don't overwrite container's node_modules
+    # Host portu makineye göre: Windows 5000 (varsayılan); macOS'ta 5000'i AirPlay
+    # kullandığı için root .env'e BACKEND_PORT=5001 yazılır.
     ports:
-      - "5001:5000"
+      - "${BACKEND_PORT:-5000}:5000"
     deploy:
       resources:
         limits:
@@ -59,7 +61,7 @@ services:
     ports:
       - "5173:5173"
     environment:
-      VITE_API_URL: "http://localhost:5001"
+      VITE_API_URL: "http://localhost:${BACKEND_PORT:-5000}"
     # Base compose'daki 128M dev icin cok dusuk — Vite+esbuild OOM olup
     # "esbuild: The service was stopped" veriyordu. Dev'de bol bellek ver.
     deploy:
