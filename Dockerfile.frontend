@@ -29,8 +29,11 @@ RUN rm /etc/nginx/conf.d/default.conf
 # Copy built assets
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Copy production nginx config (from root-level nginx/ folder)
-COPY nginx/default.conf /etc/nginx/conf.d/default.conf
+# Production nginx config: kök nginx/ klasörü build context'i (frontend/) dışında kaldığı
+# için "nginx" adlı ek build context olarak verilir:
+#   compose: build.additional_contexts.nginx: ./nginx
+#   CLI:     docker build --build-context nginx=./nginx ...
+COPY --from=nginx default.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 EXPOSE 443
