@@ -124,11 +124,12 @@ export default function Layout({ children }) {
           {/* Logo Area */}
           <div className="h-16 flex items-center justify-center border-b border-gray-100 dark:border-gray-800 bg-gradient-to-r from-primary-600 to-primary-700 text-white shadow-md relative overflow-hidden">
             <div className="absolute inset-0 bg-white dark:bg-gray-800/10 opacity-30 pattern-grid-lg"></div>
-            {sidebarOpen ? (
-              <h1 className="text-2xl font-bold tracking-tight z-10 drop-shadow-sm">ERP<span className="font-light opacity-80">PRO</span></h1>
-            ) : (
-              <span className="text-2xl font-bold z-10">EP</span>
-            )}
+            <div className="flex items-center gap-2.5 z-10">
+              <span className="bg-white rounded-lg px-1.5 py-1 shadow-sm"><img src="/logo-mark.png" alt="Helix-Ware" className="h-6 w-auto" /></span>
+              {sidebarOpen && (
+                <h1 className="text-xl font-bold tracking-tight drop-shadow-sm">Helix-Ware</h1>
+              )}
+            </div>
           </div>
 
           {/* Navigation Items */}
