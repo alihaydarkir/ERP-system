@@ -1,4 +1,4 @@
-const CACHE_NAME = 'erp-v1';
+const CACHE_NAME = 'erp-v2';
 const STATIC_ASSETS = [
   '/',
   '/dashboard',

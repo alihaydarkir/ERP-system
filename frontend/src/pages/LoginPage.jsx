@@ -78,8 +78,8 @@ export default function LoginPage() {
         
         <div className='relative z-10 text-center px-12'>
           <div className='mb-8 flex justify-center'>
-             <div className='w-24 h-24 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center shadow-xl border border-white/20 p-3'>
-                <img src='/logo.svg' alt='Helix-Ware ERP Pro Logo' className='w-full h-full object-contain drop-shadow-lg' />
+             <div className='w-24 h-24 bg-white rounded-2xl flex items-center justify-center shadow-xl border border-white/20 p-3'>
+                <img src='/logo-mark.png' alt='Helix-Ware ERP Pro Logo' className='w-full h-full object-contain' />
              </div>
           </div>
           <h2 className='text-4xl font-bold text-white mb-6'>Helix-Ware ERP Pro'ya Hoş Geldiniz</h2>
@@ -97,8 +97,8 @@ export default function LoginPage() {
         <div className='mx-auto w-full max-w-sm lg:max-w-md'>
           {/* Mobil Logo */}
           <div className='lg:hidden text-center mb-10'>
-             <div className='inline-flex w-16 h-16 bg-primary-600 rounded-xl items-center justify-center shadow-lg mb-4 p-2'>
-                <img src='/logo.svg' alt='Helix-Ware ERP Pro Logo' className='w-full h-full object-contain' />
+             <div className='inline-flex w-16 h-16 bg-white border border-gray-200 dark:border-gray-700 rounded-xl items-center justify-center shadow-lg mb-4 p-2'>
+                <img src='/logo-mark.png' alt='Helix-Ware ERP Pro Logo' className='w-full h-full object-contain' />
              </div>
              <h2 className='text-2xl font-bold text-gray-900 dark:text-white'>Helix-Ware ERP Pro</h2>
           </div>
