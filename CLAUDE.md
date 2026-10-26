@@ -91,3 +91,6 @@ JSON parse gerekmez. `agentOrchestrator.js`'deki deterministik düzeltmeler art�
 - Backend `node server.js` ile çalışır (hot-reload yok) → kod değişince `docker compose restart backend`.
 - Commit mesajları Türkçe + `Co-Authored-By: Claude`. Komut timeout'larını kısa tut.
 - Validator'larda formdan gelen boş string'ler için `.empty('')`; opsiyonel email'de boş atlanır.
+- Klasöre özel kurallar `.claude/rules/` (backend, migrations, frontend) ilgili dosyaya dokununca
+  yüklenir. `.claude/hooks/lint.js`: her Edit/Write sonrası backend/frontend JS dosyasını ESLint ile
+  kontrol eder (dosyayı değiştirmez). Prettier'ı toplu uygulama: kodun çoğu formatsız, diff şişer.

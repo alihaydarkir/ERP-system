@@ -98,9 +98,10 @@ function App() {
         if (!mounted) return;
         logout();
       } finally {
-        if (!mounted) return;
-        setAuthInitialized(true);
-        setAuthLoading(false);
+        if (mounted) {
+          setAuthInitialized(true);
+          setAuthLoading(false);
+        }
       }
     };
 
