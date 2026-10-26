@@ -34,6 +34,7 @@ module.exports = {
   // AI approval events
   AI_APPROVAL_REQUESTED: 'ai:approval_requested',
   AI_APPROVAL_UPDATED: 'ai:approval_updated',
+  SUPPORT_SESSION_STARTED: 'support:session_started',
 
   // Notification events
   NOTIFICATION: 'notification',

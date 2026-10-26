@@ -57,6 +57,8 @@ JSON parse gerekmez. `agentOrchestrator.js`'deki deterministik düzeltmeler art�
 ## Dağıtım modu (müşteri verisi bize gelmez)
 `DEPLOYMENT_MODE=cloud|onprem` (`backend/src/config/deployment.js`). onprem: AI yalnız yerel Ollama
 (aksi hâlde backend açılmaz), Sentry kapalı. Müşteri verisini bizim sunucumuza taşıyan çözüm önerme.
+Süreli destek erişimi (`/destek-girisi`, `supportAccessService.js`): müşteri yöneticisi izin verir, her
+destek isteği `audit_logs.is_support`; dışa aktarma ve kullanıcı/izin yönetimi destek oturumunda kapalı.
 Ayrıntı: **`docs/SIRKET-ICI-KURULUM.md`**.
 
 ## Önemli geçmiş (bu projede yapıldı)
@@ -91,7 +93,7 @@ Ayrıntı: **`docs/SIRKET-ICI-KURULUM.md`**.
 - Diğer modüllerde benzer form↔backend "drift" olabilir; test ederken çıkanlar tek tek düzeltiliyor.
 
 ## Çalışma konvansiyonları
-- Değişiklikten sonra: `cd backend && npx jest` (**155 test**, 2026-10-26) yeşil olmalı; create/endpoint
+- Değişiklikten sonra: `cd backend && npx jest` (**175 test**, 2026-10-26) yeşil olmalı; create/endpoint
   değişikliklerini gerçek istekle (curl, Origin: http://localhost:5173 + CSRF cookie) doğrula.
 - Backend `node server.js` ile çalışır (hot-reload yok) → kod değişince `docker compose restart backend`.
 - Commit mesajları Türkçe + `Co-Authored-By: Claude`. Komut timeout'larını kısa tut.

@@ -45,6 +45,7 @@ function buildMessage(eventType, p) {
   if (eventType === 'product:low_stock')    return `${p.productName || 'Ürün'} — kalan stok: ${p.stock ?? ''}`;
   if (eventType === 'product:created')      return `${p.name || 'Yeni ürün'} eklendi`;
   if (eventType === 'ai:approval_requested') return `${p.agent_tool || 'İşlem'} onayı gerekiyor`;
+  if (p.type === 'support_session_started') return p.message || 'Destek ekibi oturum açtı';
   return p.type || 'Yeni bildirim';
 }
 

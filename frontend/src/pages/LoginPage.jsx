@@ -165,6 +165,13 @@ export default function LoginPage() {
             </Button>
           </form>
 
+          <p className='mt-4 text-center text-xs text-gray-500 dark:text-gray-400'>
+            Helix-Ware destek ekibi misiniz?{' '}
+            <Link to='/destek-girisi' className='font-medium text-primary-600 hover:text-primary-500'>
+              Erişim koduyla giriş
+            </Link>
+          </p>
+
           <div className='mt-8 pt-6 border-t border-gray-100 dark:border-gray-800'>
              <div className='bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-100 dark:border-blue-800/30'>
                 <div className='flex items-start space-x-3'>

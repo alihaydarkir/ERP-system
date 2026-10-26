@@ -7,6 +7,7 @@ import GeneralSettings from '../components/Settings/GeneralSettings';
 import EmailSettings from '../components/Settings/EmailSettings';
 import StockSettings from '../components/Settings/StockSettings';
 import AISettings from '../components/Settings/AISettings';
+import SupportAccessSettings from '../components/Settings/SupportAccessSettings';
 
 export default function SettingsPage() {
   const [selectedCategory, setSelectedCategory] = useState('general');
@@ -31,7 +32,9 @@ export default function SettingsPage() {
     { id: 'general', label: 'Genel Ayarlar', icon: '⚙️' },
     { id: 'email', label: 'Email Ayarları', icon: '📧' },
     { id: 'stock', label: 'Stok Ayarları', icon: '📦' },
-    { id: 'ai', label: 'AI/Chatbot', icon: '🤖' }
+    { id: 'ai', label: 'AI/Chatbot', icon: '🤖' },
+    // Destek oturumu kendi iznini yönetemez
+    ...(user?.is_support ? [] : [{ id: 'support', label: 'Destek Erişimi', icon: '🛟' }])
   ];
 
   const renderSettings = () => {
@@ -44,6 +47,8 @@ export default function SettingsPage() {
         return <StockSettings />;
       case 'ai':
         return <AISettings />;
+      case 'support':
+        return <SupportAccessSettings />;
       default:
         return <GeneralSettings />;
     }

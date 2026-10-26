@@ -62,8 +62,26 @@ const notifyAIApprovalUpdated = ({ approval, status, actor_user_id, actor_role, 
   emitToUser(approval.requested_by_user_id, events.NOTIFICATION, payload);
 };
 
+// Destek oturumu açıldığında şirket yöneticileri anında haberdar olur
+const notifySupportSessionStarted = ({ companyId, grantId, accessLevel, expiresAt, ip }) => {
+  const payload = {
+    type: 'support_session_started',
+    message: 'Helix-Ware destek ekibi verdiğiniz izinle oturum açtı.',
+    grant_id: grantId,
+    access_level: accessLevel,
+    expires_at: expiresAt,
+    ip_address: ip || null,
+    company_id: companyId,
+    timestamp: new Date().toISOString()
+  };
+
+  emitToApprovers(events.SUPPORT_SESSION_STARTED, payload, companyId);
+  emitToApprovers(events.NOTIFICATION, payload, companyId);
+};
+
 module.exports = {
   setWebSocketHandlers,
   notifyAIApprovalRequested,
-  notifyAIApprovalUpdated
+  notifyAIApprovalUpdated,
+  notifySupportSessionStarted
 };

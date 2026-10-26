@@ -20,6 +20,7 @@ const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/RegisterPage'));
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
+const SupportLoginPage = lazy(() => import('./pages/SupportLoginPage'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
 const EmailVerificationPage = lazy(() => import('./pages/EmailVerificationPage'));
 const ProductsPage = lazy(() => import('./pages/ProductsPage'));
@@ -63,6 +64,7 @@ function App() {
       '/login',
       '/register',
       '/forgot-password',
+      '/destek-girisi',
       '/reset-password',
       '/privacy-policy',
       '/terms-of-service',
@@ -194,6 +196,7 @@ function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/destek-girisi" element={<SupportLoginPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/verify-email" element={<EmailVerificationPage />} />
           <Route path="/verify-email/:token" element={<EmailVerificationPage />} />
