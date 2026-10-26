@@ -20,8 +20,7 @@ export default function UserPermissions({ userId, role = 'user' }) {
         if (!mounted) return;
         setPermissions([]);
       } finally {
-        if (!mounted) return;
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     };
 

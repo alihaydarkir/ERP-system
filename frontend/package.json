@@ -12,7 +12,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:coverage": "vitest --coverage",
-    "lint": "eslint .",
+    "lint": "eslint . --ext .js,.jsx",
     "format": "prettier --write ."
   },
   "dependencies": {

@@ -15,12 +15,12 @@
 # Ön koşul: host'ta Ollama 0.0.0.0'a bind olmalı (container erişimi için)
 #   Windows: setx OLLAMA_HOST "0.0.0.0:11434"  + Ollama'yi yeniden baslat
 #   macOS:   launchctl setenv OLLAMA_HOST "0.0.0.0:11434" + yeniden baslat
-ollama pull qwen2.5:7b           # Önerilen (native tool calling + iyi Türkçe)
-# Modelfile'dan custom model oluştur (opsiyonel):
-# cd backend && ollama create erp-assistant-7b -f Modelfile && OLLAMA_MODEL=erp-assistant-7b
+ollama pull qwen3.5:9b           # Önerilen (8GB VRAM'e tam sığar, araç seçimi en iyisi)
+ollama pull nomic-embed-text     # RAG embedding modeli (zorunlu)
 
 # .env'ler: root .env (DB_PASSWORD, REDIS_PASSWORD, OLLAMA_MODEL) + backend/.env (JWT_SECRET)
-docker compose up -d             # postgres(pgvector)+redis+backend+frontend (Ollama HARIC)
+docker compose up -d --build -V  # postgres(pgvector)+redis+backend+frontend (Ollama HARIC)
+# -V şart: override'daki anonim /app/node_modules volume'ları yenilenmezse eski paketlerle açılır
 docker compose exec backend npm run seed     # Turkce demo veri (idempotent degil, fresh DB icin)
 ```
 - Frontend: **http://localhost:5173** · Backend API: http://localhost:5000
@@ -34,7 +34,8 @@ docker compose exec backend npm run seed     # Turkce demo veri (idempotent degi
 ## Model
 - **Windows RTX 4060 (8GB)**: `qwen3.5:9b` — %100 GPU (5.6GB), soru başına ~4-8 sn, 6/6 doğru araç.
   (gemma4:12b sığmıyor → timeout; qwen3.5:4b daha zayıf araç seçimi.)
-- **Diğer**: `qwen2.5:7b` · **Düşük VRAM (4GB)**: `qwen2.5:3b`. Root `.env`'de `OLLAMA_MODEL`.
+- Root `.env`'de `OLLAMA_MODEL=qwen3.5:9b`. Bu PC'de yalnızca qwen3.5:9b + nomic-embed-text
+  kurulu; başka model çekme/önerme. (Düşük VRAM'li müşteri cihazı için ayrıca ölçülmeli.)
 - `OLLAMA_NUM_CTX=8192` (tüm çağrılarda ortak): 40 aracın şeması ~4.4K token — 2048'de kırpılıp
   araç seçimi bozuluyordu; plan/cevap farklı ctx kullanınca Ollama her soruda modeli yeniden yüklüyordu.
 - `AI_THINK_PLAN` / `AI_THINK_RESPOND` (varsayılan false): düşünen modellerde thinking kontrolü.
@@ -79,13 +80,17 @@ JSON parse gerekmez. `agentOrchestrator.js`'deki deterministik düzeltmeler art�
   (hâlâ frontend jsPDF, `exportInvoiceToPDF`). Raporlar `#` sütunu 1'den artan (ASC).
 
 ## Bilinen kalan işler
-- 3B modelin Türkçe respond kalitesi (model kaynaklı; Mac'te büyük model çözer).
+- CI (`.github/workflows/ci.yml`, Node 24) yeşil. `deploy.yml` repo secrets tanımlı olmadığı için
+  "Validate Required Secrets" adımında bilerek durur — bu bir hata değil.
 - Fatura listesi seed'de boş (form çalışıyor — UI'dan eklenebilir).
 - Diğer modüllerde benzer form↔backend "drift" olabilir; test ederken çıkanlar tek tek düzeltiliyor.
 
 ## Çalışma konvansiyonları
-- Değişiklikten sonra: `cd backend && npx jest` (**108 test**) yeşil olmalı; create/endpoint
+- Değişiklikten sonra: `cd backend && npx jest` (**122 test**, 2026-10-26) yeşil olmalı; create/endpoint
   değişikliklerini gerçek istekle (curl, Origin: http://localhost:5173 + CSRF cookie) doğrula.
 - Backend `node server.js` ile çalışır (hot-reload yok) → kod değişince `docker compose restart backend`.
 - Commit mesajları Türkçe + `Co-Authored-By: Claude`. Komut timeout'larını kısa tut.
 - Validator'larda formdan gelen boş string'ler için `.empty('')`; opsiyonel email'de boş atlanır.
+- Klasöre özel kurallar `.claude/rules/` (backend, migrations, frontend) ilgili dosyaya dokununca
+  yüklenir. `.claude/hooks/lint.js`: her Edit/Write sonrası backend/frontend JS dosyasını ESLint ile
+  kontrol eder (dosyayı değiştirmez). Prettier'ı toplu uygulama: kodun çoğu formatsız, diff şişer.

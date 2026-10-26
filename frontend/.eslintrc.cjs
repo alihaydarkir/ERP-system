@@ -13,6 +13,7 @@ module.exports = {
   extends: [
     'eslint:recommended',
     'plugin:react/recommended',
+    'plugin:react/jsx-runtime', // Vite yeni JSX dönüşümü: `import React` gerekmez
   ],
   parserOptions: {
     ecmaVersion: 'latest',
@@ -34,9 +35,25 @@ module.exports = {
         expect: 'readonly',
       },
     },
+    {
+      // vitest.config.js: globals: true
+      files: ['src/**/*.test.{js,jsx}'],
+      globals: {
+        describe: 'readonly',
+        it: 'readonly',
+        test: 'readonly',
+        expect: 'readonly',
+        vi: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
+      },
+    },
   ],
   rules: {
     'react/prop-types': 'off',
+    'react/no-unescaped-entities': 'off',
     'no-unused-vars': 'warn',
     'prefer-const': 'error',
   },

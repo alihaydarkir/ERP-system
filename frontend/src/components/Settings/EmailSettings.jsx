@@ -3,7 +3,7 @@ import useSettingsStore from '../../store/settingsStore';
 import useUIStore from '../../store/uiStore';
 
 export default function EmailSettings() {
-  const { settings, updateSetting, isLoading } = useSettingsStore();
+  const { settings, bulkUpdateSettings, testEmail, isLoading } = useSettingsStore();
   const { showSuccess, showError, showInfo } = useUIStore();
   const [formData, setFormData] = useState({
     emailSmtpHost: '',
