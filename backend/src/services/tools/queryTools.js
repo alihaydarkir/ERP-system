@@ -1,5 +1,6 @@
 const pool = require('../../config/database');
 const axios = require('axios');
+const { externalRatesAllowed } = require('../../config/deployment');
 
 // Türkçe büyük/küçük harf duyarsız LIKE: C/POSIX collation'da ILIKE Türkçe
 // büyük harfleri (İ, Ş, Ğ...) eşleyemez — "yılmaz inşaat" araması
@@ -636,6 +637,9 @@ const queryTools = {
   },
 
   async get_currency_rates() {
+    if (!externalRatesAllowed()) {
+      return { USD: null, EUR: null, GBP: null, summary_text: 'Kur bilgisi bu kurulumda kapalı (ALLOW_EXTERNAL_RATES=false).' };
+    }
     try {
       const res = await axios.get('https://open.er-api.com/v6/latest/USD', { timeout: 5000 });
       const r = res.data?.rates || {};

@@ -128,7 +128,10 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       # Host'taki (native) Ollama'ya bağlan — container değil
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3.5:9b}
+      # cloud | onprem — onprem'de AI yalnız yerel Ollama, Sentry kapalı (src/config/deployment.js)
+      DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-cloud}
+      ALLOW_EXTERNAL_RATES: ${ALLOW_EXTERNAL_RATES:-true}
     # host.docker.internal Linux'ta otomatik çözülmez; Mac/Windows Docker Desktop'ta
     # gereksiz ama zararsız — taşınabilirlik için ekli.
     extra_hosts:

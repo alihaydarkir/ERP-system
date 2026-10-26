@@ -54,6 +54,11 @@ JSON parse gerekmez. `agentOrchestrator.js`'deki deterministik düzeltmeler art�
 - Araçlar: `backend/src/services/tools/` (queryTools, mutationTools, toolSchemas, toolPermissionMatrix).
 - Tam mimari + hata haritası: **`docs/SISTEM_HARITASI.md`**.
 
+## Dağıtım modu (müşteri verisi bize gelmez)
+`DEPLOYMENT_MODE=cloud|onprem` (`backend/src/config/deployment.js`). onprem: AI yalnız yerel Ollama
+(aksi hâlde backend açılmaz), Sentry kapalı. Müşteri verisini bizim sunucumuza taşıyan çözüm önerme.
+Ayrıntı: **`docs/SIRKET-ICI-KURULUM.md`**.
+
 ## Önemli geçmiş (bu projede yapıldı)
 - **Docker'a taşıma**: Ollama harici (host); `.dockerignore` (4GB GGUF dışlandı);
   bcrypt→bcryptjs (native derleme yok, arm64 uyumlu); frontend dev build `target: build` +
@@ -86,7 +91,7 @@ JSON parse gerekmez. `agentOrchestrator.js`'deki deterministik düzeltmeler art�
 - Diğer modüllerde benzer form↔backend "drift" olabilir; test ederken çıkanlar tek tek düzeltiliyor.
 
 ## Çalışma konvansiyonları
-- Değişiklikten sonra: `cd backend && npx jest` (**122 test**, 2026-10-26) yeşil olmalı; create/endpoint
+- Değişiklikten sonra: `cd backend && npx jest` (**155 test**, 2026-10-26) yeşil olmalı; create/endpoint
   değişikliklerini gerçek istekle (curl, Origin: http://localhost:5173 + CSRF cookie) doğrula.
 - Backend `node server.js` ile çalışır (hot-reload yok) → kod değişince `docker compose restart backend`.
 - Commit mesajları Türkçe + `Co-Authored-By: Claude`. Komut timeout'larını kısa tut.

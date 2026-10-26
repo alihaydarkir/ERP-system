@@ -1,11 +1,13 @@
 const Joi = require('joi');
 const dotenv = require('dotenv');
+const { DEPLOYMENT_MODES, getOnPremViolations, isOnPrem } = require('./deployment');
 
 // Load .env once and validate eagerly
 dotenv.config();
 
 const envSchema = Joi.object({
   NODE_ENV: Joi.string().valid('development', 'test', 'production').default('development'),
+  DEPLOYMENT_MODE: Joi.string().lowercase().valid(...DEPLOYMENT_MODES).default('cloud'),
   PORT: Joi.number().integer().min(1).max(65535).default(5000),
   CORS_ORIGINS: Joi.string().allow('', null),
   ALLOWED_HOSTS: Joi.string().allow('', null),
@@ -37,6 +39,13 @@ const { value: env, error } = envSchema.validate(process.env, {
 if (error) {
   console.error('❌ Invalid environment configuration:');
   error.details.forEach((detail) => console.error(`- ${detail.message}`));
+  process.exit(1);
+}
+
+const onPremViolations = getOnPremViolations(env);
+if (onPremViolations.length > 0) {
+  console.error('❌ Şirket içi kurulum (DEPLOYMENT_MODE=onprem) kuralları ihlal ediliyor:');
+  onPremViolations.forEach((msg) => console.error(`- ${msg}`));
   process.exit(1);
 }
 
@@ -95,6 +104,8 @@ const toBoolean = (value, fallback = true) => {
 
 const config = {
   nodeEnv: env.NODE_ENV,
+  deploymentMode: env.DEPLOYMENT_MODE,
+  isOnPrem: isOnPrem(env),
   port: env.PORT,
   corsOrigins: parseCorsOrigins(env.CORS_ORIGINS),
   rateLimitMax: env.RATE_LIMIT_MAX || (env.NODE_ENV === 'production' ? 100 : 1000),
