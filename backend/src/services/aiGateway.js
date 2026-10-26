@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { getOnPremViolations } = require('../config/deployment');
 
 class AIGateway {
   constructor() {
@@ -57,6 +58,16 @@ class AIGateway {
   ensureProviderSupported() {
     if (!['ollama', 'openai', 'azure'].includes(this.provider)) {
       throw new Error(`Desteklenmeyen AI provider: ${this.provider}`);
+    }
+
+    // Açılış kontrolüne (config/env.js) ek savunma: her AI çağrısında da onprem kuralı uygulanır.
+    const [violation] = getOnPremViolations({
+      ...process.env,
+      AI_PROVIDER: this.provider,
+      OLLAMA_BASE_URL: this.ollamaUrl,
+    });
+    if (violation) {
+      throw new Error(violation);
     }
   }
 

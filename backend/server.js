@@ -8,6 +8,7 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./src/config/swagger');
 const aiService = require('./src/services/aiService');
 const { config } = require('./src/config/env');
+const { isSentryEnabled: isSentryEnabledFor } = require('./src/config/deployment');
 const { redisClient: getRedisClient, connectRedis, isRedisConnected } = require('./src/config/redis');
 const {
   generalApiLimiter,
@@ -19,7 +20,7 @@ const {
 
 const app = express();
 const server = http.createServer(app);
-const isSentryEnabled = process.env.NODE_ENV === 'production' && Boolean(process.env.SENTRY_DSN);
+const isSentryEnabled = isSentryEnabledFor(process.env); // onprem'de her zaman kapalı
 
 if (isSentryEnabled) {
   Sentry.init({

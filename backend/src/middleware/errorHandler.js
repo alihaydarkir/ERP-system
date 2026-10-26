@@ -1,6 +1,7 @@
 const { randomUUID } = require('crypto');
 const Sentry = require('@sentry/node');
 const { logger } = require('./logger');
+const { isSentryEnabled: isSentryEnabledFor } = require('../config/deployment');
 
 const VALIDATION_CODES = new Set(['VALIDATION_ERROR', 'BAD_REQUEST', 'INVALID_INPUT']);
 const NOT_FOUND_CODES = new Set(['NOT_FOUND']);
@@ -49,7 +50,7 @@ const resolveErrorMeta = (err = {}) => {
 
 const errorHandler = (err, req, res, next) => {
   const isDevelopment = process.env.NODE_ENV === 'development';
-  const isSentryEnabled = process.env.NODE_ENV === 'production' && Boolean(process.env.SENTRY_DSN);
+  const isSentryEnabled = isSentryEnabledFor(process.env); // onprem'de her zaman kapalı
   const requestId = req.requestId || req.headers['x-request-id'] || randomUUID();
   const { status, type, safeMessage } = resolveErrorMeta(err || {});
 
