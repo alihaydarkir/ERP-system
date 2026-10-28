@@ -1,3 +1,6 @@
+// Tanı paketi için console.error/warn çıktısını maskeleyerek halkada tut (en başta: açılış hataları da girsin)
+require('./src/services/diagnosticsService').install();
+
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');

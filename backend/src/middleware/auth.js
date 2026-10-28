@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const pool = require('../config/database');
 const { config } = require('../config/env');
 const supportAccess = require('../services/supportAccessService');
+const { superAdminAllowed } = require('../config/deployment');
 
 const hashToken = (token) => crypto.createHash('sha256').update(String(token || '')).digest('hex');
 const getCookieValue = (req, name) => {
@@ -71,6 +72,11 @@ const authMiddleware = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, config.jwt.secret);
+
+    // onprem'de super_admin: mod sonradan açıldıysa elde kalan token'lar da geçmez
+    if (decoded.role === 'super_admin' && !superAdminAllowed()) {
+      return res.status(401).json({ error: 'super_admin is disabled in on-prem mode' });
+    }
 
     // Revoked token kontrolü (tablo henüz migrate edilmediyse isteği bloklama)
     try {

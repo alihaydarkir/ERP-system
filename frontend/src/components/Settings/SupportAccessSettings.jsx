@@ -30,6 +30,7 @@ export default function SupportAccessSettings() {
   const [active, setActive] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [newCode, setNewCode] = useState(null);
   const [activity, setActivity] = useState({ grantId: null, rows: [] });
   const [formData, setFormData] = useState({ duration_hours: 4, access_level: 'read', reason: '' });
@@ -82,6 +83,18 @@ export default function SupportAccessSettings() {
     }
   };
 
+  const handleDiagnostics = async () => {
+    setDownloading(true);
+    try {
+      await supportService.downloadDiagnostics();
+      showSuccess('Tanı paketi indirildi. Dosyayı destek ekibine e-postayla gönderebilirsiniz.');
+    } catch (error) {
+      showError(error.response?.data?.message || 'Tanı paketi oluşturulamadı');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const toggleActivity = async (grantId) => {
     if (activity.grantId === grantId) {
       setActivity({ grantId: null, rows: [] });
@@ -104,6 +117,23 @@ export default function SupportAccessSettings() {
           Erişim siz vermeden açılmaz, süre dolunca kendiliğinden kapanır ve istediğiniz an iptal edebilirsiniz.
           Destek ekibinin yaptığı her işlem aşağıda kayıt altındadır. Destek oturumunda veriler dışa aktarılamaz.
         </p>
+      </div>
+
+      <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-5 space-y-3">
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Önce tanı paketi</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-300">
+          Çoğu sorun, sisteme girmeye gerek kalmadan tanı paketiyle çözülür. Paket sürüm, sistem durumu ve son hata
+          kayıtlarını içerir; <strong>müşteri, ürün, sipariş gibi kayıtlarınızı içermez</strong>. Hata mesajlarındaki
+          e-posta, telefon, IBAN ve benzeri değerler maskelenir. Göndermeden önce dosyayı açıp inceleyebilirsiniz.
+        </p>
+        <button
+          type="button"
+          onClick={handleDiagnostics}
+          disabled={downloading}
+          className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition disabled:opacity-50"
+        >
+          {downloading ? 'Hazırlanıyor…' : 'Tanı paketi indir'}
+        </button>
       </div>
 
       {newCode && (

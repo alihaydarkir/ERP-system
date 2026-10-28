@@ -1,7 +1,7 @@
 import api from './api';
 
 /** Blob'u dosya olarak indirir */
-function triggerDownload(blobData, filename) {
+export function triggerDownload(blobData, filename) {
   const url = URL.createObjectURL(new Blob([blobData]));
   const a = document.createElement('a');
   a.href = url;

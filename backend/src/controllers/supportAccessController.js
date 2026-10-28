@@ -1,5 +1,11 @@
 const supportAccess = require('../services/supportAccessService');
+const diagnostics = require('../services/diagnosticsService');
+const aiService = require('../services/aiService');
+const AuditLog = require('../models/AuditLog');
+const pool = require('../config/database');
+const { redisClient: getRedisClient, isRedisConnected } = require('../config/redis');
 const { formatSuccess, formatError } = require('../utils/formatters');
+const { getClientIP } = require('../utils/helpers');
 
 const handleError = (res, error, fallback) => {
   if (error.status) {
@@ -72,9 +78,43 @@ const getGrantActivity = async (req, res) => {
   }
 };
 
+// GET /api/support/diagnostics — müşteri kaydı içermeyen tanı paketi (JSON dosyası olarak iner)
+const downloadDiagnostics = async (req, res) => {
+  try {
+    const bundle = await diagnostics.buildBundle({
+      pool,
+      checkAi: () => aiService.checkHealth(),
+      getRedisStatus: async () => {
+        const client = getRedisClient();
+        if (!client || !isRedisConnected()) return 'unavailable';
+        await client.ping();
+        return 'ok';
+      },
+      company: { id: req.user.company_id }
+    });
+
+    await AuditLog.create({
+      user_id: req.user.id,
+      action: 'DIAGNOSTICS_DOWNLOAD',
+      entity_type: 'diagnostics',
+      entity_id: null,
+      company_id: req.user.company_id,
+      ip_address: getClientIP(req),
+      changes: { recent_errors: bundle.recent_errors.length }
+    });
+
+    const stamp = bundle.generated_at.slice(0, 16).replace(/[-:T]/g, '');
+    res.setHeader('Content-Disposition', `attachment; filename="helix-tani-${stamp}.json"`);
+    res.json(bundle);
+  } catch (error) {
+    handleError(res, error, 'Tanı paketi oluşturulamadı');
+  }
+};
+
 module.exports = {
   listGrants,
   createGrant,
   revokeGrant,
-  getGrantActivity
+  getGrantActivity,
+  downloadDiagnostics
 };

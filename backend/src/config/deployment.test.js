@@ -4,6 +4,7 @@ const {
   isPrivateHost,
   getOnPremViolations,
   isSentryEnabled,
+  superAdminAllowed,
   externalRatesAllowed,
 } = require('./deployment');
 
@@ -85,6 +86,13 @@ describe('deployment modu', () => {
     expect(externalRatesAllowed({ DEPLOYMENT_MODE: 'onprem' })).toBe(true);
     expect(externalRatesAllowed({ ALLOW_EXTERNAL_RATES: 'false' })).toBe(false);
     expect(externalRatesAllowed({ ALLOW_EXTERNAL_RATES: 'FALSE' })).toBe(false);
+  });
+
+  it('super_admin yalnız cloud modunda', () => {
+    expect(superAdminAllowed({})).toBe(true);
+    expect(superAdminAllowed({ DEPLOYMENT_MODE: 'cloud' })).toBe(true);
+    expect(superAdminAllowed({ DEPLOYMENT_MODE: 'onprem' })).toBe(false);
+    expect(superAdminAllowed({ DEPLOYMENT_MODE: ' OnPrem ' })).toBe(false);
   });
 });
 

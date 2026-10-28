@@ -97,4 +97,48 @@ describe('auth middleware — destek oturumu', () => {
     expect(supportAccess.getActiveGrantForRequest).not.toHaveBeenCalled();
     expect(req.user.is_support).toBeUndefined();
   });
+
+  it('destek oturumu tanı paketini indiremez', () => {
+    expect(supportAccess.getSupportDenial({ method: 'GET', path: '/api/support/diagnostics', accessLevel: 'edit' }))
+      .toMatchObject({ status: 403 });
+  });
+});
+
+describe('auth middleware — onprem super_admin', () => {
+  const superToken = tokenFor({ userId: 1, username: 'root', role: 'super_admin', company_id: 1 });
+  const originalMode = process.env.DEPLOYMENT_MODE;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    pool.query.mockImplementation(async (sql) => {
+      if (/FROM user_sessions/.test(sql)) return { rows: [{ id: 1 }] };
+      return { rows: [] };
+    });
+  });
+
+  afterEach(() => {
+    if (originalMode === undefined) delete process.env.DEPLOYMENT_MODE;
+    else process.env.DEPLOYMENT_MODE = originalMode;
+  });
+
+  it('onprem: elde kalan super_admin token\'ı 401', async () => {
+    process.env.DEPLOYMENT_MODE = 'onprem';
+    const res = makeRes();
+    const next = jest.fn();
+
+    await authMiddleware(makeReq('GET', '/api/customers', superToken), res, next);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('cloud: super_admin geçer', async () => {
+    process.env.DEPLOYMENT_MODE = 'cloud';
+    const res = makeRes();
+    const next = jest.fn();
+
+    await authMiddleware(makeReq('GET', '/api/customers', superToken), res, next);
+
+    expect(next).toHaveBeenCalled();
+  });
 });

@@ -12,6 +12,7 @@ const { formatUser, formatSuccess, formatError } = require('../utils/formatters'
 const { getClientIP } = require('../utils/helpers');
 const { config } = require('../config/env');
 const supportAccess = require('../services/supportAccessService');
+const { superAdminAllowed } = require('../config/deployment');
 const notifier = require('../websocket/notifier');
 
 const hashToken = (token) => crypto.createHash('sha256').update(String(token || '')).digest('hex');
@@ -337,9 +338,10 @@ const login = async (req, res) => {
       return res.status(429).json(formatError('Çok fazla başarısız giriş denemesi. Lütfen 15 dakika sonra tekrar deneyin.'));
     }
 
-    // Find user by email (destek hesabı normal girişle kullanılamaz: yalnızca erişim koduyla)
+    // Find user by email (destek hesabı normal girişle kullanılamaz: yalnızca erişim koduyla;
+    // onprem'de super_admin hiç giriş yapamaz)
     const user = await User.findByEmail(email);
-    if (!user || user.role === 'support') {
+    if (!user || user.role === 'support' || (user.role === 'super_admin' && !superAdminAllowed())) {
       // Başarısız denemeyi kaydet
       await pool.query(`
         INSERT INTO login_attempts (ip_address, username, success, user_agent)
@@ -508,6 +510,11 @@ const refreshToken = async (req, res) => {
     const user = await User.findById(decoded.userId);
     if (!user) {
       return res.status(401).json(formatError('User not found'));
+    }
+
+    if (user.role === 'super_admin' && !superAdminAllowed()) {
+      clearAuthCookies(res);
+      return res.status(401).json(formatError('Bu kurulumda super_admin oturumu açılamaz'));
     }
 
     // Destek oturumu: izin hâlâ geçerliyse yenile, yeni oturum izin bitişini aşamaz
