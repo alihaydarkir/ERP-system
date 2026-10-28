@@ -10,7 +10,7 @@ const nodemailer = require('nodemailer');
  */
 const getAllSettings = async (req, res) => {
   try {
-    const settings = await Settings.findAll();
+    const settings = await Settings.findAll(req.user.company_id);
     res.json(formatSuccess(settings));
   } catch (error) {
     console.error('Get all settings error:', error);
@@ -23,7 +23,7 @@ const getAllSettings = async (req, res) => {
  */
 const getSettingsByCategory = async (req, res) => {
   try {
-    const grouped = await Settings.findAllGrouped();
+    const grouped = await Settings.findAllGrouped(req.user.company_id);
     res.json(formatSuccess(grouped));
   } catch (error) {
     console.error('Get settings by category error:', error);
@@ -37,7 +37,7 @@ const getSettingsByCategory = async (req, res) => {
 const getSettingByKey = async (req, res) => {
   try {
     const { key } = req.params;
-    const setting = await Settings.findByKey(key);
+    const setting = await Settings.findByKey(key, req.user.company_id);
 
     if (!setting) {
       return res.status(404).json(formatError('Setting not found'));
@@ -60,12 +60,14 @@ const updateSetting = async (req, res) => {
     const userId = req.user.id;
 
     // Check if setting exists
-    const existing = await Settings.findByKey(key);
+    const existing = await Settings.findByKey(key, req.user.company_id);
     if (!existing) {
       return res.status(404).json(formatError('Setting not found'));
     }
 
-    const setting = await Settings.update(key, value, userId);
+    const setting = await Settings.update(key, value, userId, req.user.company_id);
+    // Gizli ayarların değeri audit/activity kayıtlarına açık yazılmaz
+    const loggedValue = Settings.maskValue(key, value);
 
     // Log the action
     await AuditLog.create({
@@ -75,7 +77,7 @@ const updateSetting = async (req, res) => {
       company_id: req.user.company_id,
       entity_id: setting.id,
       ip_address: getClientIP(req),
-      changes: { key, old_value: existing.value, new_value: value }
+      changes: { key, old_value: existing.value, new_value: loggedValue }
     });
 
     // Log to activity logs
@@ -83,7 +85,7 @@ const updateSetting = async (req, res) => {
       userId,
       'update_setting',
       'settings',
-      { key, old_value: existing.value, new_value: value },
+      { key, old_value: existing.value, new_value: loggedValue },
       req
     );
 
@@ -102,7 +104,7 @@ const bulkUpdateSettings = async (req, res) => {
     const settings = req.body;
     const userId = req.user.id;
 
-    const updatedSettings = await Settings.bulkUpdate(settings, userId);
+    const updatedSettings = await Settings.bulkUpdate(settings, userId, req.user.company_id);
 
     // Log the action
     await AuditLog.create({
@@ -139,12 +141,13 @@ const testEmail = async (req, res) => {
     const { to } = req.body;
 
     // Get email settings
-    const smtpHost = await Settings.findByKey('emailSmtpHost');
-    const smtpPort = await Settings.findByKey('emailSmtpPort');
-    const smtpUsername = await Settings.findByKey('emailSmtpUsername');
-    const smtpPassword = await Settings.findByKey('emailSmtpPassword');
-    const fromAddress = await Settings.findByKey('emailFromAddress');
-    const fromName = await Settings.findByKey('emailFromName');
+    const companyId = req.user.company_id;
+    const smtpHost = await Settings.findByKey('emailSmtpHost', companyId);
+    const smtpPort = await Settings.findByKey('emailSmtpPort', companyId);
+    const smtpUsername = await Settings.findByKey('emailSmtpUsername', companyId);
+    const smtpPassword = await Settings.findByKey('emailSmtpPassword', companyId, { reveal: true });
+    const fromAddress = await Settings.findByKey('emailFromAddress', companyId);
+    const fromName = await Settings.findByKey('emailFromName', companyId);
 
     if (!smtpHost || !smtpPort || !fromAddress) {
       return res.status(400).json(formatError('Email settings not configured'));
@@ -196,7 +199,7 @@ const createSetting = async (req, res) => {
     const userId = req.user.id;
     const settingData = req.body;
 
-    const setting = await Settings.create(settingData, userId);
+    const setting = await Settings.create(settingData, userId, req.user.company_id);
 
     // Log the action
     await AuditLog.create({
@@ -229,7 +232,7 @@ const deleteSetting = async (req, res) => {
     const { key } = req.params;
     const userId = req.user.id;
 
-    const setting = await Settings.delete(key);
+    const setting = await Settings.delete(key, req.user.company_id);
 
     if (!setting) {
       return res.status(404).json(formatError('Setting not found'));
