@@ -214,9 +214,10 @@ const listGrantActivity = async (grantId, companyId, limit = 200) => {
 };
 
 // Destek oturumunun hiçbir zaman yapamayacağı işlemler (yetki seviyesinden bağımsız):
-// kendi iznini uzatma, kullanıcı/rol/şifre/2FA yönetimi.
+// kendi iznini uzatma, tanı paketi indirme (müşteri kendisi gönderir), kullanıcı/rol/şifre/2FA yönetimi.
+const SUPPORT_SELF_PATHS = /^\/api\/support\/(grants|diagnostics)/;
 const SUPPORT_FORBIDDEN_PATHS = [
-  /^\/api\/support\/grants/,
+  SUPPORT_SELF_PATHS,
   /^\/api\/user-management/,
   /^\/api\/permissions/,
   /^\/api\/admin\/users/,
@@ -242,7 +243,7 @@ const getSupportDenial = ({ method, path, accessLevel }) => {
     return { status: 403, message: 'Destek oturumunda dışa aktarma yapılamaz.' };
   }
   const isRead = READ_METHODS.includes(method);
-  if (SUPPORT_FORBIDDEN_PATHS.some((re) => re.test(path)) && !(isRead && !/^\/api\/support\/grants/.test(path))) {
+  if (SUPPORT_FORBIDDEN_PATHS.some((re) => re.test(path)) && !(isRead && !SUPPORT_SELF_PATHS.test(path))) {
     return { status: 403, message: 'Bu işlem destek oturumunda yapılamaz.' };
   }
   if (accessLevel !== 'edit' && !isRead && !SESSION_PATHS.some((re) => re.test(path))) {

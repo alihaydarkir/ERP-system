@@ -22,6 +22,7 @@ Varsayılan `cloud`'dur; bu durumda hiçbir davranış değişmez (demo ve geli�
 | Ollama adresi | `OLLAMA_BASE_URL` yerel/özel ağda olmalı (localhost, `host.docker.internal`, docker servis adı, 10.x, 172.16–31.x, 192.168.x, `*.local`). Dışarıdaki adres → backend açılmaz. | aynı |
 | Ek savunma | Ayar sonradan değişse bile her AI çağrısında aynı kural tekrar kontrol edilir. | `src/services/aiGateway.js` (`ensureProviderSupported`) |
 | Hata takibi (Sentry, backend) | `SENTRY_DSN` tanımlı olsa bile **kapalı** (hata kayıtlarında müşteri verisi olabilir). | `server.js`, `src/middleware/errorHandler.js` |
+| super_admin rolü | Şirketler arası her şeyi gören rol müşteri cihazında arka kapı olurdu: giriş, token yenileme ve elde kalan token'lar **401**. | `src/config/deployment.js` (`superAdminAllowed`), `controllers/authController.js`, `middleware/auth.js` |
 | Hata takibi (Sentry, frontend) | Frontend imajında Sentry yok: `.env*` dosyaları Docker derlemesine girmez (`.dockerignore`) ve `Dockerfile.frontend` `VITE_SENTRY_DSN` almaz. Müşteri imajına **eklenmemeli**. | `frontend/src/main.jsx` |
 
 Kural ihlalinde açılış hatası örneği:
@@ -72,13 +73,32 @@ Kod: `backend/src/services/supportAccessService.js`, `middleware/auth.js` (`appl
 
 ### Uzaktan bağlantı (kademeli)
 
-1. **Tanı paketi** — içeri girmeden: müşteri verisi içermeyen, maskelenmiş sistem logları (sonraki PR).
+1. **Tanı paketi** — içeri girmeden: müşteri verisi içermeyen, maskelenmiş sistem özeti (aşağıda).
 2. **Ekran paylaşımı** — fareyi müşteri kullanır (Meet/AnyDesk izleme modu); uygulamaya girmeyiz.
 3. **Destek erişimi + geçici tünel** — gerçekten içeri girmek gerekirse: müşteri `destek-tuneli.ps1`
    ile yalnızca ERP'nin web arayüzünü açan geçici bir tünel başlatır (gelen port açılmaz, süre dolunca
    kapanır), üstüne yukarıdaki erişim koduyla girilir. Betik kurulum paketiyle gelecek.
 
 AnyDesk ile tam kontrol önerilmez: ERP'yi değil bütün bilgisayarı açar.
+
+### Tanı paketi
+
+Müşteri yöneticisi **Ayarlar → Destek Erişimi → Tanı paketi indir** ile `helix-tani-YYYYMMDDHHmm.json`
+indirir ve desteğe e-postayla gönderir (`GET /api/support/diagnostics`). Destek oturumu ve yönetici
+olmayan kullanıcılar indiremez; her indirme `audit_logs`'a `DIAGNOSTICS_DOWNLOAD` olarak yazılır.
+
+| İçerir | İçermez |
+|---|---|
+| Uygulama sürümü, Node/OS, bellek, çalışma süresi | Müşteri, ürün, sipariş, çek, fatura, kullanıcı kayıtları (bu tablolar sorgulanmaz) |
+| Yapılandırma özeti: mod, AI sağlayıcı/model, Ollama yerel mi, Sentry/Redis/SMTP açık mı | Şifre, JWT secret, DSN, SMTP sunucu adı, Ollama adresi |
+| Sağlık: DB sürümü/boyutu, Redis, AI (yüklü modeller) | |
+| Migration durumu: uygulanan sayı, son 3, bekleyenler | |
+| Son 300 `console.error`/`warn` kaydı + `logs/error.log` son 200 satır, **maskeli** | |
+
+Maskeleme kayıt halkaya **yazılırken** yapılır, ham hali saklanmaz (`src/services/diagnosticsService.js`):
+e-posta, JWT, `password=`/`token:` gibi sırlar, IBAN, 9+ haneli numaralar (telefon, vergi no), IP,
+URL parametreleri, Postgres `Key (x)=(değer)` detayları ve tırnak içi değerler (`'id'`, `"company_id"`
+gibi kod tanımlayıcıları okunabilir kalır). Halka bellekte durur; backend yeniden başlayınca boşalır.
 
 ### KVKK / veri işleyen sözleşmesine girecek maddeler
 
@@ -91,8 +111,6 @@ AnyDesk ile tam kontrol önerilmez: ERP'yi değil bütün bilgisayarı açar.
 
 ## Sonraki adımlar (ayrı PR'lar)
 
-1. **Tanı paketi + `super_admin` kısıtı:** müşteri verisi içermeyen, maskelenmiş "tanı paketi" indirme;
-   onprem'de `super_admin` rolünün devre dışı kalması.
-2. **Şifreli yedek:** Dump'lar müşterinin parolasıyla şifrelenir, geri yükleme betiği.
-3. **Kurulum betiği:** `kurulum.ps1` / `install.sh`; şifreler müşterinin makinesinde üretilir,
+1. **Şifreli yedek:** Dump'lar müşterinin parolasıyla şifrelenir, geri yükleme betiği.
+2. **Kurulum betiği:** `kurulum.ps1` / `install.sh`; şifreler müşterinin makinesinde üretilir,
    güncellemeler GHCR'den çekilir (müşteriden bize bağlantı açılmaz).

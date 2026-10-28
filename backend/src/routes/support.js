@@ -7,7 +7,8 @@ const {
   listGrants,
   createGrant,
   revokeGrant,
-  getGrantActivity
+  getGrantActivity,
+  downloadDiagnostics
 } = require('../controllers/supportAccessController');
 
 // Yalnızca müşterinin kendi yöneticisi (destek oturumu kendi iznini yönetemez)
@@ -25,5 +26,6 @@ router.get('/grants', authMiddleware, isCompanyAdmin, listGrants);
 router.post('/grants', authMiddleware, isCompanyAdmin, createGrant);
 router.post('/grants/:id/revoke', authMiddleware, isCompanyAdmin, validateId, revokeGrant);
 router.get('/grants/:id/activity', authMiddleware, isCompanyAdmin, validateId, getGrantActivity);
+router.get('/diagnostics', authMiddleware, isCompanyAdmin, downloadDiagnostics);
 
 module.exports = router;

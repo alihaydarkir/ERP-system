@@ -59,6 +59,10 @@ const getOnPremViolations = (env = process.env) => {
 const isSentryEnabled = (env = process.env) =>
   env.NODE_ENV === 'production' && Boolean(env.SENTRY_DSN) && !isOnPrem(env);
 
+// super_admin şirketler arası her şeyi görür; müşteri cihazında bu bir arka kapı olur.
+// onprem'de bu rolle giriş, token yenileme ve mevcut token'lar reddedilir.
+const superAdminAllowed = (env = process.env) => !isOnPrem(env);
+
 // Döviz kuru aracı (open.er-api.com): müşteri verisi göndermez; varsayılan açık.
 const externalRatesAllowed = (env = process.env) =>
   String(env.ALLOW_EXTERNAL_RATES ?? 'true').trim().toLowerCase() !== 'false';
@@ -70,5 +74,6 @@ module.exports = {
   isPrivateHost,
   getOnPremViolations,
   isSentryEnabled,
+  superAdminAllowed,
   externalRatesAllowed,
 };
