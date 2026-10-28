@@ -5,6 +5,7 @@ import usePermissionStore from '../store/permissionStore';
 import { authService } from '../services/authService';
 import CurrencyTicker from './CurrencyTicker';
 import NotificationBell from './Notifications/NotificationBell';
+import SupportSessionBanner from './SupportSessionBanner';
 import {
   LayoutDashboard, Package, Warehouse, ShoppingCart, Users, Truck,
   CreditCard, FileText, Activity, MessageSquare, BarChart3,
@@ -211,6 +212,7 @@ export default function Layout({ children }) {
       <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${sidebarOpen ? 'pl-72' : 'pl-20'}`}>
         
         {/* Top Header */}
+        {user?.is_support && <SupportSessionBanner support={user.support} />}
         <header className="sticky top-0 z-40 bg-white dark:bg-gray-900/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-700/50 shadow-sm h-16 transition-colors duration-300">
           <div className="h-full px-8 flex items-center justify-between">
             <div className="flex items-center space-x-4">

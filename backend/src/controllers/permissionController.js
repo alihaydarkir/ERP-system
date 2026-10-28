@@ -99,8 +99,11 @@ exports.getUserPermissions = async (req, res) => {
 // Get current user's permissions
 exports.getMyPermissions = async (req, res) => {
   try {
-    const permissions = await PermissionService.getUserPermissions(req.user.id);
-    
+    // Destek oturumu yönetici gibi görür (yazma/dışa aktarma kısıtları auth middleware'de)
+    const permissions = req.user.is_support
+      ? await PermissionService.getRolePermissions('admin')
+      : await PermissionService.getUserPermissions(req.user.id);
+
     res.json({
       success: true,
       data: permissions

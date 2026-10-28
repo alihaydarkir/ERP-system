@@ -11,6 +11,8 @@ const cacheService = require('../services/cacheService');
 const { formatUser, formatSuccess, formatError } = require('../utils/formatters');
 const { getClientIP } = require('../utils/helpers');
 const { config } = require('../config/env');
+const supportAccess = require('../services/supportAccessService');
+const notifier = require('../websocket/notifier');
 
 const hashToken = (token) => crypto.createHash('sha256').update(String(token || '')).digest('hex');
 const generateSecureToken = () => crypto.randomBytes(32).toString('hex');
@@ -80,20 +82,29 @@ const clearAuthCookies = (res) => {
   res.clearCookie('csrf_token', { path: '/' });
 };
 
+// Destek oturumunda token'a izin (grant) numarası eklenir; auth middleware her istekte bu izni kontrol eder.
 const signAccessToken = (user) => jwt.sign(
-  { jti: crypto.randomBytes(16).toString('hex'), userId: user.id, username: user.username, role: user.role, company_id: user.company_id },
+  {
+    jti: crypto.randomBytes(16).toString('hex'),
+    userId: user.id,
+    username: user.username,
+    role: user.role,
+    company_id: user.company_id,
+    ...(user.support_grant_id ? { support_grant_id: user.support_grant_id } : {})
+  },
   config.jwt.secret,
   { expiresIn: config.jwt.expiresIn }
 );
 
 const signRefreshToken = (user, sessionId) => jwt.sign(
-  { userId: user.id, sid: sessionId },
+  { userId: user.id, sid: sessionId, ...(user.support_grant_id ? { support_grant_id: user.support_grant_id } : {}) },
   config.jwt.secret,
   { expiresIn: config.jwt.refreshExpiresIn }
 );
 
-const createUserSession = async ({ userId, sessionToken, ipAddress, userAgent }) => {
-  const expiresAt = new Date(Date.now() + refreshTtlMs);
+// expiresAt verilirse (destek oturumu: izin bitişi) refresh süresi yerine o kullanılır.
+const createUserSession = async ({ userId, sessionToken, ipAddress, userAgent, expiresAt: fixedExpiresAt }) => {
+  const expiresAt = fixedExpiresAt || new Date(Date.now() + refreshTtlMs);
   await pool.query(`
     INSERT INTO user_sessions (user_id, session_token, ip_address, user_agent, last_activity, expires_at, is_active)
     VALUES ($1, $2, $3, $4, NOW(), $5, true)
@@ -326,9 +337,9 @@ const login = async (req, res) => {
       return res.status(429).json(formatError('Çok fazla başarısız giriş denemesi. Lütfen 15 dakika sonra tekrar deneyin.'));
     }
 
-    // Find user by email
+    // Find user by email (destek hesabı normal girişle kullanılamaz: yalnızca erişim koduyla)
     const user = await User.findByEmail(email);
-    if (!user) {
+    if (!user || user.role === 'support') {
       // Başarısız denemeyi kaydet
       await pool.query(`
         INSERT INTO login_attempts (ip_address, username, success, user_agent)
@@ -499,6 +510,17 @@ const refreshToken = async (req, res) => {
       return res.status(401).json(formatError('User not found'));
     }
 
+    // Destek oturumu: izin hâlâ geçerliyse yenile, yeni oturum izin bitişini aşamaz
+    let supportGrant = null;
+    if (user.role === 'support') {
+      supportGrant = await supportAccess.getActiveGrantForRequest(decoded.support_grant_id, user.id, user.company_id);
+      if (!supportGrant) {
+        clearAuthCookies(res);
+        return res.status(401).json(formatError('Destek erişimi sona erdi veya iptal edildi'));
+      }
+      user.support_grant_id = supportGrant.id;
+    }
+
     // Refresh token'ın aktif bir session'a bağlı olduğunu doğrula
     const session = await pool.query(`
       SELECT id
@@ -530,7 +552,8 @@ const refreshToken = async (req, res) => {
       userId: user.id,
       sessionToken: newRefreshToken,
       ipAddress: getClientIP(req),
-      userAgent: req.get('user-agent') || 'Unknown'
+      userAgent: req.get('user-agent') || 'Unknown',
+      expiresAt: supportGrant ? supportGrant.expires_at : undefined
     });
 
     setAuthCookies(res, { accessToken: newAccessToken, refreshToken: newRefreshToken });
@@ -649,6 +672,20 @@ const getProfile = async (req, res) => {
 
     if (!user) {
       return res.status(404).json(formatError('User not found'));
+    }
+
+    // Destek oturumu: arayüz yönetici menülerini göstersin, "Destek oturumu" bandı için bilgi eklenir
+    if (req.user.is_support) {
+      return res.json(formatSuccess({
+        ...formatUser(user),
+        role: 'admin',
+        is_support: true,
+        support: {
+          grant_id: req.user.support_grant_id,
+          access_level: req.user.support_access_level,
+          expires_at: req.user.support_expires_at
+        }
+      }));
     }
 
     res.json(formatSuccess(formatUser(user)));
@@ -925,9 +962,82 @@ const verifyEmail = async (req, res) => {
   }
 };
 
+/**
+ * Destek girişi: müşteri yöneticisinin verdiği erişim koduyla.
+ * Oturum izin bitişinde kendiliğinden düşer; şirket yöneticilerine anlık bildirim gider.
+ */
+const supportLogin = async (req, res) => {
+  try {
+    const clientIp = getClientIP(req);
+    const userAgent = req.get('user-agent') || 'Unknown';
+    const grant = await supportAccess.findActiveGrantByCode(req.body?.code);
+
+    if (!grant) {
+      await pool.query(`
+        INSERT INTO login_attempts (ip_address, username, success, user_agent)
+        VALUES ($1, 'destek-kodu', false, $2)
+      `, [clientIp, userAgent]);
+      return res.status(401).json(formatError('Erişim kodu geçersiz, süresi dolmuş veya iptal edilmiş'));
+    }
+
+    const user = {
+      id: grant.support_user_id,
+      username: grant.username,
+      role: 'support',
+      company_id: grant.company_id,
+      support_grant_id: grant.id
+    };
+
+    const sessionId = crypto.randomUUID();
+    const accessToken = signAccessToken(user);
+    const refreshTokenValue = signRefreshToken(user, sessionId);
+
+    await createUserSession({
+      userId: user.id,
+      sessionToken: refreshTokenValue,
+      ipAddress: clientIp,
+      userAgent,
+      expiresAt: grant.expires_at
+    });
+    await supportAccess.markGrantUsed(grant.id);
+    await supportAccess.logSupportRequest({
+      grantId: grant.id,
+      userId: user.id,
+      companyId: grant.company_id,
+      method: 'POST',
+      path: '/api/support/login',
+      status: 200,
+      ip: clientIp
+    });
+
+    notifier.notifySupportSessionStarted({
+      companyId: grant.company_id,
+      grantId: grant.id,
+      accessLevel: grant.access_level,
+      expiresAt: grant.expires_at,
+      ip: clientIp
+    });
+
+    setAuthCookies(res, { accessToken, refreshToken: refreshTokenValue });
+
+    res.json(formatSuccess({
+      support: {
+        grant_id: grant.id,
+        access_level: grant.access_level,
+        expires_at: grant.expires_at,
+        reason: grant.reason
+      }
+    }, 'Destek oturumu açıldı'));
+  } catch (error) {
+    console.error('Support login error:', error);
+    res.status(500).json(formatError('Destek girişi başarısız'));
+  }
+};
+
 module.exports = {
   register,
   login,
+  supportLogin,
   refreshToken,
   logout,
   getProfile,

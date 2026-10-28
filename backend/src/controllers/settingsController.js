@@ -72,6 +72,7 @@ const updateSetting = async (req, res) => {
       user_id: userId,
       action: 'UPDATE_SETTING',
       entity_type: 'system_settings',
+      company_id: req.user.company_id,
       entity_id: setting.id,
       ip_address: getClientIP(req),
       changes: { key, old_value: existing.value, new_value: value }
@@ -108,6 +109,7 @@ const bulkUpdateSettings = async (req, res) => {
       user_id: userId,
       action: 'BULK_UPDATE_SETTINGS',
       entity_type: 'system_settings',
+      company_id: req.user.company_id,
       entity_id: null,
       ip_address: getClientIP(req),
       changes: { count: updatedSettings.length, keys: Object.keys(settings) }
@@ -173,6 +175,7 @@ const testEmail = async (req, res) => {
       user_id: req.user.id,
       action: 'TEST_EMAIL',
       entity_type: 'system_settings',
+      company_id: req.user.company_id,
       entity_id: null,
       ip_address: getClientIP(req),
       changes: { to: to || req.user.email, messageId: info.messageId }
@@ -200,6 +203,7 @@ const createSetting = async (req, res) => {
       user_id: userId,
       action: 'CREATE_SETTING',
       entity_type: 'system_settings',
+      company_id: req.user.company_id,
       entity_id: setting.id,
       ip_address: getClientIP(req),
       changes: { key: setting.key }
@@ -236,6 +240,7 @@ const deleteSetting = async (req, res) => {
       user_id: userId,
       action: 'DELETE_SETTING',
       entity_type: 'system_settings',
+      company_id: req.user.company_id,
       entity_id: setting.id,
       ip_address: getClientIP(req),
       changes: { key }
