@@ -67,7 +67,12 @@ Ayarlar (`system_settings`) şirket bazlı: `company_id` NULL = varsayılan şab
 anahtarla şifreler, özel anahtar parola + basılı kurtarma koduyla sarılı (`/backups/.anahtar.json`);
 geri yükleme yalnız cihazdaki `kurulum/geri-yukle.{ps1,sh}` betiğiyle. `age-encryption` ESM →
 Jest yükleyemez, gerçek kripto testi child node süreciyle (`backupCrypto.test.js`).
-**Dikkat:** 2FA uçtan uca bağlı değil (`routes/twoFa.js` sunucuya takılı değil, login'de TOTP adımı yok).
+2FA (sunucu tarafı hazır): `/api/2fa/*` (kurulum/QR, `setup/verify`, `disable`, yedek kod yenileme; `routes/twoFa.js`), girişte
+ikinci adım `POST /api/auth/2fa/verify` (tempToken + TOTP/yedek kod, `authController.verifyTwoFaLogin`). TOTP sırrı AES-GCM ile şifreli,
+yedek kodlar anahtarlı özet (`utils/secretBox.js`), tekrar kullanım koruması (`last_used_step`), 5 hatada 15 dk kilit. JWT'ler `typ`
+taşır (access/refresh/2fa); `authMiddleware` yalnızca erişim jetonu kabul eder.
+**Dikkat:** 2FA için **frontend arayüzü yok** (kurulum ekranı + girişte kod adımı) — arayüz gelmeden müşteriye 2FA açtırma:
+2FA'sı açık kullanıcı `requiresTwoFa` yanıtını arayüzde işleyemez. Eski `/api/users/profile/2fa/*` (sahte bayrak) 410 döner.
 Ayrıntı: **`docs/SIRKET-ICI-KURULUM.md`**.
 
 ## Önemli geçmiş (bu projede yapıldı)

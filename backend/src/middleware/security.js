@@ -5,6 +5,7 @@ const validator = require('validator');
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 const AUTH_COOKIE_ENDPOINTS = new Set([
   '/api/auth/login',
+  '/api/auth/2fa/verify',
   '/api/support/login',
   '/api/auth/register',
   '/api/auth/refresh',

@@ -443,6 +443,8 @@ console.log('✓ /api/permissions registered');
 app.use('/api/activity-logs', activityLogsRoutes);
 console.log('✓ /api/activity-logs registered');
 app.use('/api/security', securityRoutes);
+app.use('/api/2fa', require('./src/routes/twoFa'));
+console.log('✓ /api/2fa registered');
 console.log('✓ /api/security registered');
 app.use('/api/employee-approval', employeeApprovalRoutes);
 console.log('✓ /api/employee-approval registered');

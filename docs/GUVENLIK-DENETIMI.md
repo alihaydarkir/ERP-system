@@ -301,3 +301,17 @@ CRUD, operasyonel/tohum dosyaları).
 - **CI:** action'lar commit SHA'sına sabitlendi; `ci.yml` `permissions: contents: read`.
 
 **Bilinen tutarsızlık (güvenlik dışı):** `orders.status` CHECK kısıtı yalnızca `pending/processing/completed/cancelled` kabul ediyor, iş akışı sabitleri ise `confirmed/shipped/delivered/refunded` da içeriyor → bu durumlara geçiş 500 veriyor (önceden var). Kasıtlıysa sabitler sadeleşmeli, değilse bir migration ile kısıt genişletilmeli.
+
+### 4. tur — 2FA sunucu tarafı (feat/2fa-sunucu)
+Hazır ama bağlanmamış 2FA kodu incelendi; bağlanmadan önce şu sorunlar kapatıldı:
+- `POST /api/2fa/setup` 2FA etkinken sırrı sıfırlayıp `is_enabled=false` yapıyordu (çalıntı oturumla 2FA kapatılıp kendi cihaz kaydedilebilirdi) → etkinse 409.
+- TOTP sırrı düz metindi → AES-256-GCM (`utils/secretBox.js`); yedek kodlar düz metin ve `GET`'ten geri okunabiliyordu → anahtarlı HMAC özet, yalnızca üretim anında bir kez gösterilir.
+- Tekrar kullanım yoktu (±2 adım pencere) → `last_used_step` ile aynı zaman adımı ikinci kez kabul edilmez, pencere ±1.
+- Deneme kilidi yoktu → 5 hatada 15 dk kilit (`failed_attempts`/`locked_until`); hatalı denemeler IP başına giriş sınırına da yazılır.
+- `twoFaAuth` ara katmanı her JWT türünü kabul ediyor, `includes('/verify')` ile `/setup/verify`'ı da geçiriyordu → kaldırıldı; yönetim uçları `authMiddleware` ile korunur.
+- 2FA tamamlama ayrı bir oturum açma kodu yazıyor, jetonları JSON'da (çerez değil) dönüyordu → `authController.completeLogin` ortak fonksiyonu; `POST /api/auth/2fa/verify`.
+- JWT'ler `typ` taşır; `authMiddleware` refresh (`sid`) ve 2FA ara jetonlarını (`purpose`) erişim jetonu olarak kabul etmez (2. turda reddedilen "jeton türü karışıklığı" 2FA ile gerçek risk olacaktı); refresh yalnızca refresh jetonu; soket aynı kuralı uygular.
+- Eski `/api/users/profile/2fa/enable|disable` yalnızca `users.two_factor_enabled` bayrağını doğrulamasız çeviriyordu (sahte güvenlik) → 410.
+- Destek oturumu `/api/2fa/*` yönetemez; yönetici sıfırlaması yalnızca aynı şirketin kullanıcıları için.
+- Migration 054: `secret` TEXT, `last_used_step`, `failed_attempts`, `locked_until`, `code_hash` (eski düz metin yedek kodlar silinir).
+Test: jest + sandbox `scripts/sandbox-regression/2fa-regression.js` (30 kontrol). **Frontend arayüzü bu dalda yok.**

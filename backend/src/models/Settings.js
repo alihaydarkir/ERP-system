@@ -1,5 +1,5 @@
-const crypto = require('crypto');
 const pool = require('../config/database');
+const { ENC_PREFIX, encryptSecret, decryptSecret } = require('../utils/secretBox');
 
 // company_id NULL satırları varsayılan şablondur; şirketin kendi satırı varsa o geçerlidir.
 // Yazma her zaman şirketin satırına yapılır (upsert), şablon uygulamadan değişmez.
@@ -13,34 +13,6 @@ const isSecret = (key) => SECRET_KEYS.has(key);
 const maskValue = (key, value) => (isSecret(key) && value ? SECRET_MASK : value);
 
 const isUnchangedSecret = (key, value) => isSecret(key) && value === SECRET_MASK;
-
-// ── Sırların veritabanında şifreli saklanması (AES-256-GCM) ─────────────────────────────────────
-// Anahtar: SETTINGS_ENCRYPTION_KEY > ENCRYPTION_KEY > JWT_SECRET (sha256 ile 32 bayta türetilir).
-// Eski düz metin kayıtlar okunmaya devam eder ve ilk okumada şifreli biçime yükseltilir.
-const ENC_PREFIX = 'enc:v1:';
-const secretKeyBytes = () => crypto.createHash('sha256')
-  .update(String(process.env.SETTINGS_ENCRYPTION_KEY || process.env.ENCRYPTION_KEY || process.env.JWT_SECRET || ''))
-  .digest();
-
-const encryptSecret = (plain) => {
-  if (!plain) return plain;
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv('aes-256-gcm', secretKeyBytes(), iv);
-  const ct = Buffer.concat([cipher.update(String(plain), 'utf8'), cipher.final()]);
-  return ENC_PREFIX + [iv, cipher.getAuthTag(), ct].map((b) => b.toString('base64')).join(':');
-};
-
-const decryptSecret = (stored) => {
-  if (!stored || typeof stored !== 'string' || !stored.startsWith(ENC_PREFIX)) return stored; // eski düz metin
-  try {
-    const [iv, tag, ct] = stored.slice(ENC_PREFIX.length).split(':').map((p) => Buffer.from(p, 'base64'));
-    const d = crypto.createDecipheriv('aes-256-gcm', secretKeyBytes(), iv);
-    d.setAuthTag(tag);
-    return Buffer.concat([d.update(ct), d.final()]).toString('utf8');
-  } catch (e) {
-    return ''; // anahtar değişmiş/bozuk kayıt: sırrı kullanılamaz say (yeniden girilmeli)
-  }
-};
 
 const toStorage = (value, key) => {
   const text = typeof value === 'object' ? JSON.stringify(value) : String(value);
