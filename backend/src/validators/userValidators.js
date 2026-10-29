@@ -1,4 +1,5 @@
 const Joi = require('joi');
+const { strongPassword } = require('../utils/passwordPolicy');
 
 const userRoles = ['admin', 'manager', 'user'];
 
@@ -6,7 +7,7 @@ const userManagementSchemas = {
   createUser: Joi.object({
     username: Joi.string().min(3).max(100).required(),
     email: Joi.string().email({ tlds: { allow: false } }).required(),
-    password: Joi.string().min(8).required(),
+    password: strongPassword.required(),
     role: Joi.string().valid(...userRoles).default('user'),
     phone_number: Joi.string().max(20).allow('', null),
     department: Joi.string().max(100).allow('', null),

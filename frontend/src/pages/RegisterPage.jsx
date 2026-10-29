@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { authService } from '../services/authService';
 import Button from '../components/UI/Button';
 import Input from '../components/UI/Input';
-import { hasValidationErrors, validateRegisterForm } from '../utils/validators/authValidators';
+import { hasValidationErrors, validateRegisterForm, PASSWORD_HINT } from '../utils/validators/authValidators';
 import { Mail, Lock, User, ArrowRight, LayoutDashboard, Building2, ShoppingBag } from 'lucide-react';
 
 const ACCOUNT_TYPES = [
@@ -47,7 +47,11 @@ export default function RegisterPage() {
         role: accountType,
       });
 
-      if (response.success) {
+      if (response.success && response.data?.requiresApproval) {
+        // Mevcut bir şirkete katılım yönetici onayı bekler: hemen giriş yapılamaz
+        toast.success('Kaydınız alındı. Şirket yöneticisi onayladıktan sonra giriş yapabilirsiniz.', { duration: 7000 });
+        navigate('/login');
+      } else if (response.success) {
         const msg = accountType === 'customer'
           ? 'Müşteri hesabınız oluşturuldu! Giriş yapabilirsiniz.'
           : 'Kayıt başarılı! Giriş yapabilirsiniz.';
@@ -197,7 +201,7 @@ export default function RegisterPage() {
                 autoComplete="new-password"
                 className="bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
               />
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">En az 6 karakter olmalıdır.</p>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{PASSWORD_HINT}</p>
             </div>
 
             {accountType === 'customer' && (

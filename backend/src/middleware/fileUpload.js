@@ -20,6 +20,13 @@ const MIME_WHITELIST = new Set([
   'text/csv'
 ]);
 
+const AVATAR_EXTENSIONS = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/gif': '.gif'
+};
+
 // Ensure upload directories exist
 const uploadDirs = {
   avatars: path.join(__dirname, '../../uploads/avatars'),
@@ -44,7 +51,9 @@ const avatarStorage = multer.diskStorage({
     }
 
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'avatar-' + req.user.id + '-' + uniqueSuffix + path.extname(file.originalname));
+    // Uzantı kullanıcının dosya adından değil, doğrulanmış MIME türünden gelir
+    const ext = AVATAR_EXTENSIONS[String(file.mimetype || '').toLowerCase()] || '.bin';
+    cb(null, 'avatar-' + req.user.id + '-' + uniqueSuffix + ext);
   }
 });
 
@@ -104,6 +113,35 @@ const uploadConfig = {
   avatar: createUploader({ storage: avatarStorage, fileFilter: imageFileFilter })
 };
 
+// Dosya içeriği bildirilen görsel türüyle uyuşmalı (MIME başlığı istemciden gelir, güvenilmez)
+const IMAGE_SIGNATURES = {
+  'image/jpeg': (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
+  'image/png': (b) => b.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
+  'image/gif': (b) => b.slice(0, 4).toString('latin1') === 'GIF8',
+  'image/webp': (b) => b.slice(0, 4).toString('latin1') === 'RIFF' && b.slice(8, 12).toString('latin1') === 'WEBP'
+};
+
+const verifyImageSignature = (req, res, next) => {
+  const file = req.file;
+  if (!file) return next();
+  let ok = false;
+  try {
+    const fd = fs.openSync(file.path, 'r');
+    const head = Buffer.alloc(16);
+    fs.readSync(fd, head, 0, 16, 0);
+    fs.closeSync(fd);
+    const check = IMAGE_SIGNATURES[String(file.mimetype || '').toLowerCase()];
+    ok = Boolean(check && check(head));
+  } catch {
+    ok = false;
+  }
+  if (!ok) {
+    try { fs.unlinkSync(file.path); } catch { /* dosya zaten yok */ }
+    return res.status(400).json({ success: false, error: 'Dosya içeriği geçerli bir görsel değil' });
+  }
+  return next();
+};
+
 // Error handler middleware for multer errors
 const handleUploadError = (err, req, res, next) => {
   if (err instanceof multer.MulterError) {
@@ -131,4 +169,5 @@ module.exports = {
   upload: uploadConfig.import,
   avatarUpload: uploadConfig.avatar,
   handleUploadError,
+  verifyImageSignature,
 };

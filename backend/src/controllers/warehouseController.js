@@ -1,4 +1,30 @@
 const Warehouse = require('../models/Warehouse');
+const pool = require('../config/database');
+
+// Çok kiracılılık: depo (ve stok işlemlerinde ürün) bu şirkete ait değilse 404 döner
+const ownWarehouse = async (req, res) => {
+  const found = await pool.query(
+    'SELECT 1 FROM warehouses WHERE id = $1 AND company_id = $2',
+    [req.params.id, req.user.company_id]
+  );
+  if (found.rows.length === 0) {
+    res.status(404).json({ success: false, message: 'Depo bulunamadı' });
+    return false;
+  }
+  return true;
+};
+
+const ownProduct = async (req, res, productId) => {
+  const found = await pool.query(
+    'SELECT 1 FROM products WHERE id = $1 AND company_id = $2',
+    [productId, req.user.company_id]
+  );
+  if (found.rows.length === 0) {
+    res.status(404).json({ success: false, message: 'Ürün bulunamadı' });
+    return false;
+  }
+  return true;
+};
 
 // Simple activity logger
 const logActivity = async (userId, action, entity, entityId, details) => {
@@ -21,6 +47,7 @@ exports.getAllWarehouses = async (req, res) => {
 // Get warehouse by ID
 exports.getWarehouseById = async (req, res) => {
   try {
+    if (!(await ownWarehouse(req, res))) return;
     const warehouse = await Warehouse.findById(req.params.id);
     if (!warehouse) {
       return res.status(404).json({ success: false, message: 'Depo bulunamadı' });
@@ -59,6 +86,7 @@ exports.createWarehouse = async (req, res) => {
 // Update warehouse
 exports.updateWarehouse = async (req, res) => {
   try {
+    if (!(await ownWarehouse(req, res))) return;
     const warehouse = await Warehouse.update(req.params.id, req.body);
     if (!warehouse) {
       return res.status(404).json({ success: false, message: 'Depo bulunamadı' });
@@ -82,6 +110,7 @@ exports.updateWarehouse = async (req, res) => {
 // Delete warehouse
 exports.deleteWarehouse = async (req, res) => {
   try {
+    if (!(await ownWarehouse(req, res))) return;
     await Warehouse.delete(req.params.id);
 
     await logActivity(
@@ -102,6 +131,7 @@ exports.deleteWarehouse = async (req, res) => {
 // Get warehouse stock
 exports.getWarehouseStock = async (req, res) => {
   try {
+    if (!(await ownWarehouse(req, res))) return;
     const stock = await Warehouse.getStock(req.params.id);
     res.json({ success: true, data: stock });
   } catch (error) {
@@ -113,7 +143,9 @@ exports.getWarehouseStock = async (req, res) => {
 // Update warehouse stock
 exports.updateWarehouseStock = async (req, res) => {
   try {
+    if (!(await ownWarehouse(req, res))) return;
     const { product_id, quantity } = req.body;
+    if (!(await ownProduct(req, res, product_id))) return;
     const stock = await Warehouse.updateStock(req.params.id, product_id, quantity);
     
     await logActivity(
@@ -134,7 +166,9 @@ exports.updateWarehouseStock = async (req, res) => {
 // Set warehouse stock (absolute value)
 exports.setWarehouseStock = async (req, res) => {
   try {
+    if (!(await ownWarehouse(req, res))) return;
     const { product_id, quantity } = req.body;
+    if (!(await ownProduct(req, res, product_id))) return;
     const stock = await Warehouse.setStock(req.params.id, product_id, quantity);
     
     await logActivity(

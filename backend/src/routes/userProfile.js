@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth');
-const { avatarUpload, handleUploadError } = require('../middleware/fileUpload');
+const { avatarUpload, handleUploadError, verifyImageSignature } = require('../middleware/fileUpload');
 const { validate } = require('../validators/validate');
 const { updateProfileSchema, changePasswordSchema } = require('../validators/userValidator');
 const {
@@ -29,7 +29,7 @@ router.get('/profile', getProfile);
 router.put('/profile', validate(updateProfileSchema), updateProfile);
 
 // Upload avatar
-router.post('/profile/avatar', avatarUpload.single('avatar'), handleUploadError, uploadAvatar);
+router.post('/profile/avatar', avatarUpload.single('avatar'), handleUploadError, verifyImageSignature, uploadAvatar);
 
 // Change password
 router.put('/profile/password', validate(changePasswordSchema), changePassword);

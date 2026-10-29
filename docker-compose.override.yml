@@ -15,12 +15,12 @@ services:
   postgres:
     # Expose to localhost for tools like DBeaver / pgAdmin
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
 
   redis:
     # Expose for local debugging
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
 
   backend:
     build:
@@ -34,6 +34,8 @@ services:
     environment:
       NODE_ENV: development
       ALLOWED_HOSTS: "localhost:5001,localhost:5000,localhost:3000,localhost:5173"
+      # Geliştirmede backend doğrudan yayınlı (nginx yok): X-Forwarded-For sahtelenebilir, güvenme
+      TRUST_PROXY: ""
     volumes:
       - ./backend:/app
       - /app/node_modules          # Don't overwrite container's node_modules

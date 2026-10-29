@@ -1,4 +1,5 @@
 const Joi = require('joi');
+const { strongPassword } = require('./passwordPolicy');
 
 /**
  * Validation schemas using Joi
@@ -9,7 +10,7 @@ const userSchemas = {
   register: Joi.object({
     username: Joi.string().min(3).max(30).required(),
     email: Joi.string().email({ tlds: { allow: false } }).required(),
-    password: Joi.string().min(6).required(),
+    password: strongPassword.required(),
     role: Joi.string().valid('admin', 'manager', 'user').default('user'),
     // Company fields for multi-tenancy
     companyAction: Joi.string().valid('join_default', 'create', 'join').optional(),
@@ -26,7 +27,8 @@ const userSchemas = {
   updateUser: Joi.object({
     username: Joi.string().min(3).max(30),
     email: Joi.string().email({ tlds: { allow: false } }),
-    password: Joi.string().min(6),
+    password: strongPassword,
+    currentPassword: Joi.string().max(200),
     role: Joi.string().valid('admin', 'manager', 'user')
   }).min(1)
 };
@@ -41,7 +43,7 @@ const productSchemas = {
     category: Joi.string().max(100).allow('', null),
     sku: Joi.string().max(100).required(),
     low_stock_threshold: Joi.number().integer().min(0).default(10),
-    supplier_id: Joi.number().integer().allow(null)
+    supplier_id: Joi.number().integer().empty('').allow(null)
   }),
 
   update: Joi.object({
@@ -52,7 +54,7 @@ const productSchemas = {
     category: Joi.string().max(100).allow('', null),
     sku: Joi.string().max(100),
     low_stock_threshold: Joi.number().integer().min(0),
-    supplier_id: Joi.number().integer().allow(null)
+    supplier_id: Joi.number().integer().empty('').allow(null)
   }).min(1),
 
   updateStock: Joi.object({

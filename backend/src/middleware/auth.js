@@ -14,7 +14,11 @@ const getCookieValue = (req, name) => {
   for (const pair of pairs) {
     const [key, ...rest] = pair.split('=');
     if (key === name) {
-      return decodeURIComponent(rest.join('='));
+      try {
+        return decodeURIComponent(rest.join('='));
+      } catch {
+        return null; // bozuk yüzde-kodlu çerez: yok say
+      }
     }
   }
 
@@ -133,20 +137,21 @@ const authMiddleware = async (req, res, next) => {
       [sessionId]
     );
 
-    // Eski token'larda company_id olmayabilir — DB'den çek
-    if (!req.user.company_id) {
-      try {
-        const result = await pool.query(
-          'SELECT company_id FROM users WHERE id = $1',
-          [req.user.id]
-        );
-        if (result.rows[0]?.company_id) {
-          req.user.company_id = result.rows[0].company_id;
-        }
-      } catch (dbErr) {
-        // company_id alınamazsa devam et
-      }
+    // Kullanıcıyı her istekte DB'den doğrula: devre dışı/silinmiş hesap ve rol değişikliği
+    // token süresini beklemeden etkili olur. Rol ve şirket token'dan değil DB'den okunur.
+    const userRow = await pool.query(
+      'SELECT role, company_id, is_active, deleted_at FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    const dbUser = userRow.rows[0];
+    if (!dbUser || dbUser.is_active === false || dbUser.deleted_at) {
+      return res.status(401).json({ error: 'Account disabled or removed' });
     }
+    if (dbUser.role === 'super_admin' && !superAdminAllowed()) {
+      return res.status(401).json({ error: 'super_admin is disabled in on-prem mode' });
+    }
+    req.user.role = dbUser.role;
+    req.user.company_id = dbUser.company_id;
 
     if (req.user.role === 'support') {
       return await applySupportSession(req, res, next, decoded);

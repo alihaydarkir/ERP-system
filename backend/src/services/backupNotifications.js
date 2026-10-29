@@ -29,6 +29,7 @@ const companySmtp = async (companyId) => {
       port,
       secure: port === 465,
       auth: user && pass ? { user, pass } : undefined,
+      requireTLS: !!(user && pass) && port !== 465,
     }),
   };
 };

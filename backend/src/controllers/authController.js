@@ -12,7 +12,11 @@ const { formatUser, formatSuccess, formatError } = require('../utils/formatters'
 const { getClientIP } = require('../utils/helpers');
 const { config } = require('../config/env');
 const supportAccess = require('../services/supportAccessService');
-const { superAdminAllowed } = require('../config/deployment');
+const { superAdminAllowed, isOnPrem } = require('../config/deployment');
+const { passwordProblem } = require('../utils/passwordPolicy');
+
+// Kullanıcı bulunamadığında da bcrypt çalıştır: yanıt süresi kullanıcı varlığını ele vermesin
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync('zamanlama-esitleme-parolasi', 10);
 const notifier = require('../websocket/notifier');
 
 const hashToken = (token) => crypto.createHash('sha256').update(String(token || '')).digest('hex');
@@ -132,6 +136,11 @@ const register = async (req, res) => {
       joinCompanyCode
     } = req.body;
 
+    // Şirket içi kurulumda herkese açık kayıt kapalıdır: kullanıcıları şirket yöneticisi oluşturur
+    if (isOnPrem() && process.env.ALLOW_SELF_REGISTRATION !== 'true') {
+      return res.status(403).json(formatError('Bu kurulumda kayıt kapalıdır. Hesabınızı şirket yöneticiniz oluşturur.'));
+    }
+
     // Check if user already exists
     const existingUser = await User.findByEmail(email);
     if (existingUser) {
@@ -207,7 +216,10 @@ const register = async (req, res) => {
     }
 
     // Create user with appropriate approval status
-    const approval_status = (companyAction === 'join') ? 'pending' : 'approved';
+    // Yeni şirket açan kendi şirketinin yöneticisi olur (izole kiracı). Mevcut bir şirkete katılım
+    // (kodla ya da varsayılan şirket) yönetici onayı ister; demo ortamı REGISTRATION_AUTO_APPROVE=true ile açar.
+    const autoApprove = process.env.REGISTRATION_AUTO_APPROVE === 'true';
+    const approval_status = (companyAction === 'create' || autoApprove) ? 'approved' : 'pending';
     const user = await User.create({ 
       username, 
       email, 
@@ -226,7 +238,8 @@ const register = async (req, res) => {
         entity_type: 'user',
         entity_id: user.id,
         changes: { username, email, role: userRole, status: 'pending_approval' },
-        ip_address: getClientIP(req)
+        ip_address: getClientIP(req),
+        company_id: user.company_id
       });
 
       // Get company info
@@ -342,6 +355,7 @@ const login = async (req, res) => {
     // onprem'de super_admin hiç giriş yapamaz)
     const user = await User.findByEmail(email);
     if (!user || user.role === 'support' || (user.role === 'super_admin' && !superAdminAllowed())) {
+      await bcrypt.compare(String(password), DUMMY_PASSWORD_HASH);
       // Başarısız denemeyi kaydet
       await pool.query(`
         INSERT INTO login_attempts (ip_address, username, success, user_agent)
@@ -351,16 +365,37 @@ const login = async (req, res) => {
       return res.status(401).json(formatError('Invalid credentials'));
     }
 
+    // Hesap bazlı geçici kilit: IP değiştirerek (dağıtık) parola denemesine karşı. Son başarılı girişten
+    // bu yana 15 dakika içinde LOGIN_LOCK_MAX hatalı deneme varsa doğru parola da reddedilir.
+    const lockMax = parseInt(process.env.LOGIN_LOCK_MAX, 10) || 10;
+    const recentFails = await pool.query(`
+      SELECT COUNT(*) AS count
+      FROM login_attempts
+      WHERE user_id = $1
+        AND success = false
+        AND created_at > NOW() - INTERVAL '15 minutes'
+        AND created_at > COALESCE((SELECT MAX(created_at) FROM login_attempts WHERE user_id = $1 AND success = true), 'epoch')
+    `, [user.id]);
+    if (parseInt(recentFails.rows[0]?.count || 0, 10) >= lockMax) {
+      await bcrypt.compare(String(password), DUMMY_PASSWORD_HASH);
+      return res.status(429).json(formatError('Çok fazla başarısız giriş denemesi. Lütfen 15 dakika sonra tekrar deneyin.'));
+    }
+
     // Verify password
     const isValidPassword = await User.verifyPassword(password, user.password_hash);
     if (!isValidPassword) {
-      // Başarısız denemeyi kaydet
+      // Başarısız denemeyi kaydet (kullanıcı biliniyorsa şirket kapsamlı görünüm için user_id ile)
       await pool.query(`
-        INSERT INTO login_attempts (ip_address, username, success, user_agent)
-        VALUES ($1, $2, false, $3)
-      `, [clientIp, email, userAgent]);
+        INSERT INTO login_attempts (user_id, ip_address, username, success, user_agent)
+        VALUES ($1, $2, $3, false, $4)
+      `, [user.id, clientIp, email, userAgent]);
 
       return res.status(401).json(formatError('Invalid credentials'));
+    }
+
+    // Devre dışı bırakılmış ya da silinmiş hesap giriş yapamaz
+    if (user.is_active === false || user.deleted_at) {
+      return res.status(403).json(formatError('Hesabınız devre dışı. Lütfen yöneticinizle iletişime geçin.'));
     }
 
     // Check approval status
@@ -709,20 +744,33 @@ const getProfile = async (req, res) => {
 const updateProfile = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const updates = req.body;
+    const { currentPassword, ...updates } = req.body;
 
     // Don't allow role update through profile endpoint
     delete updates.role;
 
+    // Parola/e-posta değişimi mevcut parolayı doğrulamadan yapılamaz (çalıntı oturum -> hesap ele geçirme)
+    if (updates.password !== undefined || updates.email !== undefined) {
+      if (!currentPassword) {
+        return res.status(400).json(formatError('Mevcut parola gerekli'));
+      }
+      const row = await pool.query('SELECT password_hash FROM users WHERE id = $1', [userId]);
+      const ok = row.rows.length > 0 && await User.verifyPassword(currentPassword, row.rows[0].password_hash);
+      if (!ok) {
+        return res.status(400).json(formatError('Mevcut parola yanlış'));
+      }
+    }
+
     const updatedUser = await User.update(userId, updates);
 
-    // Log activity
+    // Log activity — gizli alanlar denetim kaydına asla yazılmaz
+    const { password: _pw, ...loggable } = updates;
     await AuditLog.create({
       user_id: userId,
       action: 'UPDATE',
       entity_type: 'user',
       entity_id: userId,
-      changes: updates,
+      changes: _pw !== undefined ? { ...loggable, password: '[REDACTED]' } : loggable,
       ip_address: getClientIP(req)
     });
 
@@ -807,6 +855,11 @@ const resetPassword = async (req, res) => {
 
     if (!token || !newPassword) {
       return res.status(400).json(formatError('Token ve yeni şifre zorunludur'));
+    }
+
+    const problem = passwordProblem(newPassword);
+    if (problem) {
+      return res.status(400).json(formatError(problem));
     }
 
     const tokenHash = hashToken(token);

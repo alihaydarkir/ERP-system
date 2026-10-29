@@ -4,6 +4,7 @@ const authMiddleware = require('../middleware/auth');
 const { requirePermission } = require('../middleware/permissions');
 const { generalLimiter, sensitiveOperationsLimiter } = require('../middleware/rateLimit');
 const securityController = require('../controllers/securityController');
+const { requirePlatformScope } = require('../middleware/rbac');
 
 // All security routes require admin permissions
 router.use(authMiddleware);
@@ -17,16 +18,19 @@ router.get('/stats',
 
 // IP Blacklist management
 router.get('/blacklist',
+  requirePlatformScope,
   generalLimiter,
   securityController.getBlacklist
 );
 
 router.post('/blacklist',
+  requirePlatformScope,
   sensitiveOperationsLimiter,
   securityController.blockIP
 );
 
 router.delete('/blacklist/:ip_address',
+  requirePlatformScope,
   sensitiveOperationsLimiter,
   securityController.unblockIP
 );

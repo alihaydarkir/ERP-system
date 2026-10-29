@@ -31,7 +31,7 @@ const validateImport = async (req, res) => {
     }
 
     // Validate data
-    const validationResult = await BulkImportService.validateImportData(parseResult.data);
+    const validationResult = await BulkImportService.validateImportData(parseResult.data, req.user.company_id);
 
     return res.status(200).json({
       success: true,
@@ -63,10 +63,10 @@ const processImport = async (req, res) => {
     }
 
     // Get user ID from authenticated user
-    const userId = req.user.userId;
+    const userId = req.user.userId || req.user.id;
 
-    // Process import
-    const importResult = await BulkImportService.processImport(validData, userId);
+    // Process import (şirket bağlamı oturumdan gelir, istemciden değil)
+    const importResult = await BulkImportService.processImport(validData, userId, req.user.company_id);
 
     // Log import activity
     await ActivityLogService.log(

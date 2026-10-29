@@ -120,6 +120,9 @@ services:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3.5:9b}
       # cloud | onprem — onprem'de AI yalnız yerel Ollama, Sentry kapalı (src/config/deployment.js)
       DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-cloud}
+      # Backend yalnız nginx (frontend) arkasında yayınlanır: nginx'in eklediği X-Forwarded-For'un
+      # SAĞDAKİ girdisi gerçek istemcidir (1 vekil). Geliştirme override'ı bunu kapatır.
+      TRUST_PROXY: ${TRUST_PROXY:-1}
       ALLOW_EXTERNAL_RATES: ${ALLOW_EXTERNAL_RATES:-true}
       # Yedek şifrelemesi (Ayarlar → Yedekler): anahtar zarfları yedeklerin yanında durur
       BACKUP_DIR: /backups

@@ -5,9 +5,10 @@ class AuditLog {
    * Create a new audit log entry
    */
   static async create({ user_id, action, entity_type, entity_id, changes = {}, ip_address = null, company_id }) {
+    // company_id verilmediyse kullanıcının şirketinden türet (audit_logs.company_id NOT NULL)
     const query = `
       INSERT INTO audit_logs (user_id, action, entity_type, entity_id, changes, ip_address, company_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, (SELECT company_id FROM users WHERE id = $1)))
       RETURNING *
     `;
 
@@ -41,6 +42,13 @@ class AuditLog {
     let query = 'SELECT * FROM audit_logs WHERE 1=1';
     const values = [];
     let paramCount = 1;
+
+    // Çok kiracılılık: şirket verilirse yalnız o şirketin kayıtları
+    if (filters.company_id !== undefined) {
+      query += ` AND company_id = $${paramCount}`;
+      values.push(filters.company_id);
+      paramCount++;
+    }
 
     if (filters.user_id) {
       query += ` AND user_id = $${paramCount}`;

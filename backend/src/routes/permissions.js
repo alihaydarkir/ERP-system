@@ -3,6 +3,7 @@ const router = express.Router();
 const authMiddleware = require('../middleware/auth');
 const permissionController = require('../controllers/permissionController');
 const { requirePermission } = require('../middleware/permissions');
+const { requirePlatformScope } = require('../middleware/rbac');
 
 // Get all permissions
 router.get('/', 
@@ -28,6 +29,7 @@ router.get('/role/:role',
 router.put('/role/:role',
   authMiddleware,
   requirePermission('settings.edit'),
+  requirePlatformScope,
   permissionController.updateRolePermissions
 );
 

@@ -2,6 +2,7 @@ const pool = require('../config/database');
 const bcrypt = require('bcryptjs');
 const PermissionService = require('../services/permissionService');
 const ActivityLogService = require('../services/activityLogService');
+const { passwordProblem } = require('../utils/passwordPolicy');
 
 // Get all users (admin only)
 exports.getAllUsers = async (req, res) => {
@@ -65,10 +66,10 @@ exports.getUserById = async (req, res) => {
         profile_image, two_factor_enabled,
         last_login, created_at, updated_at
       FROM users
-      WHERE id = $1
+      WHERE id = $1 AND company_id = $2
     `;
     
-    const result = await pool.query(query, [id]);
+    const result = await pool.query(query, [id, req.user.company_id]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ 
@@ -119,8 +120,8 @@ exports.createUser = async (req, res) => {
     
     // Create user
     const query = `
-      INSERT INTO users (username, email, password, role, phone_number, department, job_title)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO users (username, email, password_hash, role, phone_number, department, job_title, company_id, approval_status, email_verified)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'approved', true)
       RETURNING id, username, email, role, phone_number, department, job_title, created_at
     `;
     
@@ -131,7 +132,8 @@ exports.createUser = async (req, res) => {
       role || 'user',
       phone_number,
       department,
-      job_title
+      job_title,
+      req.user.company_id
     ]);
     
     // Log activity
@@ -164,7 +166,7 @@ exports.updateUser = async (req, res) => {
     const { username, email, role, phone_number, department, job_title } = req.body;
     
     // Check if user exists
-    const existingUser = await pool.query('SELECT id FROM users WHERE id = $1', [id]);
+    const existingUser = await pool.query('SELECT id FROM users WHERE id = $1 AND company_id = $2', [id, req.user.company_id]);
     
     if (existingUser.rows.length === 0) {
       return res.status(404).json({ 
@@ -191,7 +193,7 @@ exports.updateUser = async (req, res) => {
       SET username = $1, email = $2, role = $3, 
           phone_number = $4, department = $5, job_title = $6,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $7
+      WHERE id = $7 AND company_id = $8
       RETURNING id, username, email, role, phone_number, department, job_title, updated_at
     `;
     
@@ -202,7 +204,8 @@ exports.updateUser = async (req, res) => {
       phone_number,
       department,
       job_title,
-      id
+      id,
+      req.user.company_id
     ]);
     
     // Log activity
@@ -242,7 +245,7 @@ exports.deleteUser = async (req, res) => {
     }
     
     // Check if user exists
-    const existingUser = await pool.query('SELECT id, username FROM users WHERE id = $1', [id]);
+    const existingUser = await pool.query('SELECT id, username FROM users WHERE id = $1 AND company_id = $2', [id, req.user.company_id]);
     
     if (existingUser.rows.length === 0) {
       return res.status(404).json({ 
@@ -251,7 +254,7 @@ exports.deleteUser = async (req, res) => {
       });
     }
     
-    await pool.query('DELETE FROM users WHERE id = $1', [id]);
+    await pool.query('DELETE FROM users WHERE id = $1 AND company_id = $2', [id, req.user.company_id]);
     
     // Log activity
     await ActivityLogService.log(
@@ -280,13 +283,21 @@ exports.changeUserPassword = async (req, res) => {
   try {
     const { id } = req.params;
     const { newPassword } = req.body;
+
+    const problem = passwordProblem(newPassword);
+    if (problem) {
+      return res.status(400).json({ success: false, message: problem });
+    }
     
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     
-    await pool.query(
-      'UPDATE users SET password = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-      [hashedPassword, id]
+    const updated = await pool.query(
+      'UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND company_id = $3 RETURNING id',
+      [hashedPassword, id, req.user.company_id]
     );
+    if (updated.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Kullanıcı bulunamadı' });
+    }
     
     // Log activity
     await ActivityLogService.log(

@@ -199,12 +199,62 @@ describe('authController', () => {
   });
 
   describe('POST /register', () => {
-    it('geçerli kayıt ile kullanıcı oluşturur', async () => {
+    const registerBody = { username: 'newuser', email: 'new@test.com', password: 'Pass1234!', companyAction: 'join_default' };
+    const setupRegisterMocks = () => {
+      mockUser.findByEmail.mockResolvedValue(null);
+      mockUser.findByUsername.mockResolvedValue(null);
+      mockPool.query.mockResolvedValue({ rows: [{ id: 10, company_name: 'ACME', company_code: 'ACM' }] });
+      mockUser.create.mockImplementation(async (data) => ({
+        id: 2, username: 'newuser', email: 'new@test.com', role: 'user', company_id: 10, approval_status: data.approval_status
+      }));
+    };
+
+    it('varsayılan şirkete kayıt yönetici onayı bekler: token/çerez verilmez', async () => {
+      delete process.env.REGISTRATION_AUTO_APPROVE;
+      setupRegisterMocks();
+      const res = createMockRes();
+
+      await register(createMockReq({ body: registerBody }), res);
+
+      expect(mockUser.create).toHaveBeenCalledWith(expect.objectContaining({ approval_status: 'pending', company_id: 10 }));
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.cookie).not.toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ requiresApproval: true })
+      }));
+    });
+
+    it('rolü/şirketi gövdeden yükseltme denemesi yetki vermez (rol user kalır)', async () => {
+      delete process.env.REGISTRATION_AUTO_APPROVE;
+      setupRegisterMocks();
+      const res = createMockRes();
+
+      await register(createMockReq({ body: { ...registerBody, role: 'admin' } }), res);
+
+      expect(mockUser.create).toHaveBeenCalledWith(expect.objectContaining({ role: 'user', approval_status: 'pending' }));
+    });
+
+    it('onprem: herkese açık kayıt kapalı (403)', async () => {
+      const prev = process.env.DEPLOYMENT_MODE;
+      process.env.DEPLOYMENT_MODE = 'onprem';
+      try {
+        setupRegisterMocks();
+        const res = createMockRes();
+        await register(createMockReq({ body: registerBody }), res);
+        expect(res.status).toHaveBeenCalledWith(403);
+        expect(mockUser.create).not.toHaveBeenCalled();
+      } finally {
+        if (prev === undefined) delete process.env.DEPLOYMENT_MODE; else process.env.DEPLOYMENT_MODE = prev;
+      }
+    });
+
+    it('geçerli kayıt ile kullanıcı oluşturur (demo: REGISTRATION_AUTO_APPROVE=true)', async () => {
+      process.env.REGISTRATION_AUTO_APPROVE = 'true';
       const req = createMockReq({
         body: {
           username: 'newuser',
           email: 'new@test.com',
-          password: 'Pass123!',
+          password: 'Pass1234!',
           companyAction: 'join_default'
         }
       });
@@ -233,6 +283,7 @@ describe('authController', () => {
         success: true,
         message: 'Registration successful'
       }));
+      delete process.env.REGISTRATION_AUTO_APPROVE;
     });
 
     it('duplicate email için 400 döner', async () => {

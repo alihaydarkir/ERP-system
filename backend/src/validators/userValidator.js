@@ -1,4 +1,5 @@
 const Joi = require('joi');
+const { strongPassword } = require('../utils/passwordPolicy');
 
 const updateProfileSchema = Joi.object({
   name: Joi.string().max(100),
@@ -13,7 +14,7 @@ const updateProfileSchema = Joi.object({
 
 const changePasswordSchema = Joi.object({
   currentPassword: Joi.string().required(),
-  newPassword: Joi.string().min(8).required(),
+  newPassword: strongPassword.required(),
   // Backward compatibility with controllers that check confirmation
   confirmPassword: Joi.string().optional()
 });

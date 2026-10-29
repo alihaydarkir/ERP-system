@@ -64,7 +64,7 @@ const getSupplierById = async (req, res) => {
     if (isNaN(numId) || numId <= 0 || String(numId) !== id) {
       return res.status(400).json({ success: false, message: 'Geçersiz ID formatı' });
     }
-    const result = await db.query('SELECT *, supplier_name AS name FROM suppliers WHERE id = $1', [id]);
+    const result = await db.query('SELECT *, supplier_name AS name FROM suppliers WHERE id = $1 AND company_id = $2', [id, req.user.company_id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Tedarikçi bulunamadı' });
@@ -160,14 +160,14 @@ const updateSupplier = async (req, res) => {
     } = req.body;
 
     // Check if supplier exists
-    const existing = await db.query('SELECT * FROM suppliers WHERE id = $1', [id]);
+    const existing = await db.query('SELECT * FROM suppliers WHERE id = $1 AND company_id = $2', [id, req.user.company_id]);
     if (existing.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Tedarikçi bulunamadı' });
     }
 
     // Check if tax number is being changed and if it's already in use
     if (tax_number && tax_number !== existing.rows[0].tax_number) {
-      const taxCheck = await db.query('SELECT id FROM suppliers WHERE tax_number = $1 AND id != $2', [tax_number, id]);
+      const taxCheck = await db.query('SELECT id FROM suppliers WHERE tax_number = $1 AND id != $2 AND company_id = $3', [tax_number, id, req.user.company_id]);
       if (taxCheck.rows.length > 0) {
         return res.status(400).json({ success: false, message: 'Bu vergi numarası zaten kayıtlı' });
       }
@@ -188,10 +188,10 @@ const updateSupplier = async (req, res) => {
            notes = COALESCE($11, notes),
            rating = COALESCE($12, rating),
            is_active = COALESCE($13, is_active)
-       WHERE id = $14
+       WHERE id = $14 AND company_id = $15
        RETURNING *`,
       [supplier_name, contact_person, email, phone, address, tax_office, tax_number,
-       iban, payment_terms, currency, notes, rating, is_active, id]
+       iban, payment_terms, currency, notes, rating, is_active, id, req.user.company_id]
     );
 
     res.json({
@@ -213,12 +213,12 @@ const deleteSupplier = async (req, res) => {
     const { id } = req.params;
 
     // Check if supplier exists
-    const existing = await db.query('SELECT * FROM suppliers WHERE id = $1', [id]);
+    const existing = await db.query('SELECT * FROM suppliers WHERE id = $1 AND company_id = $2', [id, req.user.company_id]);
     if (existing.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Tedarikçi bulunamadı' });
     }
 
-    await db.query('DELETE FROM suppliers WHERE id = $1', [id]);
+    await db.query('DELETE FROM suppliers WHERE id = $1 AND company_id = $2', [id, req.user.company_id]);
 
     res.json({
       success: true,
@@ -245,9 +245,10 @@ const searchSuppliers = async (req, res) => {
       `SELECT * FROM suppliers 
        WHERE (supplier_name ILIKE $1 OR contact_person ILIKE $1 OR email ILIKE $1)
        AND is_active = true
+       AND company_id = $2
        ORDER BY supplier_name
        LIMIT 50`,
-      [`%${q}%`]
+      [`%${q}%`, req.user.company_id]
     );
 
     res.json({
@@ -272,7 +273,8 @@ const getSupplierStats = async (req, res) => {
         COUNT(*) FILTER (WHERE is_active = false) as inactive_suppliers,
         ROUND(AVG(rating), 2) as average_rating
       FROM suppliers
-    `);
+      WHERE company_id = $1
+    `, [req.user.company_id]);
 
     res.json({
       success: true,

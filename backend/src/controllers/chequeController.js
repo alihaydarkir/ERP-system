@@ -190,18 +190,17 @@ const createCheque = async (req, res) => {
       return res.status(400).json(formatError('Due date must be after received date'));
     }
 
-    // Check if customer exists and belongs to user's company
-    const customer = await Customer.findById(customer_id);
+    // Müşteri çağıranın şirketine ait olmalı — admin dahil her rol için (admin tenant-bağlıdır).
+    // Şirketi olmayan kullanıcıda arama kapalı kalır (fail-closed).
+    const customer = companyId ? await Customer.findById(customer_id, companyId) : null;
     if (!customer) {
       return res.status(404).json(formatError('Customer not found'));
     }
-
-    // Check company ownership (multi-tenancy) - any user in same company can create cheques
-    const userCompanyId = req.user.company_id;
-    if (userCompanyId && customer.company_id &&
-        customer.company_id !== userCompanyId &&
-        req.user.role !== 'admin') {
-      return res.status(403).json(formatError('Access denied to this customer'));
+    if (given_to_customer_id) {
+      const givenTo = await Customer.findById(given_to_customer_id, companyId);
+      if (!givenTo) {
+        return res.status(404).json(formatError('Customer not found'));
+      }
     }
 
     // Check for duplicate (same serial number + bank)
@@ -316,14 +315,12 @@ const updateCheque = async (req, res) => {
     }
 
     // If customer_id is being changed, validate it
-    if (req.body.customer_id) {
-      const customer = await Customer.findById(req.body.customer_id);
-      if (!customer) {
-        return res.status(404).json(formatError('Customer not found'));
-      }
-
-      if (companyId && customer.company_id && customer.company_id !== companyId && req.user.role !== 'admin') {
-        return res.status(403).json(formatError('Access denied to this customer'));
+    for (const key of ['customer_id', 'given_to_customer_id']) {
+      if (req.body[key]) {
+        const customer = companyId ? await Customer.findById(req.body[key], companyId) : null;
+        if (!customer) {
+          return res.status(404).json(formatError('Customer not found'));
+        }
       }
     }
 
@@ -401,6 +398,13 @@ const changeChequeStatus = async (req, res) => {
     }
 
     const oldStatus = existingCheque.status;
+
+    if (normalizedStatus === 'musteriye_verildi') {
+      const givenTo = companyId ? await Customer.findById(given_to_customer_id, companyId) : null;
+      if (!givenTo) {
+        return res.status(404).json(formatError('Customer not found'));
+      }
+    }
 
     // Update status + duruma özel alanlar
     const extra = {};

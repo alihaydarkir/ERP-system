@@ -274,9 +274,10 @@ const buildQueryString = (params) => {
 /**
  * Get client IP from request
  */
+// İstemci başlıkları (X-Forwarded-For/X-Real-IP) sahteleştirilebilir: yalnızca req.ip.
+// Ters vekil arkasında TRUST_PROXY ayarlanırsa Express başlığı güvenilen vekilden çözer.
 const getClientIP = (req) => {
-  return req.headers['x-forwarded-for']?.split(',')[0] ||
-         req.headers['x-real-ip'] ||
+  return req.ip ||
          req.connection?.remoteAddress ||
          req.socket?.remoteAddress ||
          'unknown';

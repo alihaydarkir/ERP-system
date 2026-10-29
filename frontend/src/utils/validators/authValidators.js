@@ -6,9 +6,16 @@ export function validateEmail(email) {
   return '';
 }
 
+// Backend ile aynı politika (backend/src/utils/passwordPolicy.js): 8–72 bayt, harf + rakam
+export const PASSWORD_HINT = 'En az 8 karakter; en az bir harf ve bir rakam içermelidir.';
+const COMMON_PASSWORDS = new Set(['12345678', '123456789', 'password', 'password1', 'password123', 'qwerty123', 'admin123', 'sifre123', 'parola123']);
+
 export function validatePassword(password) {
   if (!password) return 'Şifre alanı zorunludur.';
-  if (password.length < 6) return 'Şifre en az 6 karakter olmalıdır.';
+  if (password.length < 8) return 'Şifre en az 8 karakter olmalıdır.';
+  if (new TextEncoder().encode(password).length > 72) return 'Şifre çok uzun (en fazla 72 bayt).';
+  if (!/[A-Za-zÇĞİÖŞÜçğıöşü]/.test(password) || !/\d/.test(password)) return 'Şifre en az bir harf ve bir rakam içermelidir.';
+  if (COMMON_PASSWORDS.has(password.toLowerCase())) return 'Bu şifre çok yaygın; daha benzersiz bir şifre seçin.';
   return '';
 }
 

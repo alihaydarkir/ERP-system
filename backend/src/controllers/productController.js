@@ -6,6 +6,14 @@ const cacheService = require('../services/cacheService');
 const { formatProduct, formatProducts, formatSuccess, formatError, formatPaginated } = require('../utils/formatters');
 const { getClientIP, calculateOffset } = require('../utils/helpers');
 
+// supplier_id çağıranın şirketine ait olmalı (kiracı sızıntısı önlemi)
+const supplierBelongsToCompany = async (supplierId, companyId) => {
+  if (supplierId === undefined || supplierId === null || supplierId === '') return true;
+  if (!companyId) return false;
+  const r = await pool.query('SELECT 1 FROM suppliers WHERE id = $1 AND company_id = $2', [supplierId, companyId]);
+  return r.rows.length > 0;
+};
+
 /**
  * Get all products
  */
@@ -90,6 +98,10 @@ const createProduct = async (req, res) => {
     const { name, description, price, stock, category, sku, low_stock_threshold, supplier_id } = req.body;
     const { company_id } = req.user; // MULTI-TENANCY
 
+    if (!(await supplierBelongsToCompany(supplier_id, company_id))) {
+      return res.status(404).json(formatError('Supplier not found'));
+    }
+
     // Check if SKU already exists IN THIS COMPANY
     const existing = await Product.findBySku(sku, company_id);
     if (existing) {
@@ -152,6 +164,10 @@ const updateProduct = async (req, res) => {
     const existingProduct = await Product.findById(id, company_id);
     if (!existingProduct) {
       return res.status(404).json(formatError('Product not found'));
+    }
+
+    if (updates.supplier_id !== undefined && !(await supplierBelongsToCompany(updates.supplier_id, company_id))) {
+      return res.status(404).json(formatError('Supplier not found'));
     }
 
     // Map 'stock' to 'stock_quantity' for model compatibility
@@ -290,7 +306,7 @@ const getSupplyAlerts = async (req, res) => {
         ABS(p.stock_quantity) AS deficit,
         s.id AS supplier_id, s.supplier_name, s.phone AS supplier_phone, s.email AS supplier_email
       FROM products p
-      LEFT JOIN suppliers s ON s.id = p.supplier_id
+      LEFT JOIN suppliers s ON s.id = p.supplier_id AND s.company_id = p.company_id
       WHERE p.company_id = $1 AND p.stock_quantity < 0
       ORDER BY p.stock_quantity ASC
     `, [company_id]);

@@ -11,6 +11,7 @@ exports.getActivityLogs = async (req, res) => {
       action,
       startDate: startDate ? new Date(startDate) : undefined,
       endDate: endDate ? new Date(endDate) : undefined,
+      companyId: req.user.company_id,
       limit: parseInt(limit),
       offset: parseInt(offset)
     };
@@ -33,12 +34,9 @@ exports.getActivityLogs = async (req, res) => {
 // Get activity statistics
 exports.getActivityStatistics = async (req, res) => {
   try {
-    const { startDate, endDate } = req.query;
+    const { days } = req.query;
     
-    const stats = await ActivityLogService.getStatistics(
-      startDate ? new Date(startDate) : undefined,
-      endDate ? new Date(endDate) : undefined
-    );
+    const stats = await ActivityLogService.getStatistics(req.user.company_id, days);
     
     res.json({
       success: true,
@@ -58,7 +56,7 @@ exports.cleanupOldLogs = async (req, res) => {
   try {
     const { days = 90 } = req.query;
     
-    const deletedCount = await ActivityLogService.cleanup(parseInt(days));
+    const deletedCount = await ActivityLogService.cleanup(req.user.company_id, parseInt(days, 10));
     
     // Log this activity
     await ActivityLogService.log(
@@ -94,6 +92,7 @@ exports.getMyActivity = async (req, res) => {
       action,
       startDate: startDate ? new Date(startDate) : undefined,
       endDate: endDate ? new Date(endDate) : undefined,
+      companyId: req.user.company_id,
       limit: parseInt(limit),
       offset: parseInt(offset)
     };

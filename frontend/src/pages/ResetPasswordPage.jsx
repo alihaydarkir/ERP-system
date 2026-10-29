@@ -5,6 +5,7 @@ import Input from '../components/UI/Input';
 import Button from '../components/UI/Button';
 import { Lock, ArrowLeft } from 'lucide-react';
 import { authService } from '../services/authService';
+import { validatePassword } from '../utils/validators/authValidators';
 
 export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
@@ -24,8 +25,9 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    if (!newPassword || newPassword.length < 6) {
-      toast.error('Şifre en az 6 karakter olmalıdır');
+    const passwordError = validatePassword(newPassword);
+    if (passwordError) {
+      toast.error(passwordError);
       return;
     }
 
