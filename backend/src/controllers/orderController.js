@@ -215,7 +215,15 @@ const updateOrder = async (req, res) => {
       return res.status(404).json(formatError('Order not found'));
     }
 
-    const order = await Order.update(id, updates);
+    let order;
+    try {
+      order = await Order.update(id, updates, company_id);
+    } catch (err) {
+      if (err.code === 'INVALID_STATUS_TRANSITION') {
+        return res.status(400).json(formatError(err.message));
+      }
+      throw err;
+    }
 
     if (!order) {
       return res.status(404).json(formatError('Order not found'));
@@ -327,8 +335,13 @@ const updateOrderStatus = async (req, res) => {
       );
     }
 
-    // Update status
-    const updatedOrder = await Order.updateStatus(id, status, company_id);
+    // İptal stok iadesi gerektirir: PATCH ile de cancel() yolundan geçmeli
+    const updatedOrder = status === ORDER_STATUS.CANCELLED
+      ? await Order.cancel(id, company_id)
+      : await Order.updateStatus(id, status, company_id);
+    if (!updatedOrder) {
+      return res.status(409).json(formatError('Sipariş durumu başka bir işlemle değişti, yeniden deneyin'));
+    }
 
     // Log activity
     await AuditLog.create({
@@ -383,6 +396,9 @@ const cancelOrder = async (req, res) => {
 
     // Cancel order (will restore stock automatically)
     const cancelledOrder = await Order.cancel(id, company_id);
+    if (!cancelledOrder) {
+      return res.status(409).json(formatError('Sipariş artık iptal edilemez (durum başka bir işlemle değişti)'));
+    }
 
     // Log activity
     await AuditLog.create({

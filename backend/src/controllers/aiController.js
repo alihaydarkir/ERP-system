@@ -159,6 +159,12 @@ const approveAIAction = async (req, res) => {
       return res.status(403).json(formatError('Farklı şirkete ait onayı çalıştıramazsınız', null, 'FORBIDDEN'));
     }
 
+    // Bayat onaylar yürütülmez: talep verisi/yetkiler zamanla eskir (AI_APPROVAL_TTL_HOURS, varsayılan 24)
+    const ttlHours = Number(process.env.AI_APPROVAL_TTL_HOURS) || 24;
+    if (existing.created_at && Date.now() - new Date(existing.created_at).getTime() > ttlHours * 3600 * 1000) {
+      return res.status(410).json(formatError('Onay süresi doldu; işlemi yeniden talep edin', null, 'APPROVAL_EXPIRED'));
+    }
+
     const approved = await aiApprovalService.approve({
       id: approvalId,
       approver_user_id: req.user.userId,

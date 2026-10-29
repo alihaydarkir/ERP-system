@@ -8,11 +8,22 @@
 require('dotenv').config();
 const { pool } = require('../src/config/database');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+
+// Güvenlik: bu betik admin hesabını OLUŞTURUR/SIFIRLAR. Önceden sabit 'admin123' parolası kullanıyordu;
+// müşteri kurulumunda çalıştırılırsa bilinen parolalı yönetici bırakırdı. Artık parola rastgele üretilir
+// (veya RESET_ADMIN_PASSWORD verilir) ve üretim/onprem'de açık onay bayrağı gerekir.
+const isProdLike = process.env.NODE_ENV === 'production' || process.env.DEPLOYMENT_MODE === 'onprem';
+if (isProdLike && !process.argv.includes('--yes-reset-admin')) {
+  console.error('Reddedildi: üretim/onprem ortamında admin sıfırlaması için --yes-reset-admin bayrağı gerekir.');
+  process.exit(1);
+}
+const generatedPassword = process.env.RESET_ADMIN_PASSWORD || crypto.randomBytes(12).toString('base64url') + 'a1';
 
 const ADMIN = {
   username: 'admin',
   email: 'admin@erp.local',
-  password: 'admin123',
+  password: generatedPassword,
   role: 'admin',
   full_name: 'Admin User',
 };

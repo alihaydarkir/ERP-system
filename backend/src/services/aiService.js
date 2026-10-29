@@ -1292,6 +1292,17 @@ class AIService {
       throw new Error('Bu onayı yürütmek için rolünüz yetersiz');
     }
 
+    // Talep eden hesap pasifleştirildiyse/silindiyse onaylı işlem yine de çalışmasın
+    const requesterRow = await pool.query(
+      'SELECT is_active, deleted_at FROM users WHERE id = $1 LIMIT 1',
+      [request.requested_by_user_id]
+    );
+    const requesterState = requesterRow.rows[0];
+    if (!requesterState || requesterState.is_active === false || requesterState.deleted_at) {
+      await aiApprovalService.markExecutionFailed({ id: request.id, error_message: 'Talep eden kullanıcı aktif değil' });
+      throw new Error('Talep eden kullanıcı aktif değil');
+    }
+
     const requesterRole = await this.getUserRoleById(request.requested_by_user_id);
 
     const permissionCheck = await this.hasMutationPermission({

@@ -33,7 +33,7 @@ const validateCustomerImport = async (req, res) => {
     const userId = req.user.id;
 
     // Validate data
-    const validationResult = await CustomerBulkImportService.validateImportData(parseResult.data, userId);
+    const validationResult = await CustomerBulkImportService.validateImportData(parseResult.data, userId, req.user.company_id);
 
     return res.status(200).json({
       success: true,
@@ -68,7 +68,7 @@ const processCustomerImport = async (req, res) => {
     const userId = req.user.id;
 
     // Process import
-    const importResult = await CustomerBulkImportService.processImport(validData, userId);
+    const importResult = await CustomerBulkImportService.processImport(validData, userId, req.user.company_id);
 
     return res.status(200).json({
       success: true,
