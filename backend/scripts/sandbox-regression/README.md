@@ -4,7 +4,7 @@
 WebSocket düzeltmelerini uçtan uca doğrular. **Gerçek veritabanına karşı çalıştırma** — yalnızca
 geçici bir Postgres + arka uç içeren, dış ağı olmayan Docker ağında.
 
-Beklenen: `orders-import-smtp-regression.js` → `14 passed`; `tenant-regression.js` → `RESULT: 30 passed, 0 failed`; `websocket-regression.js` → `6 passed`.
+Beklenen: `2fa-regression.js` → `30 passed` (arka ucu `NODE_ENV=development` ile başlatın: üretim modundaki IP/dakika sınırları test sıklığıyla çakışır); `orders-import-smtp-regression.js` → `14 passed`; `tenant-regression.js` → `RESULT: 30 passed, 0 failed`; `websocket-regression.js` → `6 passed`.
 
 Kurulum özeti:
 1. `docker network create --internal audit-net`

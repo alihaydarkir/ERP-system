@@ -41,6 +41,14 @@ class User {
   }
 
   /**
+   * Tam kullanıcı satırı (oturum açma akışları için: onay durumu, aktiflik, silinme alanları dahil)
+   */
+  static async findFullById(id) {
+    const result = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+    return result.rows[0];
+  }
+
+  /**
    * Find user by email
    */
   static async findByEmail(email) {

@@ -59,7 +59,7 @@ class WebSocketHandlers {
       const decoded = jwt.verify(token, config.jwt.secret);
 
       // 2FA ara jetonu gibi amaca özel jetonlar soketi yetkilendiremez
-      if (decoded.purpose) {
+      if (decoded.purpose || decoded.sid || (decoded.typ && decoded.typ !== 'access')) {
         socket.emit(events.AUTHENTICATION_ERROR, { error: 'Invalid token' });
         return;
       }

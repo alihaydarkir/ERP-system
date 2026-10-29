@@ -1,49 +1,37 @@
 const express = require('express');
 const router = express.Router();
-const { twoFaAuthMiddleware, checkTwoFaTokenUsage } = require('../middleware/twoFaAuth');
-const { generalLimiter } = require('../middleware/rateLimit');
+const authMiddleware = require('../middleware/auth');
+const { generalLimiter, sensitiveOperationsLimiter } = require('../middleware/rateLimit');
 const { validate } = require('../validators/validate');
 const { twoFaSchemas } = require('../validators/twoFaValidators');
-const { verifyTwoFaSchema, disableTwoFaSchema } = require('../validators/twoFaValidator');
 const {
   startSetup,
   verifySetup,
   getStatus,
   disable,
-  verifyLogin,
-  getBackupCodes,
   regenerateBackupCodes,
   deleteUserTwoFA
 } = require('../controllers/user2faController');
 
-// Use special 2FA middleware that accepts both regular tokens and temporary 2FA tokens
-router.use(twoFaAuthMiddleware);
+// Yalnızca tam (access) oturum: geçici 2FA jetonu bu uçlara erişemez (authMiddleware purpose'lı jetonu reddeder).
+// Girişteki ikinci adım: POST /api/auth/2fa/verify (authController.verifyTwoFaLogin).
+router.use(authMiddleware);
 
-// Check that temporary 2FA tokens only access /verify endpoint
-router.use(checkTwoFaTokenUsage);
-
-// Get current 2FA status
 router.get('/status', generalLimiter, getStatus);
 
-// Start 2FA setup (generate secret & QR code)
-router.post('/setup', generalLimiter, validate(twoFaSchemas.enable), startSetup);
+// Kurulum: sır + QR üret (2FA etkinse 409)
+router.post('/setup', sensitiveOperationsLimiter, startSetup);
 
-// Verify token during setup
-router.post('/setup/verify', generalLimiter, validate(twoFaSchemas.verify), verifySetup);
+// Kurulumu ilk TOTP ile tamamla, yedek kodları bir kez göster
+router.post('/setup/verify', sensitiveOperationsLimiter, validate(twoFaSchemas.verify), verifySetup);
 
-// Verify token during login (accepts temporary 2FA token)
-router.post('/verify', generalLimiter, validate(verifyTwoFaSchema), verifyLogin);
+// Yedek kodları yeniden üret (güncel TOTP gerekir; kodlar yalnızca yanıtta görünür)
+router.post('/backup-codes/regenerate', sensitiveOperationsLimiter, validate(twoFaSchemas.regenerate), regenerateBackupCodes);
 
-// Get backup codes
-router.get('/backup-codes', generalLimiter, getBackupCodes);
+// 2FA'yı kapat: parola + güncel kod
+router.post('/disable', sensitiveOperationsLimiter, validate(twoFaSchemas.disable), disable);
 
-// Regenerate backup codes
-router.post('/backup-codes/regenerate', generalLimiter, regenerateBackupCodes);
-
-// Disable 2FA for current user
-router.post('/disable', generalLimiter, validate(disableTwoFaSchema), disable);
-
-// Delete 2FA for user (admin only)
-router.delete('/:userId', generalLimiter, deleteUserTwoFA);
+// Yönetici: aynı şirketteki kullanıcının 2FA'sını sıfırla
+router.delete('/:userId', sensitiveOperationsLimiter, deleteUserTwoFA);
 
 module.exports = router;

@@ -160,8 +160,8 @@ Kod: `backend/src/services/{backupCrypto,backupService,backupNotifications}.js`,
 `controllers/backupController.js`, `routes/backups.js`; `Dockerfile.backup`, `docker/yedek/yedekle.sh`;
 arayüz `components/Settings/BackupSettings.jsx`.
 
-> **Not:** 2FA kurulum/giriş arayüzü henüz bağlı değil (sonraki PR). O gelene kadar yedek şifrelemesi
-> ekrandan kurulamaz; müşteriye bu ikisi birlikte gider.
+> **Not:** 2FA'nın **sunucu tarafı** hazır (`/api/2fa/*`, girişte `/api/auth/2fa/verify`); kurulum ve giriş
+> **arayüzü** henüz yok (sonraki PR). O gelene kadar yedek şifrelemesi ekrandan kurulamaz; müşteriye bu ikisi birlikte gider.
 
 ### KVKK maddesine ek
 
@@ -170,6 +170,7 @@ arayüz `components/Settings/BackupSettings.jsx`.
 
 ## Sonraki adımlar (ayrı PR'lar)
 
-1. **Gerçek 2FA:** QR ile kurulum, girişte TOTP adımı, yedek kodlar, kod tekrar kullanım koruması.
+1. **2FA arayüzü:** Profil/güvenlik sekmesinde QR ile kurulum + yedek kod gösterimi, girişte kod adımı (`requiresTwoFa` → `/api/auth/2fa/verify`).
+   (Sunucu tarafı tamam: TOTP, yedek kodlar, tekrar kullanım koruması, deneme kilidi.)
 2. **Kurulum betiği:** `kurulum.ps1` / `install.sh`; şifreler müşterinin makinesinde üretilir,
    güncellemeler GHCR'den çekilir (müşteriden bize bağlantı açılmaz).

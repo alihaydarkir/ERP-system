@@ -19,6 +19,7 @@ const mockAuthController = {
     });
   }),
   refreshToken: jest.fn((_req, res) => res.status(200).json({ success: true, message: 'Token refreshed' })),
+  verifyTwoFaLogin: jest.fn((_req, res) => res.status(200).json({ success: true, message: '2FA verified' })),
   logout: jest.fn((_req, res) => res.status(200).json({ success: true, message: 'Logout successful' })),
   getProfile: jest.fn((req, res) => res.status(200).json({ success: true, data: { userId: req.user?.id } })),
   updateProfile: jest.fn((_req, res) => res.status(200).json({ success: true, message: 'Profile updated' })),

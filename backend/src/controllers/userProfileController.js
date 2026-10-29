@@ -331,70 +331,15 @@ const getLoginHistory = async (req, res) => {
 };
 
 /**
- * Enable 2FA
+ * ESKİ uçlar kaldırıldı (410). Önceden yalnızca users.two_factor_enabled bayrağını doğrulamasız çeviriyordu:
+ * kullanıcı 2FA'nın açık olduğunu sanıyor ama giriş etkilenmiyordu (sahte güvenlik). Gerçek 2FA (TOTP, yedek kod,
+ * giriş ikinci adımı) /api/2fa/* altındadır.
  */
-const enable2FA = async (req, res) => {
-  try {
-    const userId = req.user.id;
-
-    const query = `
-      UPDATE users
-      SET two_factor_enabled = true, updated_at = NOW()
-      WHERE id = $1
-      RETURNING id, two_factor_enabled
-    `;
-
-    const result = await pool.query(query, [userId]);
-
-    // Log the action
-    await AuditLog.create({
-      user_id: userId,
-      action: 'ENABLE_2FA',
-      entity_type: 'user',
-      entity_id: userId,
-      ip_address: getClientIP(req),
-      changes: {}
-    });
-
-    res.json(formatSuccess(result.rows[0], '2FA enabled successfully'));
-  } catch (error) {
-    console.error('Enable 2FA error:', error);
-    res.status(500).json(formatError('Failed to enable 2FA'));
-  }
-};
-
-/**
- * Disable 2FA
- */
-const disable2FA = async (req, res) => {
-  try {
-    const userId = req.user.id;
-
-    const query = `
-      UPDATE users
-      SET two_factor_enabled = false, updated_at = NOW()
-      WHERE id = $1
-      RETURNING id, two_factor_enabled
-    `;
-
-    const result = await pool.query(query, [userId]);
-
-    // Log the action
-    await AuditLog.create({
-      user_id: userId,
-      action: 'DISABLE_2FA',
-      entity_type: 'user',
-      entity_id: userId,
-      ip_address: getClientIP(req),
-      changes: {}
-    });
-
-    res.json(formatSuccess(result.rows[0], '2FA disabled successfully'));
-  } catch (error) {
-    console.error('Disable 2FA error:', error);
-    res.status(500).json(formatError('Failed to disable 2FA'));
-  }
-};
+const legacy2FAGone = (_req, res) => res.status(410).json(
+  formatError('Bu uç kaldırıldı. 2FA için /api/2fa kurulum akışını kullanın.', null, 'GONE')
+);
+const enable2FA = legacy2FAGone;
+const disable2FA = legacy2FAGone;
 
 /**
  * Complete onboarding flow for current user

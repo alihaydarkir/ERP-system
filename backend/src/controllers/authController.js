@@ -90,6 +90,7 @@ const clearAuthCookies = (res) => {
 // Destek oturumunda token'a izin (grant) numarası eklenir; auth middleware her istekte bu izni kontrol eder.
 const signAccessToken = (user) => jwt.sign(
   {
+    typ: 'access',
     jti: crypto.randomBytes(16).toString('hex'),
     userId: user.id,
     username: user.username,
@@ -102,7 +103,7 @@ const signAccessToken = (user) => jwt.sign(
 );
 
 const signRefreshToken = (user, sessionId) => jwt.sign(
-  { userId: user.id, sid: sessionId, ...(user.support_grant_id ? { support_grant_id: user.support_grant_id } : {}) },
+  { typ: 'refresh', userId: user.id, sid: sessionId, ...(user.support_grant_id ? { support_grant_id: user.support_grant_id } : {}) },
   config.jwt.secret,
   { expiresIn: config.jwt.refreshExpiresIn }
 );
@@ -325,6 +326,152 @@ const register = async (req, res) => {
 };
 
 /**
+ * Kimlik doğrulaması (parola, ve varsa 2FA) tamamlandıktan sonra oturumu açar: jetonlar, çerezler,
+ * oturum kaydı, günlükler. login ve verifyTwoFaLogin ortak kullanır.
+ */
+const completeLogin = async (req, res, user, { clientIp, userAgent, email }) => {
+  // Generate tokens
+  const sessionId = crypto.randomUUID();
+  const token = signAccessToken(user);
+  const refreshToken = signRefreshToken(user, sessionId);
+
+  setAuthCookies(res, { accessToken: token, refreshToken });
+
+  // Cache user session
+  await cacheService.cacheSession(user.id, {
+    userId: user.id,
+    username: user.username,
+    role: user.role,
+    loginAt: new Date()
+  });
+
+  // Başarılı giriş denemesini kaydet
+  await pool.query(`
+    INSERT INTO login_attempts (user_id, ip_address, username, success, user_agent)
+    VALUES ($1, $2, $3, true, $4)
+  `, [user.id, clientIp, email, userAgent]);
+
+  // Kullanıcının aktif oturumunu kaydet
+  await createUserSession({
+    userId: user.id,
+    sessionToken: refreshToken,
+    ipAddress: clientIp,
+    userAgent
+  });
+
+  // Log activity in audit_logs
+  await AuditLog.logLogin(user.id, getClientIP(req), user.company_id);
+
+  // Log to activity logs
+  await ActivityLogService.log(
+    user.id,
+    'login',
+    'auth',
+    { username: user.username, email: user.email },
+    req
+  );
+
+  // Log login in login_logs table
+  const ipAddress = getClientIP(req);
+
+  // Parse device and browser from user agent
+  let device = 'Desktop';
+  let browser = 'Unknown';
+
+  if (userAgent.includes('Mobile') || userAgent.includes('Android') || userAgent.includes('iPhone')) {
+    device = 'Mobile';
+  } else if (userAgent.includes('Tablet') || userAgent.includes('iPad')) {
+    device = 'Tablet';
+  }
+
+  if (userAgent.includes('Chrome')) {
+    browser = 'Chrome';
+  } else if (userAgent.includes('Firefox')) {
+    browser = 'Firefox';
+  } else if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) {
+    browser = 'Safari';
+  } else if (userAgent.includes('Edge')) {
+    browser = 'Edge';
+  }
+
+  await pool.query(`
+    INSERT INTO login_logs (user_id, ip_address, user_agent, device, browser, location, success)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
+  `, [user.id, ipAddress, userAgent, device, browser, 'Unknown', true]);
+
+  // Update user last_login and login_count
+  await pool.query(`
+    UPDATE users
+    SET last_login = NOW(), login_count = COALESCE(login_count, 0) + 1
+    WHERE id = $1
+  `, [user.id]);
+
+  // Get company info
+  const companyInfo = await pool.query(
+    'SELECT id, company_name, company_code FROM companies WHERE id = $1',
+    [user.company_id]
+  );
+
+  res.json(formatSuccess({
+    user: {
+      ...formatUser(user),
+      onboarding_completed: Boolean(user.onboarding_completed)
+    },
+    company: companyInfo.rows[0] || null
+  }, 'Login successful'));
+};
+
+/**
+ * Girişte ikinci adım: parola doğrulandıktan sonra verilen geçici jeton (tempToken) + TOTP/yedek kod.
+ * POST /api/auth/2fa/verify (kimliksiz uç; CSRF muaf, Origin kontrolü geçerli)
+ */
+const verifyTwoFaLogin = async (req, res) => {
+  try {
+    const { tempToken, code } = req.body;
+    const clientIp = getClientIP(req);
+    const userAgent = req.get('user-agent') || 'Unknown';
+
+    let decoded;
+    try {
+      decoded = jwt.verify(tempToken, config.jwt.secret);
+    } catch (e) {
+      return res.status(401).json(formatError('Doğrulama oturumu geçersiz veya süresi doldu. Yeniden giriş yapın.', null, 'TWO_FA_SESSION_EXPIRED'));
+    }
+    if (decoded.purpose !== '2fa_verification' || decoded.typ !== '2fa') {
+      return res.status(401).json(formatError('Doğrulama oturumu geçersiz.', null, 'TWO_FA_SESSION_EXPIRED'));
+    }
+
+    const user = await User.findFullById(decoded.userId);
+    if (!user || user.is_active === false || user.deleted_at || user.approval_status !== 'approved' ||
+        user.role === 'support' || (user.role === 'super_admin' && !superAdminAllowed())) {
+      return res.status(401).json(formatError('Doğrulama oturumu geçersiz.', null, 'TWO_FA_SESSION_EXPIRED'));
+    }
+
+    const status = await User2FA.getStatus(user.id);
+    if (!status || !status.is_enabled) {
+      return res.status(401).json(formatError('Doğrulama oturumu geçersiz.', null, 'TWO_FA_SESSION_EXPIRED'));
+    }
+
+    const verification = await User2FA.verifyLoginCode(user.id, code);
+    if (verification.locked) {
+      return res.status(429).json(formatError('Çok fazla hatalı deneme. 15 dakika sonra tekrar deneyin.', null, 'TWO_FA_LOCKED'));
+    }
+    if (!verification.valid) {
+      await pool.query(
+        'INSERT INTO login_attempts (user_id, ip_address, username, success, user_agent) VALUES ($1, $2, $3, false, $4)',
+        [user.id, clientIp, user.email, userAgent]
+      );
+      return res.status(401).json(formatError('Doğrulama kodu geçersiz.', null, 'INVALID_2FA_CODE'));
+    }
+
+    return await completeLogin(req, res, user, { clientIp, userAgent, email: user.email });
+  } catch (error) {
+    console.error('2FA login verification error:', error);
+    return res.status(500).json(formatError('Doğrulama başarısız'));
+  }
+};
+
+/**
  * Login user
  */
 const login = async (req, res) => {
@@ -417,7 +564,7 @@ const login = async (req, res) => {
     if (twoFaStatus && twoFaStatus.is_enabled) {
       // Generate temporary token for 2FA verification (valid for 5 minutes)
       const tempToken = jwt.sign(
-        { userId: user.id, username: user.username, purpose: '2fa_verification' },
+        { typ: '2fa', userId: user.id, username: user.username, purpose: '2fa_verification' },
         config.jwt.secret,
         { expiresIn: '5m' }
       );
@@ -430,95 +577,7 @@ const login = async (req, res) => {
       }, '2FA verification required'));
     }
 
-    // Generate tokens
-    const sessionId = crypto.randomUUID();
-    const token = signAccessToken(user);
-    const refreshToken = signRefreshToken(user, sessionId);
-
-    setAuthCookies(res, { accessToken: token, refreshToken });
-
-    // Cache user session
-    await cacheService.cacheSession(user.id, {
-      userId: user.id,
-      username: user.username,
-      role: user.role,
-      loginAt: new Date()
-    });
-
-    // Başarılı giriş denemesini kaydet
-    await pool.query(`
-      INSERT INTO login_attempts (user_id, ip_address, username, success, user_agent)
-      VALUES ($1, $2, $3, true, $4)
-    `, [user.id, clientIp, email, userAgent]);
-
-    // Kullanıcının aktif oturumunu kaydet
-    await createUserSession({
-      userId: user.id,
-      sessionToken: refreshToken,
-      ipAddress: clientIp,
-      userAgent
-    });
-
-    // Log activity in audit_logs
-    await AuditLog.logLogin(user.id, getClientIP(req), user.company_id);
-
-    // Log to activity logs
-    await ActivityLogService.log(
-      user.id,
-      'login',
-      'auth',
-      { username: user.username, email: user.email },
-      req
-    );
-
-    // Log login in login_logs table
-    const ipAddress = getClientIP(req);
-
-    // Parse device and browser from user agent
-    let device = 'Desktop';
-    let browser = 'Unknown';
-
-    if (userAgent.includes('Mobile') || userAgent.includes('Android') || userAgent.includes('iPhone')) {
-      device = 'Mobile';
-    } else if (userAgent.includes('Tablet') || userAgent.includes('iPad')) {
-      device = 'Tablet';
-    }
-
-    if (userAgent.includes('Chrome')) {
-      browser = 'Chrome';
-    } else if (userAgent.includes('Firefox')) {
-      browser = 'Firefox';
-    } else if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) {
-      browser = 'Safari';
-    } else if (userAgent.includes('Edge')) {
-      browser = 'Edge';
-    }
-
-    await pool.query(`
-      INSERT INTO login_logs (user_id, ip_address, user_agent, device, browser, location, success)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-    `, [user.id, ipAddress, userAgent, device, browser, 'Unknown', true]);
-
-    // Update user last_login and login_count
-    await pool.query(`
-      UPDATE users
-      SET last_login = NOW(), login_count = COALESCE(login_count, 0) + 1
-      WHERE id = $1
-    `, [user.id]);
-
-    // Get company info
-    const companyInfo = await pool.query(
-      'SELECT id, company_name, company_code FROM companies WHERE id = $1',
-      [user.company_id]
-    );
-
-    res.json(formatSuccess({
-      user: {
-        ...formatUser(user),
-        onboarding_completed: Boolean(user.onboarding_completed)
-      },
-      company: companyInfo.rows[0] || null
-    }, 'Login successful'));
+    return await completeLogin(req, res, user, { clientIp, userAgent, email });
 
   } catch (error) {
     console.error('Login error:', error);
@@ -540,6 +599,12 @@ const refreshToken = async (req, res) => {
 
     // Verify refresh token
     const decoded = jwt.verify(incomingRefreshToken, config.jwt.secret);
+
+    // Yalnızca refresh jetonu: erişim/2FA ara jetonları yenileme için geçersiz
+    if (decoded.purpose || (decoded.typ && decoded.typ !== 'refresh')) {
+      clearAuthCookies(res);
+      return res.status(401).json(formatError('Invalid refresh token'));
+    }
 
     // Get user
     const user = await User.findById(decoded.userId);
@@ -1099,6 +1164,7 @@ module.exports = {
   login,
   supportLogin,
   refreshToken,
+  verifyTwoFaLogin,
   logout,
   getProfile,
   updateProfile,

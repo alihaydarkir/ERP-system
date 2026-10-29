@@ -77,6 +77,12 @@ const authMiddleware = async (req, res, next) => {
 
     const decoded = jwt.verify(token, config.jwt.secret);
 
+    // Yalnızca erişim jetonu oturum açar: refresh (sid) ve 2FA ara jetonu (purpose/typ) kabul edilmez.
+    // (typ'siz eski erişim jetonları süreleri dolana kadar geçerli kalır: sid/purpose taşımazlar.)
+    if (decoded.purpose || decoded.sid || (decoded.typ && decoded.typ !== 'access')) {
+      return res.status(401).json({ error: 'Invalid token type' });
+    }
+
     // onprem'de super_admin: mod sonradan açıldıysa elde kalan token'lar da geçmez
     if (decoded.role === 'super_admin' && !superAdminAllowed()) {
       return res.status(401).json({ error: 'super_admin is disabled in on-prem mode' });

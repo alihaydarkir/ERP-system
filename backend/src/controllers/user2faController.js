@@ -1,401 +1,169 @@
-const jwt = require('jsonwebtoken');
-const { config } = require('../config/env');
 const QRCode = require('qrcode');
 const User2FA = require('../models/User2FA');
 const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
-const cacheService = require('../services/cacheService');
 const pool = require('../config/database');
 const { getClientIP } = require('../utils/helpers');
-const { formatUser, formatSuccess, formatError } = require('../utils/formatters');
 
 /**
- * Start 2FA setup - generate secret and QR code
+ * 2FA yönetim uçları (oturum açmış kullanıcı için). Girişteki ikinci adım authController.verifyTwoFaLogin'dedir.
+ * Hata yanıtlarında iç hata mesajı (error.message) dönmez.
+ */
+
+const audit = (req, action, entityId, changes = {}) => AuditLog.create({
+  user_id: req.user.id,
+  action,
+  entity_type: 'user_2fa',
+  entity_id: entityId,
+  changes,
+  ip_address: getClientIP(req),
+  company_id: req.user.company_id
+}).catch((e) => console.error('[2FA audit]', e.message));
+
+const fail = (res, status, message, error) => res.status(status).json({ success: false, message, ...(error ? { error } : {}) });
+
+/**
+ * Kurulumu başlat: sır + QR kodu. 2FA zaten etkinse 409 (sır sıfırlanmaz).
  */
 exports.startSetup = async (req, res) => {
   try {
-    const userId = req.user.id;
-
-    // Create 2FA configuration
-    const config = await User2FA.create(userId);
-
-    // Generate QR code
-    const qrCodeUrl = await QRCode.toDataURL(config.secret_url);
+    const setup = await User2FA.create(req.user.id);
+    const qrCode = await QRCode.toDataURL(setup.secret_url);
 
     res.status(200).json({
       success: true,
-      message: '2FA setup started',
-      secret: config.secret_base32,
-      qrCode: qrCodeUrl,
-      otpauthUrl: config.secret_url,
-      instructions: [
-        'Scan the QR code with your authenticator app (Google Authenticator, Authy, Microsoft Authenticator, etc.)',
-        'Or enter the secret key manually: ' + config.secret_base32,
-        'Enter a verification code to complete setup'
-      ]
+      message: '2FA kurulumu başlatıldı',
+      secret: setup.secret_base32,
+      qrCode,
+      otpauthUrl: setup.secret_url
     });
   } catch (error) {
+    if (error.code === 'TWO_FA_ALREADY_ENABLED') {
+      return fail(res, 409, '2FA zaten etkin. Yeniden kurmak için önce devre dışı bırakın.', 'TWO_FA_ALREADY_ENABLED');
+    }
     console.error('[2FA Setup Error]:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to start 2FA setup',
-      error: error.message
-    });
+    return fail(res, 500, '2FA kurulumu başlatılamadı');
   }
 };
 
 /**
- * Verify token during 2FA setup
+ * Kurulumu tamamla: ilk TOTP ile doğrula, etkinleştir, yedek kodları (bir kez) göster.
  */
 exports.verifySetup = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { token } = req.body;
+    const existing = await User2FA.findByUserId(userId);
+    if (!existing) return fail(res, 400, 'Önce kurulumu başlatın', 'TWO_FA_NOT_STARTED');
+    if (existing.is_enabled) return fail(res, 409, '2FA zaten etkin', 'TWO_FA_ALREADY_ENABLED');
 
-    if (!token || token.toString().length !== 6) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid token format. Must be 6 digits'
-      });
-    }
+    const verification = await User2FA.verifyToken(userId, req.body.token);
+    if (verification.locked) return fail(res, 429, 'Çok fazla hatalı deneme. 15 dakika sonra tekrar deneyin.', 'TWO_FA_LOCKED');
+    if (!verification.valid) return fail(res, 400, 'Doğrulama kodu geçersiz', 'INVALID_TOKEN');
 
-    // Verify the token
-    const verification = await User2FA.verifyToken(userId, token);
-
-    if (!verification.valid) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid verification code. Please try again',
-        error: 'INVALID_TOKEN'
-      });
-    }
-
-    // Generate backup codes
     const backupCodes = await User2FA.generateBackupCodes(userId);
-
-    // Enable 2FA
     await User2FA.enable(userId);
+    await audit(req, '2FA_ENABLED', userId);
 
     res.status(200).json({
       success: true,
-      message: '2FA setup completed successfully',
-      backupCodes: backupCodes,
-      warning: 'Save these backup codes in a secure place. Each code can only be used once.'
+      message: '2FA etkinleştirildi',
+      backupCodes,
+      warning: 'Yedek kodları güvenli bir yere kaydedin. Her biri yalnızca bir kez kullanılabilir ve bir daha gösterilmez.'
     });
   } catch (error) {
     console.error('[2FA Verification Error]:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to verify 2FA setup',
-      error: error.message
-    });
+    return fail(res, 500, '2FA doğrulanamadı');
   }
 };
 
-/**
- * Get 2FA status for current user
- */
 exports.getStatus = async (req, res) => {
   try {
-    const userId = req.user.id;
-    const status = await User2FA.getStatus(userId);
-
+    const status = await User2FA.getStatus(req.user.id);
     res.status(200).json({
       success: true,
-      data: status || {
-        user_id: userId,
-        is_enabled: false,
-        unused_backup_codes: 0
-      }
+      data: status || { user_id: req.user.id, is_enabled: false, unused_backup_codes: 0 }
     });
   } catch (error) {
     console.error('[2FA Status Error]:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to get 2FA status',
-      error: error.message
-    });
+    return fail(res, 500, '2FA durumu alınamadı');
   }
 };
 
 /**
- * Disable 2FA for current user
+ * 2FA'yı kapat: parola + güncel kod şart (çalıntı oturum tek başına kapatamaz).
  */
 exports.disable = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { password } = req.body;
+    const { password, code } = req.body;
 
-    if (!password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Password required to disable 2FA'
-      });
-    }
+    const status = await User2FA.findByUserId(userId);
+    if (!status || !status.is_enabled) return fail(res, 400, '2FA etkin değil', 'TWO_FA_NOT_ENABLED');
 
-    // Verify password before disabling
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
+    const row = await pool.query('SELECT password_hash FROM users WHERE id = $1', [userId]);
+    const passwordValid = row.rows.length > 0 && await User.verifyPassword(password, row.rows[0].password_hash);
+    if (!passwordValid) return fail(res, 401, 'Parola yanlış');
 
-    const userWithPassword = await User.findByEmail(user.email);
-    const passwordValid = await User.verifyPassword(password, userWithPassword.password_hash);
+    const verification = await User2FA.verifyLoginCode(userId, code);
+    if (verification.locked) return fail(res, 429, 'Çok fazla hatalı deneme. 15 dakika sonra tekrar deneyin.', 'TWO_FA_LOCKED');
+    if (!verification.valid) return fail(res, 400, 'Doğrulama kodu geçersiz', 'INVALID_2FA_CODE');
 
-    if (!passwordValid) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid password'
-      });
-    }
+    await User2FA.delete(userId); // sır ve yedek kodlar silinir; yeniden kurulumda yeni sır üretilir
+    await audit(req, '2FA_DISABLED', userId);
 
-    // Disable 2FA
-    await User2FA.disable(userId);
-
-    res.status(200).json({
-      success: true,
-      message: '2FA has been disabled'
-    });
+    res.status(200).json({ success: true, message: '2FA devre dışı bırakıldı' });
   } catch (error) {
     console.error('[2FA Disable Error]:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to disable 2FA',
-      error: error.message
-    });
+    return fail(res, 500, '2FA devre dışı bırakılamadı');
   }
 };
 
 /**
- * Verify token during login and complete authentication
- */
-exports.verifyLogin = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { token, backupCode } = req.body;
-
-    // Get user data
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    let verified = false;
-
-    // Try TOTP verification first
-    if (token) {
-      if (token.toString().length !== 6) {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid token format. Must be 6 digits'
-        });
-      }
-
-      const verification = await User2FA.verifyToken(userId, token);
-      if (verification.valid) {
-        verified = true;
-      }
-    }
-
-    // Try backup code verification if TOTP failed
-    if (!verified && backupCode) {
-      if (!backupCode || backupCode.toString().length !== 8) {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid backup code format'
-        });
-      }
-
-      const verification = await User2FA.verifyBackupCode(userId, backupCode.toUpperCase());
-      if (verification.valid) {
-        verified = true;
-      }
-    }
-
-    if (!verified) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid verification code or backup code',
-        error: 'INVALID_2FA_CODE'
-      });
-    }
-
-    // Generate actual access tokens
-      const accessToken = jwt.sign(
-        { userId: user.id, username: user.username, role: user.role, company_id: user.company_id },
-        config.jwt.secret,
-        { expiresIn: config.jwt.expiresIn }
-      );
-
-    const refreshToken = jwt.sign(
-      { userId: user.id },
-        config.jwt.secret,
-        { expiresIn: config.jwt.refreshExpiresIn }
-    );
-
-    // Persist active session (refresh token keyed)
-    await pool.query(`
-      INSERT INTO user_sessions (user_id, session_token, ip_address, user_agent, last_activity, expires_at, is_active)
-      VALUES ($1, $2, $3, $4, NOW(), NOW() + INTERVAL '7 days', true)
-    `, [user.id, refreshToken, getClientIP(req), req.get('user-agent') || 'Unknown']);
-
-    // Cache user session
-    await cacheService.cacheSession(user.id, {
-      userId: user.id,
-      username: user.username,
-      role: user.role,
-      loginAt: new Date()
-    });
-
-    // Log activity in audit_logs
-    await AuditLog.logLogin(user.id, getClientIP(req));
-
-    // Log login in login_logs table
-    const userAgent = req.get('user-agent') || 'Unknown';
-    const ipAddress = getClientIP(req);
-
-    // Parse device and browser from user agent
-    let device = 'Desktop';
-    let browser = 'Unknown';
-
-    if (userAgent.includes('Mobile') || userAgent.includes('Android') || userAgent.includes('iPhone')) {
-      device = 'Mobile';
-    } else if (userAgent.includes('Tablet') || userAgent.includes('iPad')) {
-      device = 'Tablet';
-    }
-
-    if (userAgent.includes('Chrome')) {
-      browser = 'Chrome';
-    } else if (userAgent.includes('Firefox')) {
-      browser = 'Firefox';
-    } else if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) {
-      browser = 'Safari';
-    } else if (userAgent.includes('Edge')) {
-      browser = 'Edge';
-    }
-
-    await pool.query(`
-      INSERT INTO login_logs (user_id, ip_address, user_agent, device, browser, location, success)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-    `, [user.id, ipAddress, userAgent, device, browser, 'Unknown', true]);
-
-    // Update user last_login and login_count
-    await pool.query(`
-      UPDATE users
-      SET last_login = NOW(), login_count = COALESCE(login_count, 0) + 1
-      WHERE id = $1
-    `, [user.id]);
-
-    res.status(200).json(formatSuccess({
-      user: formatUser(user),
-      token: accessToken,
-      refreshToken
-    }, '2FA verification successful, login complete'));
-  } catch (error) {
-    console.error('[2FA Login Verification Error]:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to verify 2FA code',
-      error: error.message
-    });
-  }
-};
-
-/**
- * Get backup codes for user
- */
-exports.getBackupCodes = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const codes = await User2FA.getBackupCodes(userId);
-
-    res.status(200).json({
-      success: true,
-      message: 'Backup codes retrieved',
-      data: codes.map(c => ({
-        code: c.code,
-        used: c.used_at !== null
-      }))
-    });
-  } catch (error) {
-    console.error('[Get Backup Codes Error]:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to get backup codes',
-      error: error.message
-    });
-  }
-};
-
-/**
- * Regenerate backup codes
+ * Yedek kodları yeniden üret (güncel TOTP gerekir); yeni kodlar yalnızca bu yanıtta görünür.
  */
 exports.regenerateBackupCodes = async (req, res) => {
   try {
     const userId = req.user.id;
+    const status = await User2FA.findByUserId(userId);
+    if (!status || !status.is_enabled) return fail(res, 400, '2FA etkin değil', 'TWO_FA_NOT_ENABLED');
 
-    // Check if 2FA is enabled
-    const status = await User2FA.getStatus(userId);
-    if (!status || !status.is_enabled) {
-      return res.status(400).json({
-        success: false,
-        message: '2FA is not enabled'
-      });
-    }
+    const verification = await User2FA.verifyToken(userId, req.body.token);
+    if (verification.locked) return fail(res, 429, 'Çok fazla hatalı deneme. 15 dakika sonra tekrar deneyin.', 'TWO_FA_LOCKED');
+    if (!verification.valid) return fail(res, 400, 'Doğrulama kodu geçersiz', 'INVALID_TOKEN');
 
-    // Generate new backup codes
     const backupCodes = await User2FA.generateBackupCodes(userId);
+    await audit(req, '2FA_BACKUP_CODES_REGENERATED', userId);
 
     res.status(200).json({
       success: true,
-      message: 'Backup codes regenerated successfully',
-      backupCodes: backupCodes,
-      warning: 'Old backup codes have been replaced. Save these new codes in a secure place.'
+      message: 'Yeni yedek kodlar üretildi (eskiler geçersiz)',
+      backupCodes,
+      warning: 'Bu kodlar bir daha gösterilmez.'
     });
   } catch (error) {
-    console.error('[Regenerate Backup Codes Error]:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to regenerate backup codes',
-      error: error.message
-    });
+    console.error('[2FA Backup Codes Error]:', error);
+    return fail(res, 500, 'Yedek kodlar üretilemedi');
   }
 };
 
 /**
- * Delete 2FA (admin only)
+ * Yönetici: şirketindeki bir kullanıcının 2FA'sını sıfırla (cihaz kaybı). Yalnızca aynı şirket.
  */
 exports.deleteUserTwoFA = async (req, res) => {
   try {
-    const { userId } = req.params;
+    if (req.user.role !== 'admin') return fail(res, 403, 'Bu işlem için yönetici yetkisi gerekir');
+    const targetId = Number(req.params.userId);
+    if (!Number.isInteger(targetId) || targetId <= 0) return fail(res, 400, 'Geçersiz kullanıcı');
 
-    // Check if user is admin
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Only admins can delete 2FA for users'
-      });
-    }
+    const target = await pool.query('SELECT id FROM users WHERE id = $1 AND company_id = $2', [targetId, req.user.company_id]);
+    if (target.rows.length === 0) return fail(res, 404, 'Kullanıcı bulunamadı');
 
-    // Delete 2FA configuration
-    await User2FA.delete(userId);
+    await User2FA.delete(targetId);
+    await audit(req, '2FA_RESET_BY_ADMIN', targetId, { target_user_id: targetId });
 
-    res.status(200).json({
-      success: true,
-      message: '2FA configuration deleted successfully'
-    });
+    res.status(200).json({ success: true, message: 'Kullanıcının 2FA ayarı sıfırlandı' });
   } catch (error) {
-    console.error('[Delete 2FA Error]:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to delete 2FA',
-      error: error.message
-    });
+    console.error('[2FA Delete Error]:', error);
+    return fail(res, 500, '2FA sıfırlanamadı');
   }
 };

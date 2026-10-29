@@ -218,7 +218,7 @@ const listGrantActivity = async (grantId, companyId, limit = 200) => {
 // kullanıcı/rol/şifre/2FA yönetimi. (/api/settings bilinçli olarak yasak değil: SMTP hedefi değişimi denetleyicide parola yeniden girişini zorunlu kılar.)
 // Not: Express yönlendirmesi büyük/küçük harfe duyarsızdır; deny-list de /i olmalı (/API/USER-MANAGEMENT atlatması).
 // Denetim kayıtları (parola sızıntısı riski) okuma dahil kapalı; aktivite günlüğü/kendi veri silme yazma kapalı.
-const SUPPORT_SELF_PATHS = /^\/api\/(support\/(grants|diagnostics)|backups|admin\/audit-logs)/i;
+const SUPPORT_SELF_PATHS = /^\/api\/(support\/(grants|diagnostics)|backups|admin\/audit-logs|2fa)/i;
 const SUPPORT_FORBIDDEN_PATHS = [
   SUPPORT_SELF_PATHS,
   /^\/api\/user-management/i,

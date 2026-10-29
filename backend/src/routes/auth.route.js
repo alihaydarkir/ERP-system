@@ -7,6 +7,7 @@ const {
   register,
   login,
   refreshToken,
+  verifyTwoFaLogin,
   logout,
   getProfile,
   updateProfile,
@@ -17,7 +18,13 @@ const {
   verifyEmail
 } = require('../controllers/authController');
 
+const { twoFaSchemas } = require('../validators/twoFaValidators');
+const { validate: validateBody } = require('../validators/validate');
+const { authLoginLimiter } = require('../middleware/rateLimit');
+
 router.post('/login', validate(userSchemas.login), login);
+// Girişte ikinci adım (parola sonrası verilen tempToken + TOTP/yedek kod)
+router.post('/2fa/verify', authLoginLimiter, validateBody(twoFaSchemas.loginVerify), verifyTwoFaLogin);
 router.post('/register', validate(userSchemas.register), register);
 
 router.post('/refresh', refreshToken);
