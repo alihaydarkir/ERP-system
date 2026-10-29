@@ -79,9 +79,24 @@ const notifySupportSessionStarted = ({ companyId, grantId, accessLevel, expiresA
   emitToApprovers(events.NOTIFICATION, payload, companyId);
 };
 
+// Yedek parolası değişimi, kurtarma kodu kullanımı vb. — şirket yöneticileri anında haberdar olur
+const notifyBackupEvent = ({ companyId, action, message, actorUserId }) => {
+  const payload = {
+    type: 'backup_security_event',
+    action,
+    message,
+    actor_user_id: actorUserId,
+    company_id: companyId,
+    timestamp: new Date().toISOString()
+  };
+
+  emitToApprovers(events.NOTIFICATION, payload, companyId);
+};
+
 module.exports = {
   setWebSocketHandlers,
   notifyAIApprovalRequested,
   notifyAIApprovalUpdated,
-  notifySupportSessionStarted
+  notifySupportSessionStarted,
+  notifyBackupEvent
 };

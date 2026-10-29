@@ -109,8 +109,67 @@ gibi kod tanımlayıcıları okunabilir kalır). Halka bellekte durur; backend y
 - Her destek işlemi müşterinin kendi sisteminde kayıt altındadır ve müşteri tarafından görülebilir.
 - Müşteri izni istediği an iptal edebilir.
 
+## Şifreli yedek
+
+`postgres_backup` servisi her gün `pg_dump` alır, 7 gün saklar (`docker/yedek/yedekle.sh`). Yalnız
+**onprem** modunda müşteri yöneticisi **Ayarlar → Yedekler**'den şifrelemeyi kurar; kurulana kadar
+yedekler şifresiz alınır ve ekran/log uyarır. İki hedef birlikte: parola müşteride kalır, **ve**
+parola unutulsa bile veri kaybolmaz.
+
+**Zarf şifreleme** ([age](https://age-encryption.org)):
+
+- Kurulumda rastgele bir age anahtar çifti üretilir. Açık anahtar `/backups/.alici`'ye yazılır;
+  yedek container'ı dump'ı **yalnız açık anahtarla** şifreler — sunucuda/container'da yedeği açabilecek
+  bir sır durmaz.
+- Özel anahtar iki ayrı "zarfa" sarılıp `/backups/.anahtar.json`'a yazılır (0600): (1) müşterinin
+  **yedek parolası**, (2) kurulumda ekranda **bir kez** gösterilen, basılıp saklanacak **kurtarma kodu**
+  (`XXXX-XXXX-XXXX-XXXX-XXXX-XXXX`). Açık özel anahtar diske yazılmaz.
+- Parola değişimi, "parolamı unuttum" (kurtarma koduyla yeni parola) ve yeni kurtarma kodu üretimi
+  yalnız zarfları yeniler: **eski yedekler yeni parolayla/kodla açılmaya devam eder.**
+- Şifreleme kurulunca eski şifresiz `.dump` dosyaları silinir.
+
+| Kural | Nasıl |
+|---|---|
+| Kim yapar | Yalnız şirket yöneticisi; destek oturumu yedek ekranına giremez (`routes/backups.js`). |
+| 2FA | Kurulum, parola değişimi, kurtarma kodu kullanımı/yenileme ve "son yedeği doğrula" 2FA kodu ister. 2FA kurulu değilse `TWO_FA_REQUIRED`. |
+| Kaba kuvvet | Bu uçlar `sensitiveOperationsLimiter` ile sınırlı. |
+| Kayıt | Her işlem `audit_logs` (`entity_type='backup_encryption'`); parola/kod asla loglanmaz. |
+| Bildirim | Şirket yöneticilerine anlık + e-posta (müşterinin kendi SMTP'si, yoksa `.env` SMTP). `HELIX_BILDIRIM_EPOSTA` tanımlıysa Helix-Ware'e **yalnız** "firma, olay, zaman" gider — anahtar, parola, kod, veri asla. Boş bırakılırsa bize hiçbir şey gitmez. |
+| Doğrulama | "Son yedeği doğrula": son yedek parolayla açılıp `PGDMP` başlığı okunur; veri ekrana çıkmaz. |
+
+### Geri yükleme (cihazdaki betik)
+
+Geri yükleme bilinçli olarak web arayüzünde **yok**: çalışan uygulamanın kendi veritabanını ezmesi
+yerine ERP klasöründe yönetici bir betik çalıştırır.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File kurulum\geri-yukle.ps1   # Windows
+```
+```bash
+./kurulum/geri-yukle.sh                                            # Linux/macOS
+```
+
+Akış: yedekleri listele → seç → yedek parolası **ya da** kurtarma kodu (gizli girilir) → önce
+`--kontrol` ile açılabildiği doğrulanır (açılmazsa hiçbir şey değişmez) → `EVET` onayı → mevcut hâlin
+şifreli **güvenlik yedeği** (`..._geri-yukleme-oncesi.dump.age`) → frontend/backend durdurulur →
+şifre çözme + `pg_restore` backend container'ında tek akışta yapılır (çözülmüş döküm diske/host'a
+çıkmaz) → uygulama yeniden başlatılır. Araç: `backend/scripts/yedek-coz.js`
+(`--liste` / `--kontrol` / `--geri-yukle`, sır stdin'den okunur).
+
+Kod: `backend/src/services/{backupCrypto,backupService,backupNotifications}.js`,
+`controllers/backupController.js`, `routes/backups.js`; `Dockerfile.backup`, `docker/yedek/yedekle.sh`;
+arayüz `components/Settings/BackupSettings.jsx`.
+
+> **Not:** 2FA kurulum/giriş arayüzü henüz bağlı değil (sonraki PR). O gelene kadar yedek şifrelemesi
+> ekrandan kurulamaz; müşteriye bu ikisi birlikte gider.
+
+### KVKK maddesine ek
+
+- Yedekler müşterinin parolasıyla açılabilen biçimde şifrelenir; Helix-Ware'de parola, kurtarma kodu
+  ya da yedek bulunmaz ve Helix-Ware yedekleri açamaz.
+
 ## Sonraki adımlar (ayrı PR'lar)
 
-1. **Şifreli yedek:** Dump'lar müşterinin parolasıyla şifrelenir, geri yükleme betiği.
+1. **Gerçek 2FA:** QR ile kurulum, girişte TOTP adımı, yedek kodlar, kod tekrar kullanım koruması.
 2. **Kurulum betiği:** `kurulum.ps1` / `install.sh`; şifreler müşterinin makinesinde üretilir,
    güncellemeler GHCR'den çekilir (müşteriden bize bağlantı açılmaz).

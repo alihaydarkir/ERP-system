@@ -36,9 +36,14 @@ services:
     # ports:
     #   - "5432:5432"
 
-  # ── PostgreSQL Backups (daily + 7-day retention) ───────────────────────
+  # ── PostgreSQL Backups (günlük, 7 gün; şifreleme kuruluysa age ile) ─────
+  # Betik: docker/yedek/yedekle.sh. Anında yedek:
+  #   docker compose exec postgres_backup yedekle.sh once
   postgres_backup:
-    image: postgres:16-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.backup
+    image: ${DOCKERHUB_USERNAME:-local}/erp-backup:${IMAGE_TAG:-latest}
     container_name: erp_postgres_backup
     restart: unless-stopped
     environment:
@@ -49,22 +54,6 @@ services:
       DB_NAME: ${DB_NAME:-erp_db}
       BACKUP_DIR: /backups
       RETENTION_DAYS: 7
-    entrypoint: ["sh", "-c"]
-    # Liste formu: script tek arguman olarak sh -c'ye gitsin (string formu
-    # compose tarafindan kelimelere bolunuyor ve sadece "mkdir" calisiyordu).
-    command:
-      - >
-        mkdir -p "$${BACKUP_DIR}";
-        echo "[postgres_backup] started - daily pg_dump with $${RETENTION_DAYS}-day retention";
-        while true; do
-          TS=$$(date +"%Y-%m-%d_%H-%M-%S");
-          FILE="$${BACKUP_DIR}/$${DB_NAME}_$${TS}.dump";
-          echo "[postgres_backup] creating backup: $${FILE}";
-          PGPASSWORD="$${DB_PASSWORD}" pg_dump -h "$${DB_HOST}" -p "$${DB_PORT}" -U "$${DB_USER}" -d "$${DB_NAME}" -F c -f "$${FILE}";
-          echo "[postgres_backup] pruning backups older than $${RETENTION_DAYS} days";
-          find "$${BACKUP_DIR}" -type f -name "*.dump" -mtime +$${RETENTION_DAYS} -delete;
-          sleep 86400;
-        done
     volumes:
       - postgres_backups:/backups
     depends_on:
@@ -132,6 +121,11 @@ services:
       # cloud | onprem — onprem'de AI yalnız yerel Ollama, Sentry kapalı (src/config/deployment.js)
       DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-cloud}
       ALLOW_EXTERNAL_RATES: ${ALLOW_EXTERNAL_RATES:-true}
+      # Yedek şifrelemesi (Ayarlar → Yedekler): anahtar zarfları yedeklerin yanında durur
+      BACKUP_DIR: /backups
+      # Yedek parolası değişimi / kurtarma bildiriminin gideceği Helix-Ware adresi (yalnız
+      # bildirim; anahtar/parola/veri gitmez). Boş bırakılırsa bize bildirim gitmez.
+      HELIX_BILDIRIM_EPOSTA: ${HELIX_BILDIRIM_EPOSTA:-}
     # host.docker.internal Linux'ta otomatik çözülmez; Mac/Windows Docker Desktop'ta
     # gereksiz ama zararsız — taşınabilirlik için ekli.
     extra_hosts:
@@ -139,6 +133,7 @@ services:
     volumes:
       - uploads_data:/app/uploads
       - backend_logs:/app/logs
+      - postgres_backups:/backups
     depends_on:
       postgres:
         condition: service_healthy
