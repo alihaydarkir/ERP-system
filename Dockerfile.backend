@@ -9,8 +9,10 @@ RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 # ── Stage 2: Production runner ───────────────────────────────────────────
 FROM node:24-alpine AS runner
 
-# PDF raporlarında Türkçe karakter + ₺ için Unicode font (pdfkit gömülü Helvetica desteklemiyor)
-RUN apk add --no-cache font-dejavu
+# PDF raporlarında Türkçe karakter + ₺ için Unicode font (pdfkit gömülü Helvetica desteklemiyor).
+# pg_restore: şifreli yedek bu container'da çözülüp doğrudan geri yüklenir (scripts/yedek-coz.js);
+# çözülmüş döküm host'a/diske hiç çıkmaz.
+RUN apk add --no-cache font-dejavu postgresql16-client
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && adduser -S erp -u 1001

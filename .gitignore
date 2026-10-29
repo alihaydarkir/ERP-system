@@ -57,6 +57,7 @@ build/
 # Database
 *.sql.backup
 *.backup
+!Dockerfile.backup
 pg_hba.conf.backup
 *.dump
 *.tar

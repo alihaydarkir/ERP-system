@@ -1,0 +1,9 @@
+# Günlük PostgreSQL yedeği + age ile açık anahtarlı şifreleme (docker/yedek/yedekle.sh)
+FROM postgres:16-alpine
+
+RUN apk add --no-cache age
+
+COPY docker/yedek/yedekle.sh /usr/local/bin/yedekle.sh
+RUN sed -i 's/\r$//' /usr/local/bin/yedekle.sh && chmod +x /usr/local/bin/yedekle.sh
+
+ENTRYPOINT ["/usr/local/bin/yedekle.sh"]

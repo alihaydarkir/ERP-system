@@ -63,6 +63,11 @@ destek isteği `audit_logs.is_support`; dışa aktarma ve kullanıcı/izin yöne
 Tanı paketi (`GET /api/support/diagnostics`, `diagnosticsService.js`): `console.error/warn` yazılırken
 maskelenip bellekte halkada tutulur; pakete müşteri kaydı girmez.
 Ayarlar (`system_settings`) şirket bazlı: `company_id` NULL = varsayılan şablon (migration 051).
+Şifreli yedek (onprem, Ayarlar → Yedekler, 2FA'lı): age zarf şifreleme — yedek container'ı yalnız açık
+anahtarla şifreler, özel anahtar parola + basılı kurtarma koduyla sarılı (`/backups/.anahtar.json`);
+geri yükleme yalnız cihazdaki `kurulum/geri-yukle.{ps1,sh}` betiğiyle. `age-encryption` ESM →
+Jest yükleyemez, gerçek kripto testi child node süreciyle (`backupCrypto.test.js`).
+**Dikkat:** 2FA uçtan uca bağlı değil (`routes/twoFa.js` sunucuya takılı değil, login'de TOTP adımı yok).
 Ayrıntı: **`docs/SIRKET-ICI-KURULUM.md`**.
 
 ## Önemli geçmiş (bu projede yapıldı)
@@ -97,7 +102,7 @@ Ayrıntı: **`docs/SIRKET-ICI-KURULUM.md`**.
 - Diğer modüllerde benzer form↔backend "drift" olabilir; test ederken çıkanlar tek tek düzeltiliyor.
 
 ## Çalışma konvansiyonları
-- Değişiklikten sonra: `cd backend && npx jest` (**196 test**, 2026-10-28) yeşil olmalı; create/endpoint
+- Değişiklikten sonra: `cd backend && npx jest` (**211 test**, 2026-10-29) yeşil olmalı; create/endpoint
   değişikliklerini gerçek istekle (curl, Origin: http://localhost:5173 + CSRF cookie) doğrula.
 - Backend `node server.js` ile çalışır (hot-reload yok) → kod değişince `docker compose restart backend`.
 - Commit mesajları Türkçe + `Co-Authored-By: Claude`. Komut timeout'larını kısa tut.

@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Container içinde çalışan betikler: Windows checkout'unda da LF kalmalı
+*.sh text eol=lf

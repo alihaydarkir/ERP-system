@@ -214,8 +214,9 @@ const listGrantActivity = async (grantId, companyId, limit = 200) => {
 };
 
 // Destek oturumunun hiçbir zaman yapamayacağı işlemler (yetki seviyesinden bağımsız):
-// kendi iznini uzatma, tanı paketi indirme (müşteri kendisi gönderir), kullanıcı/rol/şifre/2FA yönetimi.
-const SUPPORT_SELF_PATHS = /^\/api\/support\/(grants|diagnostics)/;
+// kendi iznini uzatma, tanı paketi indirme (müşteri kendisi gönderir), yedek şifrelemesi,
+// kullanıcı/rol/şifre/2FA yönetimi.
+const SUPPORT_SELF_PATHS = /^\/api\/(support\/(grants|diagnostics)|backups)/;
 const SUPPORT_FORBIDDEN_PATHS = [
   SUPPORT_SELF_PATHS,
   /^\/api\/user-management/,
