@@ -102,7 +102,7 @@ Ayrıntı: **`docs/SIRKET-ICI-KURULUM.md`**.
 - Diğer modüllerde benzer form↔backend "drift" olabilir; test ederken çıkanlar tek tek düzeltiliyor.
 
 ## Çalışma konvansiyonları
-- Değişiklikten sonra: `cd backend && npx jest` (**211 test**, 2026-10-29) yeşil olmalı; create/endpoint
+- Değişiklikten sonra: `cd backend && npx jest` (**255 test**, 2026-10-29) yeşil olmalı; create/endpoint
   değişikliklerini gerçek istekle (curl, Origin: http://localhost:5173 + CSRF cookie) doğrula.
 - Backend `node server.js` ile çalışır (hot-reload yok) → kod değişince `docker compose restart backend`.
 - Commit mesajları Türkçe + `Co-Authored-By: Claude`. Komut timeout'larını kısa tut.

@@ -1,3 +1,4 @@
+const pool = require('../config/database');
 const PermissionService = require('../services/permissionService');
 const ActivityLogService = require('../services/activityLogService');
 
@@ -80,7 +81,13 @@ exports.updateRolePermissions = async (req, res) => {
 exports.getUserPermissions = async (req, res) => {
   try {
     const { userId } = req.params;
-    
+
+    // Çok kiracılılık: yalnız kendi şirketinin kullanıcısı
+    const owner = await pool.query('SELECT 1 FROM users WHERE id = $1 AND company_id = $2', [userId, req.user.company_id]);
+    if (owner.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Kullanıcı bulunamadı' });
+    }
+
     const permissions = await PermissionService.getUserPermissions(userId);
     
     res.json({

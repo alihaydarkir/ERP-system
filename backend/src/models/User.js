@@ -62,7 +62,7 @@ class User {
    * Get all users
    */
   static async findAll(filters = {}) {
-    const { limit = 100, offset = 0, role, status } = filters;
+    const { limit = 100, offset = 0, role, status, company_id } = filters;
 
     let query = `
       SELECT id, username, email, full_name, role, is_active, created_at
@@ -72,14 +72,21 @@ class User {
     const values = [];
     let paramCount = 1;
 
+    // Çok kiracılılık: şirket verilirse yalnız o şirketin kullanıcıları
+    if (company_id !== undefined) {
+      query += ` AND company_id = $${paramCount}`;
+      values.push(company_id);
+      paramCount++;
+    }
+
     if (role) {
-      query += ` AND role = $${paramCount}`;
+      query += ` AND role = ${paramCount}`;
       values.push(role);
       paramCount++;
     }
 
     if (status !== undefined) {
-      query += ` AND is_active = $${paramCount}`;
+      query += ` AND is_active = ${paramCount}`;
       values.push(status === 'active');
       paramCount++;
     }
@@ -94,7 +101,7 @@ class User {
   /**
    * Update user
    */
-  static async update(id, data) {
+  static async update(id, data, companyId) {
     const fields = [];
     const values = [];
     let paramCount = 1;
@@ -126,10 +133,16 @@ class User {
     }
 
     values.push(id);
+    let where = `id = $${paramCount}`;
+    if (companyId !== undefined) {
+      paramCount++;
+      values.push(companyId);
+      where += ` AND company_id = $${paramCount}`;
+    }
     const query = `
       UPDATE users
       SET ${fields.join(', ')}, updated_at = NOW()
-      WHERE id = $${paramCount}
+      WHERE ${where}
       RETURNING id, username, email, role, updated_at
     `;
 
@@ -140,9 +153,11 @@ class User {
   /**
    * Delete user
    */
-  static async delete(id) {
-    const query = 'DELETE FROM users WHERE id = $1 RETURNING id';
-    const result = await pool.query(query, [id]);
+  static async delete(id, companyId) {
+    const query = companyId === undefined
+      ? 'DELETE FROM users WHERE id = $1 RETURNING id'
+      : 'DELETE FROM users WHERE id = $1 AND company_id = $2 RETURNING id';
+    const result = await pool.query(query, companyId === undefined ? [id] : [id, companyId]);
     return result.rows[0];
   }
 
@@ -157,11 +172,17 @@ class User {
    * Count total users
    */
   static async count(filters = {}) {
-    const { role, status } = filters;
+    const { role, status, company_id } = filters;
 
     let query = 'SELECT COUNT(*) FROM users WHERE 1=1';
     const values = [];
     let paramCount = 1;
+
+    if (company_id !== undefined) {
+      query += ` AND company_id = $${paramCount}`;
+      values.push(company_id);
+      paramCount++;
+    }
 
     if (role) {
       query += ` AND role = $${paramCount}`;

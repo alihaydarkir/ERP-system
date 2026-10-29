@@ -85,7 +85,7 @@ class Invoice {
         u.email           AS created_by_email,
         o.order_number    AS related_order_number
       FROM invoices i
-      LEFT JOIN customers c ON i.customer_id = c.id
+      LEFT JOIN customers c ON i.customer_id = c.id AND c.company_id = i.company_id
       LEFT JOIN users     u ON i.user_id = u.id
       LEFT JOIN orders    o ON i.order_id = o.id
       WHERE i.id = $1 ${company_id ? 'AND i.company_id = $2' : ''}
@@ -96,21 +96,21 @@ class Invoice {
     if (result.rows.length === 0) return null;
 
     const invoice = result.rows[0];
-    invoice.items = await this.findItems(id);
+    invoice.items = await this.findItems(id, invoice.company_id);
     return invoice;
   }
 
   /**
    * Get invoice items
    */
-  static async findItems(invoice_id) {
+  static async findItems(invoice_id, company_id) {
     const result = await pool.query(`
       SELECT ii.*, p.name AS product_name, p.sku AS product_sku
       FROM invoice_items ii
-      LEFT JOIN products p ON ii.product_id = p.id
+      LEFT JOIN products p ON ii.product_id = p.id AND p.company_id = $2
       WHERE ii.invoice_id = $1
       ORDER BY ii.id
-    `, [invoice_id]);
+    `, [invoice_id, company_id]);
     return result.rows;
   }
 
@@ -127,7 +127,7 @@ class Invoice {
         c.company_name AS customer_company,
         o.order_number AS related_order_number
       FROM invoices i
-      LEFT JOIN customers c ON i.customer_id = c.id
+      LEFT JOIN customers c ON i.customer_id = c.id AND c.company_id = i.company_id
       LEFT JOIN orders    o ON i.order_id = o.id
       WHERE 1=1
     `;

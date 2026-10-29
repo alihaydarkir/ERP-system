@@ -1,4 +1,5 @@
 const Joi = require('joi');
+const { strongPassword } = require('../utils/passwordPolicy');
 
 const userProfileSchemas = {
   update: Joi.object({
@@ -17,7 +18,7 @@ const userProfileSchemas = {
 
   changePassword: Joi.object({
     currentPassword: Joi.string().required(),
-    newPassword: Joi.string().min(8).required(),
+    newPassword: strongPassword.required(),
     confirmPassword: Joi.any().valid(Joi.ref('newPassword')).required().messages({
       'any.only': 'confirmPassword newPassword ile aynı olmalı',
     }),

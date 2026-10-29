@@ -51,9 +51,9 @@ class Order {
         const stockQuery = `
           UPDATE products
           SET stock_quantity = stock_quantity - $1
-          WHERE id = $2
+          WHERE id = $2 AND company_id = $3
         `;
-        const stockResult = await client.query(stockQuery, [item.quantity, item.product_id]);
+        const stockResult = await client.query(stockQuery, [item.quantity, item.product_id, company_id]);
 
         if (stockResult.rowCount === 0) {
           throw new Error(`Product not found: ID ${item.product_id}`);

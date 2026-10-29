@@ -1,3 +1,4 @@
+const pool = require('../config/database');
 const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
 const Product = require('../models/Product');
@@ -14,7 +15,8 @@ const getAllUsers = async (req, res) => {
 
     const filters = {
       limit: parseInt(limit),
-      offset: (parseInt(page) - 1) * parseInt(limit)
+      offset: (parseInt(page) - 1) * parseInt(limit),
+      company_id: req.user.company_id
     };
 
     if (role) filters.role = role;
@@ -24,7 +26,7 @@ const getAllUsers = async (req, res) => {
 
     const formattedUsers = users.map(user => formatUser(user));
 
-    const total = await User.count({ role: filters.role, status: filters.status });
+    const total = await User.count({ role: filters.role, status: filters.status, company_id: filters.company_id });
 
     res.json({
       success: true,
@@ -48,19 +50,25 @@ const getAllUsers = async (req, res) => {
  */
 const getAdminStats = async (req, res) => {
   try {
+    const companyId = req.user.company_id;
     // Get comprehensive stats
     const [dashboardStats, recentOrders, lowStock, recentActivity] = await Promise.all([
-      reportService.getDashboardStats(),
-      Order.findAll({ limit: 10, sort: 'created_at', order: 'DESC' }),
-      Product.getLowStock(10),
-      AuditLog.findAll({ limit: 20, sort: 'created_at', order: 'DESC' })
+      reportService.getDashboardStats(companyId),
+      Order.findAll({ company_id: companyId, limit: 10, sort: 'created_at', order: 'DESC' }),
+      Product.getLowStock(10, companyId),
+      AuditLog.findAll({ company_id: companyId, limit: 20, sort: 'created_at', order: 'DESC' })
     ]);
 
-    // Get user statistics
-    const userStats = await User.getStatistics();
+    // Kullanıcı istatistikleri (yalnız bu şirket)
+    const roleRows = await pool.query(
+      'SELECT role, COUNT(*)::int AS count FROM users WHERE company_id = $1 GROUP BY role',
+      [companyId]
+    );
+    const byRole = Object.fromEntries(roleRows.rows.map((r) => [r.role, r.count]));
+    const userStats = { total: roleRows.rows.reduce((n, r) => n + r.count, 0), byRole, recent: [] };
 
-    // Get order statistics
-    const orderStats = await reportService.getOrderStatistics();
+    // Sipariş istatistikleri
+    const orderStats = await reportService.getOrderStatistics({ company_id: companyId });
 
     res.json(formatSuccess({
       dashboard: dashboardStats.stats || {},
@@ -113,11 +121,15 @@ const updateUserRole = async (req, res) => {
       return res.status(400).json(formatError('Cannot change your own admin role'));
     }
 
-    const updatedUser = await User.update(userId, { role });
+    const updatedUser = await User.update(userId, { role }, req.user.company_id);
+    if (!updatedUser) {
+      return res.status(404).json(formatError('User not found'));
+    }
 
     // Log activity
     await AuditLog.create({
       user_id: req.user.userId,
+      company_id: req.user.company_id,
       action: 'UPDATE_ROLE',
       entity_type: 'user',
       entity_id: parseInt(userId),
@@ -145,11 +157,15 @@ const deleteUser = async (req, res) => {
       return res.status(400).json(formatError('Cannot delete your own account'));
     }
 
-    await User.delete(userId);
+    const deleted = await User.delete(userId, req.user.company_id);
+    if (!deleted) {
+      return res.status(404).json(formatError('User not found'));
+    }
 
     // Log activity
     await AuditLog.create({
       user_id: req.user.userId,
+      company_id: req.user.company_id,
       action: 'DELETE',
       entity_type: 'user',
       entity_id: parseInt(userId),
@@ -174,7 +190,8 @@ const getAuditLogs = async (req, res) => {
 
     const filters = {
       limit: parseInt(limit),
-      offset: (parseInt(page) - 1) * parseInt(limit)
+      offset: (parseInt(page) - 1) * parseInt(limit),
+      company_id: req.user.company_id
     };
 
     if (user_id) filters.user_id = parseInt(user_id);

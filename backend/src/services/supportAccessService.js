@@ -215,17 +215,21 @@ const listGrantActivity = async (grantId, companyId, limit = 200) => {
 
 // Destek oturumunun hiçbir zaman yapamayacağı işlemler (yetki seviyesinden bağımsız):
 // kendi iznini uzatma, tanı paketi indirme (müşteri kendisi gönderir), yedek şifrelemesi,
-// kullanıcı/rol/şifre/2FA yönetimi.
-const SUPPORT_SELF_PATHS = /^\/api\/(support\/(grants|diagnostics)|backups)/;
+// kullanıcı/rol/şifre/2FA yönetimi. (/api/settings bilinçli olarak yasak değil: SMTP hedefi değişimi denetleyicide parola yeniden girişini zorunlu kılar.)
+// Not: Express yönlendirmesi büyük/küçük harfe duyarsızdır; deny-list de /i olmalı (/API/USER-MANAGEMENT atlatması).
+// Denetim kayıtları (parola sızıntısı riski) okuma dahil kapalı; aktivite günlüğü/kendi veri silme yazma kapalı.
+const SUPPORT_SELF_PATHS = /^\/api\/(support\/(grants|diagnostics)|backups|admin\/audit-logs)/i;
 const SUPPORT_FORBIDDEN_PATHS = [
   SUPPORT_SELF_PATHS,
-  /^\/api\/user-management/,
-  /^\/api\/permissions/,
-  /^\/api\/admin\/users/,
-  /^\/api\/employee-approval/,
-  /^\/api\/security/,
-  /^\/api\/users\/(password|profile\/password|profile\/2fa)/,
-  /^\/api\/auth\/(register|forgot-password|reset-password)/,
+  /^\/api\/user-management/i,
+  /^\/api\/permissions/i,
+  /^\/api\/admin\/users/i,
+  /^\/api\/employee-approval/i,
+  /^\/api\/security/i,
+  /^\/api\/activity-logs/i,
+  /^\/api\/users\/me/i,
+  /^\/api\/users\/(password|profile\/password|profile\/2fa)/i,
+  /^\/api\/auth\/(register|forgot-password|reset-password)/i,
 ];
 
 // Dışa aktarma (PDF/Excel) hiçbir yetki seviyesinde yok: destek ekranda bakar, veriyi dosya olarak çıkaramaz.
@@ -233,7 +237,7 @@ const EXPORT_PATH = /\/export(\/|$)|\/(pdf|excel)(\/|$)/i;
 
 const READ_METHODS = ['GET', 'HEAD', 'OPTIONS'];
 // Salt okunur izinde bile izin verilen yazma istekleri (oturumun kendisi)
-const SESSION_PATHS = [/^\/api\/auth\/logout$/, /^\/api\/auth\/refresh$/];
+const SESSION_PATHS = [/^\/api\/auth\/logout$/i, /^\/api\/auth\/refresh$/i];
 
 /**
  * Destek isteğinin reddedilme nedeni; izinliyse null.

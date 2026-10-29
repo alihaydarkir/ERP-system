@@ -1,5 +1,7 @@
 const Invoice = require('../models/Invoice');
 const Order = require('../models/Order');
+const Customer = require('../models/Customer');
+const Product = require('../models/Product');
 const ActivityLogService = require('../services/activityLogService');
 const { formatSuccess, formatError, formatPaginated } = require('../utils/formatters');
 const { calculateOffset } = require('../utils/helpers');
@@ -85,6 +87,22 @@ const createInvoice = async (req, res) => {
       issue_date, due_date, notes, status
     } = req.body;
     const { company_id, id: user_id } = req.user;
+
+    // Müşteri ve kalem ürünleri çağıranın şirketine ait olmalı (kiracı sızıntısı önlemi)
+    const customer = await Customer.findById(customer_id, company_id);
+    if (!customer) {
+      return res.status(404).json(formatError('Müşteri bulunamadı'));
+    }
+    if (Array.isArray(items)) {
+      for (const it of items) {
+        if (it && it.product_id != null && it.product_id !== '') {
+          const prod = await Product.findById(it.product_id, company_id);
+          if (!prod) {
+            return res.status(404).json(formatError('Ürün bulunamadı'));
+          }
+        }
+      }
+    }
 
     // If creating from an order, validate the order belongs to company
     if (order_id) {

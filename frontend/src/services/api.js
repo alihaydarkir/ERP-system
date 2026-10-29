@@ -114,6 +114,16 @@ api.interceptors.response.use(
       }
     }
 
+    // Doğrulama hatasında genel "Validation error" yerine alan mesajlarını göster
+    const data = error.response?.data;
+    if (Array.isArray(data?.errors) && data.errors.length > 0 && /validation/i.test(String(data.message || ''))) {
+      data.message = data.errors
+        .slice(0, 3)
+        .map((e) => (typeof e === 'string' ? e : e.message))
+        .filter(Boolean)
+        .join(' · ');
+    }
+
     // For other errors, just reject
     return Promise.reject(error);
   }

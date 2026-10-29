@@ -109,6 +109,14 @@ const createOrder = async (req, res) => {
       return res.status(404).json(formatError('User not found'));
     }
 
+    // Çok kiracılılık: müşteri bu şirkete ait olmalı
+    if (customer_id !== undefined && customer_id !== null) {
+      const ownCustomer = await pool.query('SELECT 1 FROM customers WHERE id = $1 AND company_id = $2', [customer_id, company_id]);
+      if (ownCustomer.rows.length === 0) {
+        return res.status(400).json(formatError('Invalid customer_id'));
+      }
+    }
+
     // Normalize items and compute prices on server when needed
     const normalizedItems = [];
     for (const rawItem of items || []) {
@@ -120,11 +128,16 @@ const createOrder = async (req, res) => {
         return res.status(400).json(formatError('Invalid order items'));
       }
 
-      if (!Number.isFinite(price) || price < 0) {
-        const product = await Product.findById(productId, company_id || undefined);
-        if (!product) {
-          return res.status(400).json(formatError(`Invalid product_id: ${productId}`));
-        }
+      if (Number.isFinite(price) && price < 0) {
+        return res.status(400).json(formatError('Invalid order items'));
+      }
+
+      // Ürün her durumda bu şirkete ait olmalı (istemci fiyat verse de)
+      const product = await Product.findById(productId, company_id || undefined);
+      if (!product) {
+        return res.status(400).json(formatError(`Invalid product_id: ${productId}`));
+      }
+      if (!Number.isFinite(price)) {
         price = Number(product.price);
       }
 

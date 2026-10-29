@@ -36,15 +36,17 @@ const getCookieValue = (req, cookieName) => {
   const cookies = cookieHeader.split(';').map((part) => part.trim());
   const match = cookies.find((item) => item.startsWith(`${cookieName}=`));
   if (!match) return null;
-  return decodeURIComponent(match.slice(cookieName.length + 1));
+  try {
+    return decodeURIComponent(match.slice(cookieName.length + 1));
+  } catch {
+    return null; // bozuk yüzde-kodlu çerez: yok say (500 yerine CSRF reddi)
+  }
 };
 
 // Normalize IP to avoid IPv6 localhost variants leaking through
-const getClientIp = (req) => {
-  const xff = req.headers['x-forwarded-for'];
-  const ip = Array.isArray(xff) ? xff[0] : (xff ? xff.split(',')[0] : (req.ip || req.connection.remoteAddress || ''));
-  return ip.replace('::ffff:', '').trim();
-};
+// X-Forwarded-For başlığına doğrudan güvenilmez (istemci sahteleyebilir): yalnızca req.ip.
+// Ters vekil arkasındaysanız TRUST_PROXY ayarlayın; Express güvenilen vekilden gelen başlığı çözer.
+const getClientIp = (req) => String(req.ip || req.connection?.remoteAddress || '').replace('::ffff:', '').trim();
 
 /**
  * IP Whitelist/Blacklist kontrolü
@@ -259,7 +261,12 @@ const originCheck = (req, res, next) => {
 
   const origin = req.headers.origin || '';
   const referer = req.headers.referer || '';
-  const matchesAllowed = (value) => allowedOrigins.some((o) => value.startsWith(o));
+  // Tam köken eşitliği: "http://localhost:5173.evil.com" gibi önek tuzaklarını reddeder
+  const toOrigin = (value) => {
+    try { return new URL(value).origin; } catch { return null; }
+  };
+  const allowedSet = new Set(allowedOrigins.map(toOrigin).filter(Boolean));
+  const matchesAllowed = (value) => allowedSet.has(toOrigin(value));
 
   if (origin && matchesAllowed(origin)) return next();
   if (!origin && referer && matchesAllowed(referer)) return next();
@@ -284,6 +291,42 @@ const hostHeaderCheck = (req, res, next) => {
   const host = (req.headers.host || '').toLowerCase();
   if (!host || allowedHosts.includes(host)) return next();
   return res.status(403).json({ success: false, message: 'Host not allowed' });
+};
+
+/**
+ * Girdi bekçisi: null byte (PostgreSQL 500'ü), aşırı iç içe/geniş yapı ve prototip kirletme anahtarları.
+ * Yinelemesiz dolaşır (özyineleme yığınını taşırmaz) ve ilk ihlalde 400 döner.
+ */
+const MAX_INPUT_DEPTH = 24;
+const MAX_INPUT_NODES = 20000;
+const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+const inputGuard = (req, res, next) => {
+  for (const root of [req.body, req.query, req.params]) {
+    if (!root || typeof root !== 'object') continue;
+    const stack = [[root, 1]];
+    let nodes = 0;
+    while (stack.length) {
+      const [node, depth] = stack.pop();
+      if (depth > MAX_INPUT_DEPTH || ++nodes > MAX_INPUT_NODES) {
+        return res.status(400).json({ success: false, message: 'İstek verisi çok karmaşık' });
+      }
+      for (const key of Object.keys(node)) {
+        if (FORBIDDEN_KEYS.has(key) || key.includes('\u0000')) {
+          return res.status(400).json({ success: false, message: 'Geçersiz istek verisi' });
+        }
+        const value = node[key];
+        if (typeof value === 'string') {
+          if (value.includes('\u0000')) {
+            return res.status(400).json({ success: false, message: 'Geçersiz karakter içeren istek verisi' });
+          }
+        } else if (value && typeof value === 'object') {
+          stack.push([value, depth + 1]);
+        }
+      }
+    }
+  }
+  return next();
 };
 
 /**
@@ -330,5 +373,6 @@ module.exports = {
   csrfProtection,
   originCheck,
   hostHeaderCheck,
-  hppSanitize
+  hppSanitize,
+  inputGuard
 };

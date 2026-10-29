@@ -46,6 +46,13 @@ class ActivityLogService {
       const params = [];
       let paramIndex = 1;
       
+      // Çok kiracılılık: yalnız bu şirketin kullanıcılarının kayıtları
+      if (filters.companyId !== undefined) {
+        query += ` AND u.company_id = $${paramIndex}`;
+        params.push(filters.companyId);
+        paramIndex++;
+      }
+
       if (filters.userId) {
         query += ` AND al.user_id = $${paramIndex}`;
         params.push(filters.userId);
@@ -100,22 +107,23 @@ class ActivityLogService {
   }
 
   // Get activity statistics
-  static async getStatistics(userId = null, days = 7) {
+  static async getStatistics(companyId, days = 7) {
     try {
       const query = `
         SELECT 
-          module,
-          action,
+          al.module,
+          al.action,
           COUNT(*) as count,
-          DATE(created_at) as date
-        FROM activity_logs
-        WHERE created_at >= NOW() - INTERVAL '${days} days'
-        ${userId ? 'AND user_id = $1' : ''}
-        GROUP BY module, action, DATE(created_at)
+          DATE(al.created_at) as date
+        FROM activity_logs al
+        JOIN users u ON al.user_id = u.id
+        WHERE al.created_at >= NOW() - ($2::int * INTERVAL '1 day')
+          AND u.company_id = $1
+        GROUP BY al.module, al.action, DATE(al.created_at)
         ORDER BY date DESC, count DESC
       `;
       
-      const params = userId ? [userId] : [];
+      const params = [companyId, Math.min(Math.max(parseInt(days, 10) || 7, 1), 365)];
       const result = await pool.query(query, params);
       return result.rows;
     } catch (error) {
@@ -125,14 +133,22 @@ class ActivityLogService {
   }
 
   // Delete old logs (cleanup)
-  static async cleanup(daysToKeep = 90) {
+  // Yalnızca çağıran şirketin kullanıcılarına ait kayıtları siler; en az 30 gün saklanır.
+  static async cleanup(companyId, daysToKeep = 90) {
+    if (companyId === undefined || companyId === null) {
+      throw new Error('companyId required');
+    }
     try {
+      const days = Math.max(parseInt(daysToKeep, 10) || 90, 30);
       const query = `
-        DELETE FROM activity_logs
-        WHERE created_at < NOW() - INTERVAL '${daysToKeep} days'
+        DELETE FROM activity_logs al
+        USING users u
+        WHERE al.user_id = u.id
+          AND u.company_id = $1
+          AND al.created_at < NOW() - ($2::int * INTERVAL '1 day')
       `;
-      
-      const result = await pool.query(query);
+
+      const result = await pool.query(query, [companyId, days]);
       return result.rowCount;
     } catch (error) {
       console.error('Activity log cleanup error:', error);

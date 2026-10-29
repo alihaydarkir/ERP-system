@@ -8,6 +8,17 @@ import Input from '../components/UI/Input';
 import { hasValidationErrors, validateLoginForm } from '../utils/validators/authValidators';
 import { Mail, Lock, ArrowRight, UserCheck } from 'lucide-react';
 
+// Seed demo hesapları (hepsi Admin123!) YALNIZ geliştirmede ya da açıkça demo olarak derlenen ortamda
+// (VITE_SHOW_DEMO_LOGIN=true) gösterilir. Üretim/müşteri derlemesinde parola pakete bile girmez.
+const SHOW_DEMO_LOGIN = import.meta.env.DEV || import.meta.env.VITE_SHOW_DEMO_LOGIN === 'true';
+const DEMO_ACCOUNTS = SHOW_DEMO_LOGIN
+  ? [
+    { label: 'Admin', email: 'admin@erp.local', password: 'Admin123!' },
+    { label: 'Yönetici', email: 'manager@erp.local', password: 'Admin123!' },
+    { label: 'Kullanıcı', email: 'user@erp.local', password: 'Admin123!' },
+  ]
+  : [];
+
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -53,13 +64,6 @@ export default function LoginPage() {
     setErrors({ email: '', password: '' });
     performLogin(qEmail, qPassword);
   };
-
-  // Seed demo hesapları (hepsi Admin123!)
-  const DEMO_ACCOUNTS = [
-    { label: 'Admin', email: 'admin@erp.local', password: 'Admin123!' },
-    { label: 'Yönetici', email: 'manager@erp.local', password: 'Admin123!' },
-    { label: 'Kullanıcı', email: 'user@erp.local', password: 'Admin123!' },
-  ];
 
   const handleFieldChange = (field, value) => {
     if (field === 'email') setEmail(value);
@@ -172,6 +176,7 @@ export default function LoginPage() {
             </Link>
           </p>
 
+          {DEMO_ACCOUNTS.length > 0 && (
           <div className='mt-8 pt-6 border-t border-gray-100 dark:border-gray-800'>
              <div className='bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-100 dark:border-blue-800/30'>
                 <div className='flex items-start space-x-3'>
@@ -200,6 +205,7 @@ export default function LoginPage() {
                 </div>
              </div>
           </div>
+          )}
         </div>
       </div>
     </div>

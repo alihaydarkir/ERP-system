@@ -14,7 +14,13 @@ const supportAccess = require('../services/supportAccessService');
 const { config } = require('../config/env');
 const authMiddleware = require('./auth');
 
-const tokenFor = (payload) => jwt.sign({ jti: 'x', ...payload }, config.jwt.secret, { expiresIn: '5m' });
+// authMiddleware rolü/şirketi artık DB'den okur: sahte DB, son üretilen token'ın bilgileriyle yanıt verir
+let dbUser = null;
+const tokenFor = (payload) => {
+  dbUser = { role: payload.role, company_id: payload.company_id ?? 1, is_active: true, deleted_at: null };
+  return jwt.sign({ jti: 'x', ...payload }, config.jwt.secret, { expiresIn: '5m' });
+};
+const userRowFor = (sql) => (/FROM users WHERE id/.test(sql) ? { rows: dbUser ? [dbUser] : [] } : null);
 
 const makeReq = (method, url, token) => ({
   method,
@@ -36,11 +42,12 @@ describe('auth middleware — destek oturumu', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    dbUser = { role: 'support', company_id: 1, is_active: true, deleted_at: null };
     // revoked_access_tokens: yok · user_sessions: aktif oturum var · last_activity güncelle
     pool.query.mockImplementation(async (sql) => {
       if (/revoked_access_tokens/.test(sql)) return { rows: [] };
       if (/FROM user_sessions/.test(sql)) return { rows: [{ id: 1 }] };
-      return { rows: [] };
+      return userRowFor(sql) || { rows: [] };
     });
   });
 
@@ -110,9 +117,10 @@ describe('auth middleware — onprem super_admin', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    dbUser = { role: 'super_admin', company_id: 1, is_active: true, deleted_at: null };
     pool.query.mockImplementation(async (sql) => {
       if (/FROM user_sessions/.test(sql)) return { rows: [{ id: 1 }] };
-      return { rows: [] };
+      return userRowFor(sql) || { rows: [] };
     });
   });
 
@@ -140,5 +148,55 @@ describe('auth middleware — onprem super_admin', () => {
     await authMiddleware(makeReq('GET', '/api/customers', superToken), res, next);
 
     expect(next).toHaveBeenCalled();
+  });
+});
+
+describe('auth middleware — DB doğrulaması (eski tokenlar)', () => {
+  const userToken = () => tokenFor({ userId: 5, username: 'user', role: 'admin', company_id: 1 });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    pool.query.mockImplementation(async (sql) => {
+      if (/FROM user_sessions/.test(sql)) return { rows: [{ id: 1 }] };
+      return userRowFor(sql) || { rows: [] };
+    });
+  });
+
+  it('devre dışı bırakılan kullanıcının tokenı 401', async () => {
+    const token = userToken();
+    dbUser.is_active = false;
+    const res = makeRes(); const next = jest.fn();
+    await authMiddleware(makeReq('GET', '/api/customers', token), res, next);
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('silinmiş (deleted_at) kullanıcının tokenı 401', async () => {
+    const token = userToken();
+    dbUser.deleted_at = new Date();
+    const res = makeRes(); const next = jest.fn();
+    await authMiddleware(makeReq('GET', '/api/customers', token), res, next);
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('veritabanından kullanıcı kaybolmuşsa 401', async () => {
+    const token = userToken();
+    dbUser = null;
+    const res = makeRes(); const next = jest.fn();
+    await authMiddleware(makeReq('GET', '/api/customers', token), res, next);
+    expect(res.status).toHaveBeenCalledWith(401);
+  });
+
+  it('rol tokendan değil DBden okunur: düşürülen rol anında geçerli', async () => {
+    const token = userToken();
+    dbUser.role = 'user';
+    dbUser.company_id = 7;
+    const req = makeReq('GET', '/api/customers', token);
+    const res = makeRes(); const next = jest.fn();
+    await authMiddleware(req, res, next);
+    expect(next).toHaveBeenCalled();
+    expect(req.user.role).toBe('user');
+    expect(req.user.company_id).toBe(7);
   });
 });

@@ -65,6 +65,10 @@ const updateSetting = async (req, res) => {
       return res.status(404).json(formatError('Setting not found'));
     }
 
+    if (SMTP_DESTINATION_KEYS.includes(key) && await smtpDestinationNeedsPassword(req.user.company_id, { [key]: value })) {
+      return res.status(400).json(formatError('SMTP hedefi değiştirilirken parola yeniden girilmelidir (toplu kayıtla birlikte gönderin)'));
+    }
+
     const setting = await Settings.update(key, value, userId, req.user.company_id);
     // Gizli ayarların değeri audit/activity kayıtlarına açık yazılmaz
     const loggedValue = Settings.maskValue(key, value);
@@ -104,6 +108,10 @@ const bulkUpdateSettings = async (req, res) => {
     const settings = req.body;
     const userId = req.user.id;
 
+    if (await smtpDestinationNeedsPassword(req.user.company_id, settings || {})) {
+      return res.status(400).json(formatError('SMTP hedefi değiştirilirken parola yeniden girilmelidir'));
+    }
+
     const updatedSettings = await Settings.bulkUpdate(settings, userId, req.user.company_id);
 
     // Log the action
@@ -136,6 +144,24 @@ const bulkUpdateSettings = async (req, res) => {
 /**
  * Test email configuration
  */
+const SMTP_DESTINATION_KEYS = ['emailSmtpHost', 'emailSmtpPort', 'emailSmtpUsername'];
+const SMTP_MASK = '••••••••';
+
+// SMTP hedefi (host/port/kullanıcı) değişirken parola yeniden girilmediyse kayıtlı sır başka bir hedefe
+// gönderilebilir (maskeyi koruyan akış). Kayıtlı parola varsa yeni parola şart.
+const smtpDestinationNeedsPassword = async (companyId, changes) => {
+  const stored = await Settings.findByKey('emailSmtpPassword', companyId);
+  if (!stored || !stored.value) return false;
+  const supplied = changes.emailSmtpPassword;
+  if (supplied !== undefined && supplied !== null && supplied !== '' && supplied !== SMTP_MASK) return false;
+  for (const key of SMTP_DESTINATION_KEYS) {
+    if (changes[key] === undefined) continue;
+    const current = await Settings.findByKey(key, companyId);
+    if (!current || String(current.value ?? '') !== String(changes[key] ?? '')) return true;
+  }
+  return false;
+};
+
 const testEmail = async (req, res) => {
   try {
     const { to } = req.body;
@@ -161,7 +187,9 @@ const testEmail = async (req, res) => {
       auth: smtpUsername?.value && smtpPassword?.value ? {
         user: smtpUsername.value,
         pass: smtpPassword.value
-      } : undefined
+      } : undefined,
+      // Kimlik bilgisi düz bağlantıda asla gönderilmesin
+      requireTLS: !!(smtpUsername?.value && smtpPassword?.value) && parseInt(smtpPort.parsedValue) !== 465
     });
 
     // Send test email
@@ -187,7 +215,7 @@ const testEmail = async (req, res) => {
     res.json(formatSuccess({ messageId: info.messageId }, 'Test email sent successfully'));
   } catch (error) {
     console.error('Test email error:', error);
-    res.status(500).json(formatError(`Failed to send test email: ${error.message}`));
+    res.status(500).json(formatError(`Failed to send test email${error.code ? ` (${error.code})` : ''}`));
   }
 };
 

@@ -22,6 +22,13 @@ const {
 } = require('./src/middleware/rateLimit');
 
 const app = express();
+
+// Ters vekil (nginx, Cloudflare Tunnel) arkasında gerçek istemci IP'si için: TRUST_PROXY=1
+// Ayarlanmazsa X-Forwarded-For hiç dikkate alınmaz (sahteciliğe karşı).
+if (process.env.TRUST_PROXY) {
+  const tp = process.env.TRUST_PROXY;
+  app.set('trust proxy', /^\d+$/.test(tp) ? Number(tp) : tp === 'true' ? true : tp);
+}
 const server = http.createServer(app);
 const isSentryEnabled = isSentryEnabledFor(process.env); // onprem'de her zaman kapalı
 
@@ -55,7 +62,8 @@ const {
   csrfProtection,
   originCheck,
   hostHeaderCheck,
-  hppSanitize
+  hppSanitize,
+  inputGuard
 } = require('./src/middleware/security');
 
 // Middleware
@@ -64,7 +72,7 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],  // swagger-ui için gerekli
+      scriptSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:"],
     },
   },
@@ -84,6 +92,7 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' })); // JSON boyut limiti
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(inputGuard);
 app.use(hppSanitize);
 
 // Güvenlik middleware'leri
@@ -149,7 +158,10 @@ app.get('/', (req, res) => {
  *                 version:   { type: string, example: '2.0.0' }
  *                 services:  { type: object }
  */
-app.get('/api/health', async (req, res) => {
+// API belgeleri ve ayrıntılı sağlık yalnız oturum açmış yöneticiye (çerez ya da Bearer) açıktır
+const docsAuth = [require('./src/middleware/auth'), require('./src/middleware/rbac')('admin', 'super_admin')];
+
+const buildHealth = async () => {
   const pool = require('./src/config/database');
   let dbOk = false;
   let aiHealth = { available: false };
@@ -174,7 +186,7 @@ app.get('/api/health', async (req, res) => {
 
   const overallStatus = dbOk && redisHealth.status === 'ok' ? 'ok' : 'degraded';
 
-  res.status(dbOk ? 200 : 503).json({
+  return { httpStatus: dbOk ? 200 : 503, body: {
     status:    overallStatus,
     timestamp: new Date().toISOString(),
     version:   '2.0.0',
@@ -192,7 +204,19 @@ app.get('/api/health', async (req, res) => {
       },
       frontend: { url: config.frontendUrl },
     },
-  });
+  } };
+};
+
+// Herkese açık sağlık ucu yalnız durum döner (sürüm/servis ayrıntısı sızdırmaz)
+app.get('/api/health', async (req, res) => {
+  const { httpStatus, body } = await buildHealth();
+  res.status(httpStatus).json({ status: body.status, timestamp: body.timestamp });
+});
+
+// Ayrıntılı sağlık: yalnız yönetici
+app.get('/api/health/detail', ...docsAuth, async (req, res) => {
+  const { httpStatus, body } = await buildHealth();
+  res.status(httpStatus).json(body);
 });
 
 /**
@@ -315,11 +339,11 @@ app.get('/api/capabilities', async (req, res) => {
 });
 
 /* ── Swagger UI + OpenAPI JSON ─────────────────────────────── */
-app.get('/api/openapi.json', (req, res) => {
+app.get('/api/openapi.json', ...docsAuth, (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.json(swaggerSpec);
 });
-app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+app.use('/api/docs', ...docsAuth, swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
   customSiteTitle: 'ERP API Docs',
   swaggerOptions: { persistAuthorization: true },
 }));

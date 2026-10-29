@@ -1,5 +1,6 @@
 const pool = require('../config/database');
 const { formatSuccess, formatError } = require('../utils/formatters');
+const { isOnPrem } = require('../config/deployment');
 
 /**
  * Get IP blacklist
@@ -81,22 +82,25 @@ const getLoginAttempts = async (req, res) => {
   try {
     const { limit = 100, failed_only = false } = req.query;
 
+    // Çok kiracılılık: yalnız bu şirketin kullanıcılarının giriş denemeleri
     let query = `
       SELECT 
         la.*,
         u.username as user_username,
         u.email as user_email
       FROM login_attempts la
-      LEFT JOIN users u ON la.user_id = u.id
+      JOIN users u ON la.user_id = u.id
+      WHERE u.company_id = $1
     `;
 
     if (failed_only === 'true') {
-      query += ' WHERE la.success = false';
+      query += ' AND la.success = false';
     }
 
-    query += ' ORDER BY la.created_at DESC LIMIT $1';
+    query += ' ORDER BY la.created_at DESC LIMIT $2';
 
-    const result = await pool.query(query, [parseInt(limit)]);
+    const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 100, 1), 500);
+    const result = await pool.query(query, [req.user.company_id, safeLimit]);
 
     res.json(formatSuccess(result.rows));
   } catch (error) {
@@ -124,8 +128,9 @@ const getActiveSessions = async (req, res) => {
       FROM user_sessions us
       JOIN users u ON us.user_id = u.id
       WHERE us.last_activity > NOW() - INTERVAL '24 hours'
+        AND u.company_id = $1
       ORDER BY us.last_activity DESC
-    `);
+    `, [req.user.company_id]);
 
     res.json(formatSuccess(result.rows));
   } catch (error) {
@@ -141,10 +146,15 @@ const terminateSession = async (req, res) => {
   try {
     const { session_id } = req.params;
 
-    await pool.query(`
-      DELETE FROM user_sessions
-      WHERE id = $1
-    `, [session_id]);
+    const deleted = await pool.query(`
+      DELETE FROM user_sessions us
+      USING users u
+      WHERE us.id = $1 AND us.user_id = u.id AND u.company_id = $2
+      RETURNING us.id
+    `, [session_id, req.user.company_id]);
+    if (deleted.rows.length === 0) {
+      return res.status(404).json(formatError('Oturum bulunamadı'));
+    }
     res.json(formatSuccess({ session_id }, 'Oturum sonlandırıldı'));
   } catch (error) {
     console.error('Terminate session error:', error);
@@ -160,36 +170,44 @@ const getSecurityStats = async (req, res) => {
     // Bugünkü başarısız giriş denemeleri
     const failedLoginsToday = await pool.query(`
       SELECT COUNT(*) as count
-      FROM login_attempts
-      WHERE success = false 
-      AND created_at > CURRENT_DATE
-    `);
+      FROM login_attempts la
+      JOIN users u ON la.user_id = u.id
+      WHERE la.success = false 
+      AND la.created_at > CURRENT_DATE
+      AND u.company_id = $1
+    `, [req.user.company_id]);
 
-    // Aktif IP engellemeleri
-    const activeBlocks = await pool.query(`
+    // Aktif IP engellemeleri: küresel kaynak, yalnız platform kapsamına gösterilir
+    const activeBlocks = isOnPrem() || req.user.role === 'super_admin'
+      ? await pool.query(`
       SELECT COUNT(*) as count
       FROM ip_blacklist
       WHERE expires_at IS NULL OR expires_at > NOW()
-    `);
+    `)
+      : { rows: [{ count: 0 }] };
 
     // Son 24 saatteki aktif oturumlar
     const activeSessions = await pool.query(`
-      SELECT COUNT(DISTINCT user_id) as count
-      FROM user_sessions
-      WHERE last_activity > NOW() - INTERVAL '24 hours'
-    `);
+      SELECT COUNT(DISTINCT us.user_id) as count
+      FROM user_sessions us
+      JOIN users u ON us.user_id = u.id
+      WHERE us.last_activity > NOW() - INTERVAL '24 hours'
+      AND u.company_id = $1
+    `, [req.user.company_id]);
 
     // Son 7 gündeki başarısız giriş trendleri
     const weeklyFailedLogins = await pool.query(`
       SELECT 
-        DATE(created_at) as date,
+        DATE(la.created_at) as date,
         COUNT(*) as count
-      FROM login_attempts
-      WHERE success = false 
-      AND created_at > NOW() - INTERVAL '7 days'
-      GROUP BY DATE(created_at)
+      FROM login_attempts la
+      JOIN users u ON la.user_id = u.id
+      WHERE la.success = false 
+      AND la.created_at > NOW() - INTERVAL '7 days'
+      AND u.company_id = $1
+      GROUP BY DATE(la.created_at)
       ORDER BY date DESC
-    `);
+    `, [req.user.company_id]);
 
     res.json(formatSuccess({
       failedLoginsToday: parseInt(failedLoginsToday.rows[0].count),

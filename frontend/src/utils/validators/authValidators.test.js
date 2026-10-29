@@ -18,8 +18,15 @@ describe('auth validators', () => {
   });
 
   it('validatePassword enforces minimum length', () => {
-    expect(validatePassword('123')).toBe('Şifre en az 6 karakter olmalıdır.');
-    expect(validatePassword('123456')).toBe('');
+    expect(validatePassword('123')).toBe('Şifre en az 8 karakter olmalıdır.');
+    expect(validatePassword('Zx9kLm2Qwe')).toBe('');
+  });
+
+  it('validatePassword requires a letter and a digit and rejects common passwords', () => {
+    expect(validatePassword('sadeceharflerden')).toBe('Şifre en az bir harf ve bir rakam içermelidir.');
+    expect(validatePassword('1234567890')).toBe('Şifre en az bir harf ve bir rakam içermelidir.');
+    expect(validatePassword('Password123')).toBe('Bu şifre çok yaygın; daha benzersiz bir şifre seçin.');
+    expect(validatePassword('a1' + 'x'.repeat(80))).toBe('Şifre çok uzun (en fazla 72 bayt).');
   });
 
   it('validateUsername enforces minimum length', () => {

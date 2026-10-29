@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const AuditLog = require('../models/AuditLog');
 const { formatSuccess, formatError } = require('../utils/formatters');
 const { getClientIP } = require('../utils/helpers');
+const { passwordProblem } = require('../utils/passwordPolicy');
 const path = require('path');
 const fs = require('fs');
 
@@ -180,12 +181,13 @@ const changePassword = async (req, res) => {
       return res.status(400).json(formatError('New passwords do not match'));
     }
 
-    if (newPassword.length < 6) {
-      return res.status(400).json(formatError('Password must be at least 6 characters'));
+    const policyProblem = passwordProblem(newPassword);
+    if (policyProblem) {
+      return res.status(400).json(formatError(policyProblem));
     }
 
     // Get current password
-    const userQuery = 'SELECT password FROM users WHERE id = $1';
+    const userQuery = 'SELECT password_hash FROM users WHERE id = $1';
     const userResult = await pool.query(userQuery, [userId]);
 
     if (userResult.rows.length === 0) {
@@ -193,7 +195,7 @@ const changePassword = async (req, res) => {
     }
 
     // Verify current password
-    const isValid = await bcrypt.compare(currentPassword, userResult.rows[0].password);
+    const isValid = await bcrypt.compare(currentPassword, userResult.rows[0].password_hash);
 
     if (!isValid) {
       return res.status(400).json(formatError('Current password is incorrect'));
@@ -205,11 +207,13 @@ const changePassword = async (req, res) => {
     // Update password
     const updateQuery = `
       UPDATE users
-      SET password = $1, updated_at = NOW()
+      SET password_hash = $1, updated_at = NOW()
       WHERE id = $2
     `;
 
     await pool.query(updateQuery, [hashedPassword, userId]);
+    // Parola değişince diğer oturumlar kapatılsın
+    await pool.query('UPDATE user_sessions SET is_active = false WHERE user_id = $1', [userId]);
 
     // Log the action
     await AuditLog.create({

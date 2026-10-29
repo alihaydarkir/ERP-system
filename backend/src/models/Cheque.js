@@ -52,7 +52,7 @@ class Cheque {
         u.email as user_email,
         (ch.due_date - CURRENT_DATE) as days_until_due
       FROM cheques ch
-      LEFT JOIN customers c ON ch.customer_id = c.id
+      LEFT JOIN customers c ON ch.customer_id = c.id AND c.company_id = ch.company_id
       LEFT JOIN users u ON ch.user_id = u.id
       WHERE ch.id = $1 ${company_id ? 'AND ch.company_id = $2' : ''}
     `;
@@ -86,7 +86,7 @@ class Cheque {
         c.full_name as customer_contact_name,
         (ch.due_date - CURRENT_DATE) as days_until_due
       FROM cheques ch
-      LEFT JOIN customers c ON ch.customer_id = c.id
+      LEFT JOIN customers c ON ch.customer_id = c.id AND c.company_id = ch.company_id
       WHERE 1=1
     `;
 
@@ -342,7 +342,7 @@ class Cheque {
         c.full_name as customer_contact_name,
         (ch.due_date - CURRENT_DATE) as days_until_due
       FROM cheques ch
-      LEFT JOIN customers c ON ch.customer_id = c.id
+      LEFT JOIN customers c ON ch.customer_id = c.id AND c.company_id = ch.company_id
       WHERE ch.company_id = $1
         AND ch.status = 'pending'
         AND ch.due_date <= CURRENT_DATE + INTERVAL '${days} days'
@@ -376,7 +376,7 @@ class Cheque {
         c.full_name as customer_contact_name,
         (CURRENT_DATE - ch.due_date) as days_overdue
       FROM cheques ch
-      LEFT JOIN customers c ON ch.customer_id = c.id
+      LEFT JOIN customers c ON ch.customer_id = c.id AND c.company_id = ch.company_id
       WHERE ch.company_id = $1
         AND ch.status = 'pending'
         AND ch.due_date < CURRENT_DATE

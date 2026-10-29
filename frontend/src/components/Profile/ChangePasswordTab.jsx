@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import useUserProfileStore from '../../store/userProfileStore';
 import useUIStore from '../../store/uiStore';
 import './ChangePasswordTab.css';
+import { validatePassword, PASSWORD_HINT } from '../../utils/validators/authValidators';
 
 const ChangePasswordTab = () => {
   const { changePassword, isLoading } = useUserProfileStore();
@@ -44,8 +45,8 @@ const ChangePasswordTab = () => {
 
     if (!formData.newPassword) {
       newErrors.newPassword = 'Yeni şifre gerekli';
-    } else if (formData.newPassword.length < 6) {
-      newErrors.newPassword = 'Şifre en az 6 karakter olmalı';
+    } else if (validatePassword(formData.newPassword)) {
+      newErrors.newPassword = validatePassword(formData.newPassword);
     }
 
     if (!formData.confirmPassword) {
@@ -186,7 +187,7 @@ const ChangePasswordTab = () => {
           {errors.newPassword && (
             <span className="error-message">{errors.newPassword}</span>
           )}
-          <small>En az 6 karakter olmalı</small>
+          <small>{PASSWORD_HINT}</small>
         </div>
 
         <div className="form-group">
@@ -219,7 +220,7 @@ const ChangePasswordTab = () => {
           <h4>Şifre Gereksinimleri:</h4>
           <ul>
             <li className={formData.newPassword.length >= 6 ? 'valid' : ''}>
-              En az 6 karakter
+              En az 8 karakter, harf + rakam
             </li>
             <li className={/[A-Z]/.test(formData.newPassword) ? 'valid' : ''}>
               En az bir büyük harf (önerilen)

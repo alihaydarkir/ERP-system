@@ -65,6 +65,10 @@ const setupAuthDb = () => {
       return { rows: [] };
     }
 
+    if (query.includes('FROM users WHERE id')) {
+      return { rows: [{ role: 'user', company_id: 10, is_active: true, deleted_at: null }] };
+    }
+
     return { rows: [] };
   });
 };

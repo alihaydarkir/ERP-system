@@ -53,7 +53,7 @@ const {
  *                     monthlyTrend:     { type: array, description: 'Son 6 ay: {label, orders, revenue}' }
  *                     generatedAt:      { type: string, format: date-time }
  */
-router.get('/summary',      authMiddleware, getDashboardSummary);
+router.get('/summary',      authMiddleware, requirePermission('reports.view'), getDashboardSummary);
 
 /**
  * @openapi
@@ -75,17 +75,17 @@ router.get('/summary',      authMiddleware, getDashboardSummary);
  *       200:
  *         description: Satış sıralaması
  */
-router.get('/top-products', authMiddleware, getTopProducts);
+router.get('/top-products', authMiddleware, requirePermission('reports.view'), getTopProducts);
 
 router.get('/export/excel', authMiddleware, requirePermission('reports.view'), exportReportExcel);
 router.get('/export/pdf', authMiddleware, requirePermission('reports.view'), exportReportPDF);
 
-router.get('/daily',     authMiddleware, getDailyReport);
-router.get('/weekly',    authMiddleware, getWeeklyReport);
-router.get('/monthly',   authMiddleware, getMonthlyReport);
-router.get('/export',    authMiddleware, exportReport);
-router.get('/dashboard', authMiddleware, getDashboardStats);
-router.get('/inventory', authMiddleware, getInventoryReport);
+router.get('/daily',     authMiddleware, requirePermission('reports.view'), getDailyReport);
+router.get('/weekly',    authMiddleware, requirePermission('reports.view'), getWeeklyReport);
+router.get('/monthly',   authMiddleware, requirePermission('reports.view'), getMonthlyReport);
+router.get('/export',    authMiddleware, requirePermission('reports.view'), exportReport);
+router.get('/dashboard', authMiddleware, requirePermission('reports.view'), getDashboardStats);
+router.get('/inventory', authMiddleware, requirePermission('reports.view'), getInventoryReport);
 
 module.exports = router;
 

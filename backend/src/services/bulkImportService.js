@@ -10,19 +10,20 @@ class BulkImportService {
    * @param {Array} data - Parsed Excel data
    * @returns {Object} - { preview, stats }
    */
-  static async validateImportData(data) {
+  static async validateImportData(data, companyId) {
+    if (!companyId) throw new Error('companyId required');
     const preview = [];
     let validRows = 0;
     let invalidRows = 0;
 
     // Get existing product names for duplicate check
-    const existingNamesQuery = 'SELECT LOWER(name) as name FROM products';
-    const existingNamesResult = await pool.query(existingNamesQuery);
+    const existingNamesQuery = 'SELECT LOWER(name) as name FROM products WHERE company_id = $1';
+    const existingNamesResult = await pool.query(existingNamesQuery, [companyId]);
     const existingNames = new Set(existingNamesResult.rows.map(r => r.name));
 
     // Get existing categories
-    const categoriesQuery = 'SELECT DISTINCT LOWER(category) as category FROM products WHERE category IS NOT NULL';
-    const categoriesResult = await pool.query(categoriesQuery);
+    const categoriesQuery = 'SELECT DISTINCT LOWER(category) as category FROM products WHERE company_id = $1 AND category IS NOT NULL';
+    const categoriesResult = await pool.query(categoriesQuery, [companyId]);
     const existingCategories = new Set(categoriesResult.rows.map(r => r.category));
 
     // Track names within this import batch
@@ -123,7 +124,8 @@ class BulkImportService {
    * @param {Number} userId - User ID who is performing the import
    * @returns {Object} - { results, summary }
    */
-  static async processImport(validData, userId) {
+  static async processImport(validData, userId, companyId) {
+    if (!companyId) throw new Error('companyId required');
     const results = [];
     let successful = 0;
     let failed = 0;
@@ -134,14 +136,23 @@ class BulkImportService {
       await client.query('BEGIN');
 
       for (const item of validData) {
+        await client.query('SAVEPOINT import_row');
         try {
+          // İstemciden gelen veriye güvenme: temel tip/aralık doğrulaması
+          const price = Number(item && item.price);
+          const stock = Number(item && item.stock);
+          if (!item || typeof item.name !== 'string' || !item.name.trim() || item.name.length > 255 ||
+              typeof item.category !== 'string' || !item.category.trim() || item.category.length > 100 ||
+              !Number.isFinite(price) || price < 0 || !Number.isFinite(stock) || stock < 0) {
+            throw new Error('Geçersiz satır verisi');
+          }
           // Generate SKU
           const sku = generateSKU(item.category.substring(0, 3).toUpperCase());
 
           // Insert product
           const productQuery = `
-            INSERT INTO products (name, sku, category, price, stock_quantity, description, low_stock_threshold, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+            INSERT INTO products (name, sku, category, price, stock_quantity, description, low_stock_threshold, company_id, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
             RETURNING id, name
           `;
 
@@ -153,7 +164,9 @@ class BulkImportService {
             item.stock,
             item.description || null,
             item.low_stock_threshold || 10,
+            companyId,
           ]);
+          await client.query('RELEASE SAVEPOINT import_row');
 
           successful++;
           results.push({
@@ -164,6 +177,7 @@ class BulkImportService {
             message: 'Başarıyla eklendi',
           });
         } catch (error) {
+          await client.query('ROLLBACK TO SAVEPOINT import_row');
           failed++;
           results.push({
             rowIndex: item.rowIndex,
@@ -175,8 +189,8 @@ class BulkImportService {
 
       // Create audit log
       const auditQuery = `
-        INSERT INTO audit_logs (user_id, action, entity_type, changes, created_at)
-        VALUES ($1, $2, $3, $4, NOW())
+        INSERT INTO audit_logs (user_id, company_id, action, entity_type, changes, created_at)
+        VALUES ($1, $5, $2, $3, $4, NOW())
       `;
 
       await client.query(auditQuery, [
@@ -189,6 +203,7 @@ class BulkImportService {
           failed,
           timestamp: new Date().toISOString(),
         }),
+        companyId,
       ]);
 
       await client.query('COMMIT');

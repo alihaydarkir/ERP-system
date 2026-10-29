@@ -4,6 +4,7 @@ const ragService = require('../services/ragService');
 const cacheService = require('../services/cacheService');
 const AuditLog = require('../models/AuditLog');
 const { config } = require('../config/env');
+const pool = require('../config/database');
 
 class WebSocketHandlers {
   constructor(io) {
@@ -24,14 +25,8 @@ class WebSocketHandlers {
     socket.on(events.CHAT_MESSAGE, (data) => this.handleChatMessage(socket, data));
     socket.on(events.CHAT_TYPING, (data) => this.handleTyping(socket, data));
 
-    // Product events
-    socket.on(events.PRODUCT_CREATED, (data) => this.broadcastProductEvent(socket, events.PRODUCT_CREATED, data));
-    socket.on(events.PRODUCT_UPDATED, (data) => this.broadcastProductEvent(socket, events.PRODUCT_UPDATED, data));
-    socket.on(events.PRODUCT_DELETED, (data) => this.broadcastProductEvent(socket, events.PRODUCT_DELETED, data));
-
-    // Order events
-    socket.on(events.ORDER_CREATED, (data) => this.broadcastOrderEvent(socket, events.ORDER_CREATED, data));
-    socket.on(events.ORDER_UPDATED, (data) => this.broadcastOrderEvent(socket, events.ORDER_UPDATED, data));
+    // Ürün/sipariş olayları yalnızca SUNUCU tarafından üretilir. İstemciden gelen product:* / order:*
+    // olaylarını yayınlamak kiracılar arası sahte bildirime yol açıyordu (denetim 2026-10); kayıtlı değil.
 
     // System events
     socket.on(events.PING, () => socket.emit(events.PONG));
@@ -63,11 +58,28 @@ class WebSocketHandlers {
 
       const decoded = jwt.verify(token, config.jwt.secret);
 
+      // 2FA ara jetonu gibi amaca özel jetonlar soketi yetkilendiremez
+      if (decoded.purpose) {
+        socket.emit(events.AUTHENTICATION_ERROR, { error: 'Invalid token' });
+        return;
+      }
+
+      // Kimlik/rol/şirket JWT iddialarından değil veritabanından alınır (HTTP middleware ile aynı ilke)
+      const userRow = await pool.query(
+        'SELECT id, username, role, company_id, is_active, deleted_at FROM users WHERE id = $1',
+        [decoded.userId]
+      );
+      const dbUser = userRow.rows[0];
+      if (!dbUser || dbUser.is_active === false || dbUser.deleted_at) {
+        socket.emit(events.AUTHENTICATION_ERROR, { error: 'Invalid token' });
+        return;
+      }
+
       // Store user information
-      socket.userId = decoded.userId;
-      socket.userRole = decoded.role;
-      socket.username = decoded.username;
-      socket.companyId = decoded.company_id || decoded.companyId || null;
+      socket.userId = dbUser.id;
+      socket.userRole = dbUser.role;
+      socket.username = dbUser.username;
+      socket.companyId = dbUser.company_id || null;
 
       // Track user connection
       this.users.set(socket.userId, {
@@ -81,6 +93,8 @@ class WebSocketHandlers {
 
       // Join user to their personal room
       socket.join(`user:${socket.userId}`);
+      // Yayınlar yalnızca şirket odasına gider
+      if (socket.companyId) socket.join(`company:${socket.companyId}`);
 
       // Notify success
       socket.emit(events.AUTHENTICATED, {
@@ -89,11 +103,13 @@ class WebSocketHandlers {
         username: socket.username
       });
 
-      // Broadcast user online status
-      this.io.emit(events.USER_ONLINE, {
-        userId: socket.userId,
-        username: socket.username
-      });
+      // Broadcast user online status (yalnızca kendi şirketine)
+      if (socket.companyId) {
+        this.io.to(`company:${socket.companyId}`).emit(events.USER_ONLINE, {
+          userId: socket.userId,
+          username: socket.username
+        });
+      }
 
       console.log(`User authenticated: ${socket.username} (${socket.userId})`);
     } catch (error) {
@@ -107,7 +123,19 @@ class WebSocketHandlers {
    */
   async handleChatMessage(socket, data) {
     try {
-      const { message } = data;
+      const { message } = data || {};
+
+      // Sohbet yolunda HTTP rotasıyla aynı sınırlar: tür/uzunluk + soket başına hız sınırı
+      if (typeof message !== 'string' || !message.trim() || message.length > 1000) {
+        socket.emit(events.CHAT_ERROR, { error: 'Invalid message' });
+        return;
+      }
+      const now = Date.now();
+      if (socket.lastChatAt && now - socket.lastChatAt < 1500) {
+        socket.emit(events.CHAT_ERROR, { error: 'Too many messages' });
+        return;
+      }
+      socket.lastChatAt = now;
 
       if (!socket.userId) {
         socket.emit(events.CHAT_ERROR, { error: 'Not authenticated' });
@@ -152,11 +180,12 @@ class WebSocketHandlers {
    * Handle typing indicator
    */
   handleTyping(socket, data) {
-    const { typing } = data;
-    socket.broadcast.emit(events.CHAT_TYPING, {
+    if (!socket.userId || !socket.companyId) return;
+    const { typing } = data || {};
+    socket.to(`company:${socket.companyId}`).emit(events.CHAT_TYPING, {
       userId: socket.userId,
       username: socket.username,
-      typing
+      typing: !!typing
     });
   }
 
@@ -173,8 +202,9 @@ class WebSocketHandlers {
     // Invalidate product cache
     await cacheService.invalidateProductCache(data.productId);
 
-    // Broadcast to all connected clients
-    this.io.emit(eventType, {
+    // Yalnızca gönderenin şirket odasına
+    if (!socket.companyId) return;
+    this.io.to(`company:${socket.companyId}`).emit(eventType, {
       ...data,
       userId: socket.userId,
       username: socket.username,
@@ -183,7 +213,7 @@ class WebSocketHandlers {
 
     // Check for low stock and send alert
     if (eventType === events.PRODUCT_STOCK_UPDATED && data.stock < 10) {
-      this.io.emit(events.PRODUCT_LOW_STOCK, {
+      this.io.to(`company:${socket.companyId}`).emit(events.PRODUCT_LOW_STOCK, {
         productId: data.productId,
         productName: data.name,
         stock: data.stock,
@@ -205,31 +235,31 @@ class WebSocketHandlers {
     // Invalidate order cache
     await cacheService.invalidateOrderCache();
 
-    // Broadcast to all connected clients
-    this.io.emit(eventType, {
+    if (!socket.companyId) return;
+    this.io.to(`company:${socket.companyId}`).emit(eventType, {
       ...data,
       userId: socket.userId,
       username: socket.username,
       timestamp: new Date()
     });
 
-    // Send notification to admins
+    // Send notification to admins (yalnızca aynı şirketin yöneticilerine)
     if (eventType === events.ORDER_CREATED) {
       this.sendToAdmins(events.NOTIFICATION, {
         type: 'new_order',
         message: `New order #${data.orderId} created by ${socket.username}`,
         orderId: data.orderId,
         timestamp: new Date()
-      });
+      }, { companyId: socket.companyId });
     }
   }
 
   /**
    * Send notification to all connected admins
    */
-  sendToAdmins(eventType, data) {
+  sendToAdmins(eventType, data, options = {}) {
     for (const [userId, user] of this.users.entries()) {
-      if (user.role === 'admin') {
+      if (user.role === 'admin' && (!options.companyId || Number(user.companyId) === Number(options.companyId))) {
         this.io.to(`user:${userId}`).emit(eventType, data);
       }
     }
@@ -291,11 +321,13 @@ class WebSocketHandlers {
       // Remove from users map
       this.users.delete(socket.userId);
 
-      // Broadcast user offline status
-      this.io.emit(events.USER_OFFLINE, {
-        userId: socket.userId,
-        username: socket.username
-      });
+      // Broadcast user offline status (yalnızca kendi şirketine)
+      if (socket.companyId) {
+        this.io.to(`company:${socket.companyId}`).emit(events.USER_OFFLINE, {
+          userId: socket.userId,
+          username: socket.username
+        });
+      }
 
       console.log(`User ${socket.username} (${socket.userId}) went offline`);
     }

@@ -77,7 +77,6 @@ const errorHandler = (err, req, res, next) => {
     error: responseMessage,
     type,
     requestId,
-    ...(isDevelopment && err?.stack ? { stack: err.stack } : {}),
   });
 };
 
