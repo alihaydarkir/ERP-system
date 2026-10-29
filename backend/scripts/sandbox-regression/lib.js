@@ -12,7 +12,7 @@ function req(method, path, { token, body, headers = {}, rawBody, contentType } =
       res.on('data', (c) => chunks.push(c));
       res.on('end', () => {
         const text = Buffer.concat(chunks).toString('utf8');
-        let json = null; try { json = JSON.parse(text); } catch (e) {}
+        let json = null; try { json = JSON.parse(text); } catch (e) { /* JSON olmayan yanıt */ }
         resolve({ status: res.statusCode, json, text, headers: res.headers });
       });
     });
