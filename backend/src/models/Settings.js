@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const pool = require('../config/database');
 
 // company_id NULL satırları varsayılan şablondur; şirketin kendi satırı varsa o geçerlidir.
@@ -13,9 +14,37 @@ const maskValue = (key, value) => (isSecret(key) && value ? SECRET_MASK : value)
 
 const isUnchangedSecret = (key, value) => isSecret(key) && value === SECRET_MASK;
 
-const toStorage = (value) => {
-  if (typeof value === 'object') return JSON.stringify(value);
-  return String(value);
+// ── Sırların veritabanında şifreli saklanması (AES-256-GCM) ─────────────────────────────────────
+// Anahtar: SETTINGS_ENCRYPTION_KEY > ENCRYPTION_KEY > JWT_SECRET (sha256 ile 32 bayta türetilir).
+// Eski düz metin kayıtlar okunmaya devam eder ve ilk okumada şifreli biçime yükseltilir.
+const ENC_PREFIX = 'enc:v1:';
+const secretKeyBytes = () => crypto.createHash('sha256')
+  .update(String(process.env.SETTINGS_ENCRYPTION_KEY || process.env.ENCRYPTION_KEY || process.env.JWT_SECRET || ''))
+  .digest();
+
+const encryptSecret = (plain) => {
+  if (!plain) return plain;
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', secretKeyBytes(), iv);
+  const ct = Buffer.concat([cipher.update(String(plain), 'utf8'), cipher.final()]);
+  return ENC_PREFIX + [iv, cipher.getAuthTag(), ct].map((b) => b.toString('base64')).join(':');
+};
+
+const decryptSecret = (stored) => {
+  if (!stored || typeof stored !== 'string' || !stored.startsWith(ENC_PREFIX)) return stored; // eski düz metin
+  try {
+    const [iv, tag, ct] = stored.slice(ENC_PREFIX.length).split(':').map((p) => Buffer.from(p, 'base64'));
+    const d = crypto.createDecipheriv('aes-256-gcm', secretKeyBytes(), iv);
+    d.setAuthTag(tag);
+    return Buffer.concat([d.update(ct), d.final()]).toString('utf8');
+  } catch (e) {
+    return ''; // anahtar değişmiş/bozuk kayıt: sırrı kullanılamaz say (yeniden girilmeli)
+  }
+};
+
+const toStorage = (value, key) => {
+  const text = typeof value === 'object' ? JSON.stringify(value) : String(value);
+  return key && isSecret(key) ? encryptSecret(text) : text;
 };
 
 const parseValue = (type, value) => {
@@ -100,7 +129,15 @@ class Settings {
       return null;
     }
 
-    const setting = reveal ? result.rows[0] : maskRow(result.rows[0]);
+    let setting = reveal ? result.rows[0] : maskRow(result.rows[0]);
+    if (reveal && isSecret(key) && setting.value) {
+      const plain = decryptSecret(setting.value);
+      // Eski düz metin kayıt: okunurken şifreli biçime yükselt
+      if (!String(setting.value).startsWith(ENC_PREFIX) && setting.id) {
+        await pool.query('UPDATE system_settings SET value = $1 WHERE id = $2', [encryptSecret(setting.value), setting.id]);
+      }
+      setting = { ...setting, value: plain };
+    }
     return {
       ...setting,
       parsedValue: parseValue(setting.type, setting.value)
@@ -115,7 +152,7 @@ class Settings {
       return this.findByKey(key, companyId);
     }
 
-    const result = await pool.query(UPSERT_COMPANY_SETTING, [companyId, toStorage(value), userId, key]);
+    const result = await pool.query(UPSERT_COMPANY_SETTING, [companyId, toStorage(value, key), userId, key]);
     return maskRow(result.rows[0]) || null;
   }
 
@@ -133,7 +170,7 @@ class Settings {
       for (const [key, value] of Object.entries(settings)) {
         if (isUnchangedSecret(key, value)) continue;
 
-        const result = await client.query(UPSERT_COMPANY_SETTING, [companyId, toStorage(value), userId, key]);
+        const result = await client.query(UPSERT_COMPANY_SETTING, [companyId, toStorage(value, key), userId, key]);
 
         if (result.rows.length > 0) {
           updatedSettings.push(maskRow(result.rows[0]));
@@ -168,7 +205,7 @@ class Settings {
       RETURNING *
     `;
 
-    const result = await pool.query(query, [companyId, key, toStorage(value), type, category, description, userId]);
+    const result = await pool.query(query, [companyId, key, toStorage(value, key), type, category, description, userId]);
     return maskRow(result.rows[0]);
   }
 

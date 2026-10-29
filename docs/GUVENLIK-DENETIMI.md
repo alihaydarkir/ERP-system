@@ -289,3 +289,15 @@ zaten çalışmıyordu — bcrypt eşleşmedi). Regresyon: `src/security.regress
 yok (2FA bağlanmadan önce eklenmeli); nginx `location /` güvenlik başlıkları + SPA CSP; `fineTuning` router'ı
 bağlanırsa `execFile` + doğrulama; ertelenen tarama birimleri (müşteri toplu içe aktarma, müşteri/tedarikçi
 CRUD, operasyonel/tohum dosyaları).
+
+### 3. tur (ertelenen alanlar + küçük sertleştirmeler)
+- **Müşteri toplu içe aktarma:** INSERT `company_id` yazmıyordu (müşteriler sahipsiz kalıyordu), tekrar kontrolü `user_id` ile yapılıyordu, istemci verisine güveniyordu → şirket kapsamlı, satır bazlı SAVEPOINT, satır doğrulaması.
+- **Müşteri/tedarikçi CRUD ve müşteri rolü erişimi:** şirket kapsamı doğru; müşteri rolünde izin satırı olmadığından izinli uçlar varsayılan reddediyor, kalan açık uç rapor kapısıydı (2. turda kapandı).
+- **Operasyonel dosyalar:** `scripts/reset-sessions.js` sabit `admin123` ile yönetici oluşturuyor/sıfırlıyordu → rastgele parola + üretim/onprem'de `--yes-reset-admin`; `migrate-db.js` üretimde varsayılan DB bağlantısına düşmüyor.
+- **nginx:** `location /` ve statik varlıklarda güvenlik başlıkları miras alınmıyordu → tekrarlandı; SPA için `Content-Security-Policy-Report-Only` eklendi (konsolda ihlalleri gördükten sonra zorunlu CSP'ye çevir).
+- **Sipariş:** `Order.update` artık şirket kapsamlı ve iş akışını zorlar (iptal yalnızca `cancel()`); `PATCH status=cancelled` stok iade eder; `cancel()` satır kilidi + durum yeniden kontrolü (çifte iptal = çifte stok iadesi engellendi).
+- **AI onayları:** `AI_APPROVAL_TTL_HOURS` (24 sa) sonrası onay yürütülmez; talep eden pasifleşmişse yürütülmez. (Talep eden ≠ onaylayan kuralı bilinçli olarak uygulanmadı: tek yöneticili işletmelerde LLM işlemini insan onayı amacıyla onaylamak meşru.)
+- **SMTP parolası** veritabanında AES-256-GCM ile şifreli (`SETTINGS_ENCRYPTION_KEY` > `ENCRYPTION_KEY` > `JWT_SECRET`); eski düz metin ilk okumada yükseltilir.
+- **CI:** action'lar commit SHA'sına sabitlendi; `ci.yml` `permissions: contents: read`.
+
+**Bilinen tutarsızlık (güvenlik dışı):** `orders.status` CHECK kısıtı yalnızca `pending/processing/completed/cancelled` kabul ediyor, iş akışı sabitleri ise `confirmed/shipped/delivered/refunded` da içeriyor → bu durumlara geçiş 500 veriyor (önceden var). Kasıtlıysa sabitler sadeleşmeli, değilse bir migration ile kısıt genişletilmeli.

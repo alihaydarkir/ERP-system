@@ -1,4 +1,5 @@
 const pool = require('../config/database');
+const { isValidStatusTransition } = require('../constants/orderStatus');
 
 class Order {
   /**
@@ -237,7 +238,29 @@ class Order {
   /**
    * Update order
    */
-  static async update(id, data) {
+  static async update(id, data, company_id = null) {
+    // Durum değişikliği iş akışına tabi olmalı; iptal stok geri yüklemesi gerektirdiğinden yalnızca cancel() ile yapılır.
+    if (data.status !== undefined) {
+      const cur = await pool.query(
+        `SELECT status FROM orders WHERE id = $1 ${company_id ? 'AND company_id = $2' : ''}`,
+        company_id ? [id, company_id] : [id]
+      );
+      if (cur.rows.length === 0) return undefined;
+      const from = cur.rows[0].status;
+      if (data.status !== from) {
+        if (data.status === 'cancelled') {
+          const err = new Error('İptal için cancel işlemi kullanılmalı (stok geri yüklenir)');
+          err.code = 'INVALID_STATUS_TRANSITION';
+          throw err;
+        }
+        if (!isValidStatusTransition(from, data.status)) {
+          const err = new Error(`'${from}' durumundan '${data.status}' durumuna geçilemez`);
+          err.code = 'INVALID_STATUS_TRANSITION';
+          throw err;
+        }
+      }
+    }
+
     const fields = [];
     const values = [];
     let paramCount = 1;
@@ -257,10 +280,15 @@ class Order {
     }
 
     values.push(id);
+    let where = `id = $${paramCount}`;
+    if (company_id) {
+      values.push(company_id);
+      where += ` AND company_id = $${paramCount + 1}`;
+    }
     const query = `
       UPDATE orders
       SET ${fields.join(', ')}, updated_at = NOW()
-      WHERE id = $${paramCount}
+      WHERE ${where}
       RETURNING *
     `;
 
@@ -277,6 +305,16 @@ class Order {
     try {
       await client.query('BEGIN');
 
+      // Siparişi kilitle ve durumunu işlem İÇİNDE yeniden doğrula
+      const lock = await client.query(
+        `SELECT status FROM orders WHERE id = $1 ${company_id ? 'AND company_id = $2' : ''} FOR UPDATE`,
+        company_id ? [id, company_id] : [id]
+      );
+      if (lock.rows.length === 0 || !isValidStatusTransition(lock.rows[0].status, 'cancelled')) {
+        await client.query('ROLLBACK');
+        return null;
+      }
+
       // Get order items
       const itemsQuery = `
         SELECT oi.*
@@ -291,9 +329,9 @@ class Order {
         const stockQuery = `
           UPDATE products
           SET stock_quantity = stock_quantity + $1
-          WHERE id = $2
+          WHERE id = $2 ${company_id ? 'AND company_id = $3' : ''}
         `;
-        await client.query(stockQuery, [item.quantity, item.product_id]);
+        await client.query(stockQuery, company_id ? [item.quantity, item.product_id, company_id] : [item.quantity, item.product_id]);
       }
 
       // Update order status

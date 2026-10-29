@@ -10,14 +10,16 @@ class CustomerBulkImportService {
    * @param {Number} userId - User ID who is performing the import
    * @returns {Object} - { preview, stats }
    */
-  static async validateImportData(data, userId) {
+  static async validateImportData(data, userId, companyId) {
+    if (!companyId) throw new Error('companyId required');
     const preview = [];
     let validRows = 0;
     let invalidRows = 0;
 
     // Get existing tax numbers for duplicate check
-    const existingTaxQuery = 'SELECT LOWER(tax_number) as tax_number FROM customers WHERE user_id = $1';
-    const existingTaxResult = await pool.query(existingTaxQuery, [userId]);
+    // Tekrar kontrolü şirket bazlı (aynı şirketin başka kullanıcılarının kayıtları dahil)
+    const existingTaxQuery = 'SELECT LOWER(tax_number) as tax_number FROM customers WHERE company_id = $1';
+    const existingTaxResult = await pool.query(existingTaxQuery, [companyId]);
     const existingTaxNumbers = new Set(existingTaxResult.rows.map(r => r.tax_number));
 
     // Track tax numbers within this import batch
@@ -120,7 +122,8 @@ class CustomerBulkImportService {
    * @param {Number} userId - User ID who is performing the import
    * @returns {Object} - { results, summary }
    */
-  static async processImport(validData, userId) {
+  static async processImport(validData, userId, companyId) {
+    if (!companyId) throw new Error('companyId required');
     const results = [];
     let successful = 0;
     let failed = 0;
@@ -131,14 +134,22 @@ class CustomerBulkImportService {
       await client.query('BEGIN');
 
       for (const item of validData) {
+        await client.query('SAVEPOINT import_row');
         try {
+          // İstemciden gelen veriye güvenme: zorunlu alanlar ve uzunluklar
+          const str = (v, max) => typeof v === 'string' && v.trim().length > 0 && v.length <= max;
+          if (!item || !str(item.full_name, 100) || !str(item.company_name, 100) || !str(item.tax_office, 255) ||
+              !str(item.tax_number, 50) || (item.phone_number != null && !str(String(item.phone_number), 50)) ||
+              (item.company_location != null && !str(String(item.company_location), 500))) {
+            throw new Error('Geçersiz satır verisi');
+          }
           // Insert customer
           const customerQuery = `
             INSERT INTO customers (
               user_id, full_name, company_name, tax_office, tax_number,
-              phone_number, company_location, created_at, updated_at
+              phone_number, company_location, company_id, created_at, updated_at
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
             RETURNING id, full_name, company_name
           `;
 
@@ -150,7 +161,9 @@ class CustomerBulkImportService {
             item.tax_number,
             item.phone_number || null,
             item.company_location || null,
+            companyId,
           ]);
+          await client.query('RELEASE SAVEPOINT import_row');
 
           successful++;
           results.push({
@@ -162,9 +175,10 @@ class CustomerBulkImportService {
             message: 'Başarıyla eklendi',
           });
         } catch (error) {
+          await client.query('ROLLBACK TO SAVEPOINT import_row');
           failed++;
           results.push({
-            rowIndex: item.rowIndex,
+            rowIndex: item && item.rowIndex,
             success: false,
             message: `Hata: ${error.message}`,
           });
@@ -173,8 +187,8 @@ class CustomerBulkImportService {
 
       // Create audit log
       const auditQuery = `
-        INSERT INTO audit_logs (user_id, action, entity_type, changes, created_at)
-        VALUES ($1, $2, $3, $4, NOW())
+        INSERT INTO audit_logs (user_id, company_id, action, entity_type, changes, created_at)
+        VALUES ($1, $5, $2, $3, $4, NOW())
       `;
 
       await client.query(auditQuery, [
@@ -187,6 +201,7 @@ class CustomerBulkImportService {
           failed,
           timestamp: new Date().toISOString(),
         }),
+        companyId,
       ]);
 
       await client.query('COMMIT');

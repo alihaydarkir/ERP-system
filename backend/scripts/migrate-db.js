@@ -6,7 +6,11 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 // Database connection
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:secure_password@localhost:5432/erp_db'
+  // Üretimde varsayılan (zayıf) bağlantı dizesine düşme: DATABASE_URL zorunlu
+  connectionString: process.env.DATABASE_URL ||
+    (process.env.NODE_ENV === 'production'
+      ? (console.error('DATABASE_URL tanımlı değil'), process.exit(1))
+      : 'postgresql://postgres:secure_password@localhost:5432/erp_db')
 });
 
 const migrationsDir = path.join(__dirname, '..', 'migrations');
