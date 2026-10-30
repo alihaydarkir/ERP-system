@@ -6,6 +6,12 @@ export const authService = {
     return response.data;
   },
 
+  // 2FA etkin hesapta ikinci adım: parola sonrası gelen tempToken + TOTP/yedek kod → oturum açılır
+  verifyTwoFa: async (tempToken, code) => {
+    const response = await api.post('/api/auth/2fa/verify', { tempToken, code });
+    return response.data;
+  },
+
   register: async (data, emailArg, passwordArg, roleArg) => {
     // Support both old and new formats
     if (typeof data === 'string') {

@@ -71,8 +71,11 @@ Jest yükleyemez, gerçek kripto testi child node süreciyle (`backupCrypto.test
 ikinci adım `POST /api/auth/2fa/verify` (tempToken + TOTP/yedek kod, `authController.verifyTwoFaLogin`). TOTP sırrı AES-GCM ile şifreli,
 yedek kodlar anahtarlı özet (`utils/secretBox.js`), tekrar kullanım koruması (`last_used_step`), 5 hatada 15 dk kilit. JWT'ler `typ`
 taşır (access/refresh/2fa); `authMiddleware` yalnızca erişim jetonu kabul eder.
-**Dikkat:** 2FA için **frontend arayüzü yok** (kurulum ekranı + girişte kod adımı) — arayüz gelmeden müşteriye 2FA açtırma:
-2FA'sı açık kullanıcı `requiresTwoFa` yanıtını arayüzde işleyemez. Eski `/api/users/profile/2fa/*` (sahte bayrak) 410 döner.
+Arayüz: profil sayfasında `components/Profile/TwoFactorSection.jsx` (QR kurulum, yedek kodlar bir kez gösterilir, yenileme, kapatma),
+girişte `components/Auth/TwoFactorStep.jsx` (`LoginPage` `requiresTwoFa` görünce kod adımına geçer → `authService.verifyTwoFa`).
+`api.js` 401 yenileme akışı `/api/auth/login`, `/api/auth/2fa/verify`, `/api/support/login` için atlanır (yanlış kod kullanıcıyı atmasın).
+`users.two_factor_enabled` bayrağı `User2FA.enable/disable/delete` ile gerçek durumla eşitlenir (profil rozeti). Eski
+`/api/users/profile/2fa/*` (sahte bayrak) 410 döner. Tarayıcıda uçtan uca denendi (kurulum → çıkış → kodlu giriş → yedek kodla kapatma).
 Ayrıntı: **`docs/SIRKET-ICI-KURULUM.md`**.
 
 ## Önemli geçmiş (bu projede yapıldı)
@@ -107,7 +110,7 @@ Ayrıntı: **`docs/SIRKET-ICI-KURULUM.md`**.
 - Diğer modüllerde benzer form↔backend "drift" olabilir; test ederken çıkanlar tek tek düzeltiliyor.
 
 ## Çalışma konvansiyonları
-- Değişiklikten sonra: `cd backend && npx jest` (**255 test**, 2026-10-29) yeşil olmalı; create/endpoint
+- Değişiklikten sonra: `cd backend && npx jest` (**268 test**, 2026-10-30; frontend `npx vitest run` **41**) yeşil olmalı; create/endpoint
   değişikliklerini gerçek istekle (curl, Origin: http://localhost:5173 + CSRF cookie) doğrula.
 - Backend `node server.js` ile çalışır (hot-reload yok) → kod değişince `docker compose restart backend`.
 - Commit mesajları Türkçe + `Co-Authored-By: Claude`. Komut timeout'larını kısa tut.

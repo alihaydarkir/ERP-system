@@ -146,46 +146,6 @@ const useUserProfileStore = create((set) => ({
     }
   },
 
-  enable2FA: async () => {
-    set({ isLoading: true, error: null });
-    try {
-      const response = await api.post('/api/users/profile/2fa/enable');
-      if (response.data.success) {
-        set((state) => ({
-          profile: { ...state.profile, two_factor_enabled: true },
-          isLoading: false
-        }));
-        return response.data;
-      }
-    } catch (error) {
-      set({
-        error: error.response?.data?.message || 'Failed to enable 2FA',
-        isLoading: false
-      });
-      throw error;
-    }
-  },
-
-  disable2FA: async () => {
-    set({ isLoading: true, error: null });
-    try {
-      const response = await api.post('/api/users/profile/2fa/disable');
-      if (response.data.success) {
-        set((state) => ({
-          profile: { ...state.profile, two_factor_enabled: false },
-          isLoading: false
-        }));
-        return response.data;
-      }
-    } catch (error) {
-      set({
-        error: error.response?.data?.message || 'Failed to disable 2FA',
-        isLoading: false
-      });
-      throw error;
-    }
-  },
-
   clearError: () => set({ error: null }),
   setLoading: (isLoading) => set({ isLoading })
 }));
