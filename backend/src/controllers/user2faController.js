@@ -102,7 +102,7 @@ exports.disable = async (req, res) => {
 
     const row = await pool.query('SELECT password_hash FROM users WHERE id = $1', [userId]);
     const passwordValid = row.rows.length > 0 && await User.verifyPassword(password, row.rows[0].password_hash);
-    if (!passwordValid) return fail(res, 401, 'Parola yanlış');
+    if (!passwordValid) return fail(res, 400, 'Parola yanlış', 'INVALID_PASSWORD');
 
     const verification = await User2FA.verifyLoginCode(userId, code);
     if (verification.locked) return fail(res, 429, 'Çok fazla hatalı deneme. 15 dakika sonra tekrar deneyin.', 'TWO_FA_LOCKED');
