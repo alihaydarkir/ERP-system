@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { socket } from '../services/socket';
+import api from '../services/api';
 
 const MAX_NOTIFICATIONS = 50;
+const ALERT_REFRESH_MS = 2 * 60 * 1000;
+const SEVERITY_ORDER = { critical: 0, warning: 1, info: 2 };
 
 const LABELS = {
   'order:created':          { title: 'Yeni Sipariş',        icon: '🛒' },
@@ -9,11 +12,20 @@ const LABELS = {
   'order:status_changed':   { title: 'Sipariş Durumu',       icon: '🔄' },
   'product:low_stock':      { title: 'Düşük Stok Uyarısı',  icon: '⚠️' },
   'product:created':        { title: 'Yeni Ürün',            icon: '🆕' },
-  'ai:approval_requested':  { title: 'Onay Bekleniyor',      icon: '🤖' },
+  'ai:approval_requested':  { title: 'Yönetici onayı bekleniyor', icon: '⏳' },
   notification:             { title: 'Bildirim',             icon: '🔔' },
 };
 
+// "notification" kanalından gelen olaylar payload.type ile ayrışır
+const TYPE_LABELS = {
+  ai_approval_required:   { title: 'Yönetici onayı bekleniyor', icon: '⏳', link: '/chat' },
+  support_session_started:{ title: 'Destek oturumu açıldı',     icon: '🛠️', link: '/settings' },
+  backup_security_event:  { title: 'Yedek güvenlik olayı',      icon: '🔐', link: '/settings' },
+  new_order:              { title: 'Yeni sipariş',              icon: '🛒', link: '/orders' },
+};
+
 function resolveLink(eventType, payload) {
+  if (TYPE_LABELS[payload?.type]) return TYPE_LABELS[payload.type].link;
   if (eventType === 'order:created' || eventType === 'order:updated' || eventType === 'order:status_changed')
     return '/orders';
   if (eventType === 'product:low_stock' || eventType === 'product:created')
@@ -24,7 +36,7 @@ function resolveLink(eventType, payload) {
 }
 
 function makeNotification(eventType, payload) {
-  const meta = LABELS[eventType] || { title: 'Bildirim', icon: '🔔' };
+  const meta = TYPE_LABELS[payload?.type] || LABELS[eventType] || { title: 'Bildirim', icon: '🔔' };
   return {
     id: `${Date.now()}-${Math.random()}`,
     eventType,
@@ -61,6 +73,8 @@ const LISTENED_EVENTS = [
 
 export default function useNotifications() {
   const [notifications, setNotifications] = useState([]);
+  // Kalıcı uyarılar: sunucudaki gerçek verilerden hesaplanır (kritik stok, vadesi geçmiş çek...)
+  const [alerts, setAlerts] = useState([]);
 
   const push = useCallback((eventType, payload) => {
     // Skip duplicate ai_approval_status_update type coming via 'notification' channel
@@ -68,6 +82,16 @@ export default function useNotifications() {
 
     const notif = makeNotification(eventType, payload);
     setNotifications((prev) => [notif, ...prev].slice(0, MAX_NOTIFICATIONS));
+  }, []);
+
+  const refreshAlerts = useCallback(async () => {
+    try {
+      const res = await api.get('/api/alerts');
+      const list = res.data?.data?.alerts || [];
+      setAlerts([...list].sort((a, b) => (SEVERITY_ORDER[a.severity] ?? 3) - (SEVERITY_ORDER[b.severity] ?? 3)));
+    } catch {
+      // Uyarılar yüklenemezse zil boş kalır, uygulama etkilenmez
+    }
   }, []);
 
   useEffect(() => {
@@ -82,7 +106,23 @@ export default function useNotifications() {
     };
   }, [push]);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  // Uyarıları açılışta, düzenli aralıkla, veri değişince ve sekmeye dönünce yenile
+  useEffect(() => {
+    refreshAlerts();
+    const timer = setInterval(refreshAlerts, ALERT_REFRESH_MS);
+    const onChange = () => refreshAlerts();
+    const onFocus = () => refreshAlerts();
+    window.addEventListener('erp:data_changed', onChange);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('erp:data_changed', onChange);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [refreshAlerts]);
+
+  const unreadCount = notifications.filter((n) => !n.read).length + alerts.length;
+  const topSeverity = alerts[0]?.severity || (notifications.some((n) => !n.read) ? 'info' : null);
 
   const markAllRead = useCallback(() => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
@@ -96,5 +136,5 @@ export default function useNotifications() {
 
   const clear = useCallback(() => setNotifications([]), []);
 
-  return { notifications, unreadCount, markAllRead, markRead, clear };
+  return { notifications, alerts, unreadCount, topSeverity, markAllRead, markRead, clear };
 }
