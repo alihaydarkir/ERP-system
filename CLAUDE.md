@@ -54,6 +54,21 @@ JSON parse gerekmez. `agentOrchestrator.js`'deki deterministik düzeltmeler art�
 - Araçlar: `backend/src/services/tools/` (queryTools, mutationTools, toolSchemas, toolPermissionMatrix).
 - Tam mimari + hata haritası: **`docs/SISTEM_HARITASI.md`**.
 
+**Şirket sözlüğü (jargon):** `company_glossary` (migration 055) şirkete özel terim → ürün/müşteri/tedarikçi. `aiService.runAgent`
+önce `glossaryChat.process` çalıştırır (hata olursa normal akış): sözlük terimini gerçek adla değiştirir ("mavi 200'ün stoku"
+→ "Kum Zımparası 200 Kum stoku", cevaba "ℹ️ Anladığım" notu eklenir), tanımadığı kod benzeri terimi (`mavi200`) sorar, numara
+ya da serbest metinle seçilince yöneticiyse kaydeder ("X = Y", "X Y demek", "sözlük", "X'i sözlükten sil" komutları da var).
+Kaydı yalnızca admin/manager yapar; müşteri rolü sözlüğe girmez; her sorgu `company_id` kapsamlı. Eşleştirme Türkçe harf/ek
+duyarsız (`fold`). Mantık: `services/glossaryService.js` (DB) + `glossaryChat.js` (konuşma durumu, bellekte 5 dk TTL).
+Demo: `docker compose exec backend node scripts/seed_hirdavat_demo.js` → ayrı "Demirci Hırdavat" şirketi
+(admin@/manager@/user@hirdavat.local); "mavi200" bilerek sözlükte yok (öğrenme senaryosu için).
+Sohbet küçük konuşma/yardım/tek kelime girişleri (`matchSocial`, `expandShortQuery`) model çağırmadan agentOrchestrator'da.
+Zil uyarıları: `GET /api/alerts` (kritik stok, vadesi geçmiş çek, bekleyen sipariş; çek uyarısı `cheques.view` izniyle).
+**AI sorgu araçları veritabanı izinlerine bağlı** (`toolPermissionMatrix.QUERY_TOOL_PERMISSIONS`; ör. tedarikçi → `suppliers.view`,
+depo → `warehouses.view`): yeni sorgu aracı eklenince buraya da yazılmalı (test kırılır). Toplamlar/sayılar araçta kodla hesaplanıp
+`summary_text` ile döner (model rakam bozabiliyor); `agentOrchestrator.repairNumbers` veriye çok yakın bozuk sayıyı düzeltir.
+Eski `/api/chat/message` ve `/api/chat/rag` kapalı (410): `rag_knowledge`'da `company_id` yok; açmadan önce şirkete bağlanmalı.
+
 ## Dağıtım modu (müşteri verisi bize gelmez)
 `DEPLOYMENT_MODE=cloud|onprem` (`backend/src/config/deployment.js`). onprem: AI yalnız yerel Ollama
 (aksi hâlde backend açılmaz), Sentry kapalı, `super_admin` girişi/token'ı reddedilir. Müşteri verisini
@@ -107,7 +122,7 @@ Ayrıntı: **`docs/SIRKET-ICI-KURULUM.md`**.
 - Diğer modüllerde benzer form↔backend "drift" olabilir; test ederken çıkanlar tek tek düzeltiliyor.
 
 ## Çalışma konvansiyonları
-- Değişiklikten sonra: `cd backend && npx jest` (**255 test**, 2026-10-29) yeşil olmalı; create/endpoint
+- Değişiklikten sonra: `cd backend && npx jest` (**309 test**, 2026-11-01) yeşil olmalı (frontend: `npx vitest run`); create/endpoint
   değişikliklerini gerçek istekle (curl, Origin: http://localhost:5173 + CSRF cookie) doğrula.
 - Backend `node server.js` ile çalışır (hot-reload yok) → kod değişince `docker compose restart backend`.
 - Commit mesajları Türkçe + `Co-Authored-By: Claude`. Komut timeout'larını kısa tut.
