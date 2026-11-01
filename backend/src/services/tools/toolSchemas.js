@@ -61,6 +61,13 @@ function cleanOptionalString(value, options = {}) {
   return cleanString(value, options);
 }
 
+// Model bazen limit: 0 / -1 / 999 gönderir; bu bir hata değil, varsayılana ya da üst sınıra çekilir
+function cleanLimit(value, fallback, max) {
+  const n = Number(value);
+  if (value === undefined || value === null || value === '' || !Number.isFinite(n) || n < 1) return fallback;
+  return Math.min(Math.floor(n), max);
+}
+
 function cleanInteger(value, { min = Number.MIN_SAFE_INTEGER, max = Number.MAX_SAFE_INTEGER, field = 'alan' } = {}) {
   if (value === undefined || value === null || value === '') return undefined;
   const n = Number(value);
@@ -118,21 +125,34 @@ function sanitizeToolArgs(toolName, args = {}) {
     case 'search_cheques':
       return {
         status: input.status ? cleanEnum(input.status, CHEQUE_STATUS, 'status') : undefined,
-        limit: cleanInteger(input.limit ?? 10, { min: 1, max: 50, field: 'limit' })
+        customer: cleanOptionalString(input.customer, { max: 120, field: 'customer' }),
+        bank: cleanOptionalString(input.bank, { max: 80, field: 'bank' }),
+        limit: cleanLimit(input.limit, 10, 50)
       };
+    case 'calculate_quote': {
+      const list = Array.isArray(input.items) ? input.items : [];
+      if (!list.length || list.length > 20) throw new Error('items 1-20 kalem içermeli');
+      return {
+        items: list.map((it) => ({
+          product: cleanString(it?.product, { max: 120, field: 'product' }),
+          quantity: cleanInteger(it?.quantity ?? 1, { min: 1, max: 1000000, field: 'quantity' })
+        }))
+      };
+    }
     case 'search_products':
       return {
         search: cleanOptionalString(input.search, { max: 120, field: 'search' }),
-        limit: cleanInteger(input.limit ?? 20, { min: 1, max: 50, field: 'limit' })
+        sort: input.sort ? cleanEnum(input.sort, new Set(['price_desc', 'price_asc', 'stock_desc', 'stock_asc']), 'sort') : undefined,
+        limit: cleanLimit(input.limit, 20, 50)
       };
     case 'search_customers':
       return {
         search: cleanOptionalString(input.search, { max: 120, field: 'search' }),
-        limit: cleanInteger(input.limit ?? 10, { min: 1, max: 50, field: 'limit' })
+        limit: cleanLimit(input.limit, 10, 50)
       };
     case 'get_orders_summary':
       return {
-        period: input.period ? cleanEnum(input.period, new Set(['today', 'week', 'month']), 'period') : 'month'
+        period: input.period ? cleanEnum(input.period, new Set(['today', 'week', 'month', 'last30']), 'period') : 'month'
       };
     case 'set_product_stock':
       return {
@@ -270,30 +290,30 @@ function sanitizeToolArgs(toolName, args = {}) {
     case 'get_orders_list':
       return {
         status: input.status ? cleanEnum(input.status, ORDER_STATUS, 'status') : undefined,
-        limit: cleanInteger(input.limit ?? 15, { min: 1, max: 50, field: 'limit' })
+        limit: cleanLimit(input.limit, 15, 50)
       };
     case 'search_orders':
       return {
         search: cleanOptionalString(input.search, { max: 120, field: 'search' }),
         status: input.status ? cleanEnum(input.status, ORDER_STATUS, 'status') : undefined,
-        limit: cleanInteger(input.limit ?? 10, { min: 1, max: 50, field: 'limit' })
+        limit: cleanLimit(input.limit, 10, 50)
       };
     case 'get_suppliers_list':
       return {
         search: cleanOptionalString(input.search, { max: 120, field: 'search' }),
-        limit: cleanInteger(input.limit ?? 20, { min: 1, max: 50, field: 'limit' })
+        limit: cleanLimit(input.limit, 20, 50)
       };
     case 'get_invoices_summary':
       return {
         status: input.status ? cleanEnum(input.status, INVOICE_STATUS, 'status') : undefined,
-        limit: cleanInteger(input.limit ?? 15, { min: 1, max: 50, field: 'limit' })
+        limit: cleanLimit(input.limit, 15, 50)
       };
     case 'get_warehouse_stock':
-      return {};
+      return { product: cleanOptionalString(input.product, { max: 120, field: 'product' }) };
     case 'get_top_customers':
-      return { limit: cleanInteger(input.limit ?? 10, { min: 1, max: 20, field: 'limit' }) };
+      return { limit: cleanLimit(input.limit, 10, 20) };
     case 'get_top_products':
-      return { limit: cleanInteger(input.limit ?? 10, { min: 1, max: 20, field: 'limit' }) };
+      return { limit: cleanLimit(input.limit, 10, 20) };
     case 'create_order':
       return {
         customer_identifier: cleanString(input.customer_identifier, { max: 120, field: 'customer_identifier' }),
@@ -351,14 +371,16 @@ const definitions = [
   },
   {
     name: 'search_cheques',
-    description: 'Çekleri ara ve filtrele. Vadesi geçmiş, bekleyen veya ödenmiş çekleri listele.',
+    description: 'Çekleri ara ve filtrele. Vadesi geçmiş, bekleyen veya ödenmiş çekleri listele. Belirli bir müşterinin çeklerini sormak için customer alanına müşteri veya şirket adını yaz ("Anadolu\'nun çekleri" → customer: "Anadolu").',
     parameters: {
       type: 'object',
       properties: {
+        customer: { type: 'string', description: 'Müşteri veya şirket adı (kısmi olabilir). Bey/Hanım gibi hitapları yazma.' },
+        bank: { type: 'string', description: 'Banka adı ("Halkbank çeki" → bank: "Halkbank")' },
         status: {
           type: 'string',
           enum: ['pending', 'paid', 'cancelled', 'beklemede', 'odendi', 'iptal', 'teminat', 'musteriye_verildi'],
-          description: 'Çek durumu filtresi. Vadesi geçmiş çekler için status belirtme; get_overdue_cheques kullan.'
+          description: 'Çek durumu filtresi: paid=ödenmiş/tahsil edilmiş, pending=bekleyen/tahsil edilmemiş. Vadesi geçmiş çekler için status belirtme; get_overdue_cheques kullan. Toplam tutar için sonuçtaki summary_text kullanılır.'
         },
         limit: { type: 'integer', description: 'Maksimum sonuç sayısı (varsayılan: 10)' }
       }
@@ -381,36 +403,37 @@ const definitions = [
   },
   {
     name: 'search_products',
-    description: 'Ürün ara veya tüm ürün listesini getir.',
+    description: 'Ürün ara veya tüm ürün listesini getir. Fiyat, stok, kategori toplamı ve "en pahalı / en ucuz / en çok stoklu" soruları için kullan (sort alanı). Sonuçtaki summary_text toplam stok ve değeri verir.',
     parameters: {
       type: 'object',
       properties: {
         search: { type: 'string', description: 'Ürün adı veya kategori ile arama' },
+        sort: { type: 'string', enum: ['price_desc', 'price_asc', 'stock_desc', 'stock_asc'], description: 'Sıralama: price_desc=en pahalı önce, price_asc=en ucuz önce, stock_desc=en çok stok önce, stock_asc=en az stok önce' },
         limit: { type: 'integer', description: 'Maksimum sonuç sayısı' }
       }
     }
   },
   {
     name: 'search_customers',
-    description: 'Müşteri ara. İsim veya şirket adına göre.',
+    description: 'Müşteri ara. İsim, şirket adı ya da şehre göre ("Ankara\'daki müşterimiz kim?").',
     parameters: {
       type: 'object',
       properties: {
-        search: { type: 'string', description: 'Arama terimi (isim veya şirket adı)' },
+        search: { type: 'string', description: 'Arama terimi (isim, şirket adı veya şehir)' },
         limit: { type: 'integer', description: 'Maksimum sonuç sayısı' }
       }
     }
   },
   {
     name: 'get_orders_summary',
-    description: 'Sipariş özeti ve istatistikleri getir.',
+    description: 'Sipariş özeti ve istatistikleri getir. period=month "bu ay" demektir (takvim ayı, 1\'inden bugüne); cevapta period_label dönemini aynen belirt.',
     parameters: {
       type: 'object',
       properties: {
         period: {
           type: 'string',
-          enum: ['today', 'week', 'month'],
-          description: 'Zaman dilimi (today/week/month)'
+          enum: ['today', 'week', 'month', 'last30'],
+          description: 'Zaman dilimi: today=bugün, week=son 7 gün, month=bu ay (takvim ayı), last30=son 30 gün'
         }
       }
     }
@@ -701,8 +724,13 @@ const definitions = [
   },
   {
     name: 'get_warehouse_stock',
-    description: 'Depo bazında stok durumunu gösterir.',
-    parameters: { type: 'object', properties: {} }
+    description: 'Depo bazında stok durumunu gösterir. Belirli bir ürünün kaç adet kaldığı sorulursa (ör. "Laptop\'tan kaç tane kalmış?") product alanına ürün adını yaz; ürünün depolardaki adedini verir.',
+    parameters: {
+      type: 'object',
+      properties: {
+        product: { type: 'string', description: 'Ürün adı veya SKU (kısmi olabilir). Boş bırakılırsa depo özeti döner.' }
+      }
+    }
   },
   {
     name: 'get_top_customers',
@@ -802,6 +830,28 @@ const definitions = [
     name: 'get_currency_rates',
     description: 'Güncel döviz kurlarını getirir: USD/TRY, EUR/TRY, GBP/TRY. "Dolar kaç", "euro kuru", "kur nedir", "döviz" gibi sorular için kullan.',
     parameters: { type: 'object', properties: {} }
+  },
+  {
+    name: 'calculate_quote',
+    description: 'Birden fazla ürün için adet × birim fiyat toplamını (teklif/sepet tutarı) KODDA hesaplar. "3 Laptop ile 2 Mouse alsam ne tutar?", "50 adet X için fiyat" gibi sorularda kullan; toplamı kendin hesaplama, bu aracın summary_text değerini aynen ver.',
+    parameters: {
+      type: 'object',
+      properties: {
+        items: {
+          type: 'array',
+          description: 'Ürün ve adet listesi',
+          items: {
+            type: 'object',
+            properties: {
+              product: { type: 'string', description: 'Ürün adı (kısmi olabilir)' },
+              quantity: { type: 'integer', description: 'Adet' }
+            },
+            required: ['product', 'quantity']
+          }
+        }
+      },
+      required: ['items']
+    }
   }
 ];
 

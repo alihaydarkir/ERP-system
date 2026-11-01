@@ -1,6 +1,7 @@
 const agentTools = require('./tools');
 const aiGateway = require('./aiGateway');
 const { isToolAllowed } = require('./tools/toolPermissionMatrix');
+const { approvalRequestedMessage } = require('../utils/approvalText');
 
 class AgentOrchestrator {
   constructor(deps = {}) {
@@ -269,6 +270,19 @@ Kurallar:
 
       const risk = this.getRisk(toolName);
 
+      // Sorgu araçları da kullanıcının veritabanı iznine bağlıdır (menüde gizli veri sohbetten sızmasın)
+      if (!this.tools.isMutationTool(toolName) && typeof context.hasQueryPermission === 'function') {
+        const queryPermission = await context.hasQueryPermission({ user_id: context.user_id, role: context.role, toolName });
+        if (!queryPermission.allowed) {
+          steps.push({
+            type: 'tool_error',
+            tool: toolName,
+            error: `Bu bilgiye erişim yetkiniz yok (${queryPermission.requiredPermission || 'izin'})`
+          });
+          continue;
+        }
+      }
+
       if (this.tools.isMutationTool(toolName)) {
         const permission = await hasMutationPermission({ user_id: context.user_id, role: context.role, toolName });
         if (!permission.allowed) {
@@ -315,6 +329,81 @@ Kurallar:
     const msg = String(message || '').toLowerCase().trim();
     // Only match explicit standalone greetings — never contextual short questions
     return /^(merhaba|selam|hi|hello|hey|günaydın|iyi günler|iyi akşamlar)\s*[!.?]?$/.test(msg);
+  }
+
+  // Türkçe karakterleri düşürüp sadeleştirir ("Nasılsın?" → "nasilsin")
+  foldText(message) {
+    return String(message || '').toLowerCase()
+      .replace(/ş/g, 's').replace(/ğ/g, 'g').replace(/ü/g, 'u')
+      .replace(/ö/g, 'o').replace(/ç/g, 'c').replace(/ı/g, 'i').replace(/İ/g, 'i')
+      .replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  // Selamlama, hâl hatır, teşekkür ve "neler yapabilirsin?" gibi sohbet girişleri.
+  // Araç/model çağırmadan, hızlı ve öğretici cevap döner; eşleşmezse null.
+  matchSocial(message, role) {
+    const t = this.foldText(message);
+    if (!t || t.length > 60) return null;
+    const isCustomer = role === 'customer';
+
+    const examples = isCustomer
+      ? ['Siparişlerim neler?', 'Çeklerim ne durumda?', 'Hangi ürünler stokta?']
+      : ['Vadesi geçmiş alacaklarımız var mı?', "Anadolu'nun çekleri ne durumda?", "Laptop'tan kaç tane kalmış?", 'Hangi müşterimiz bize en çok borçlu?'];
+    const exampleLines = examples.map((e) => `• ${e}`).join('\n');
+
+    if (/^(yardim|yardim et|neler yapabilirsin|ne yapabilirsin|ne yaparsin|ne ise yararsin|sen kimsin|nasil kullanirim|nasil kullanilir|komutlar)$/.test(t)) {
+      const abilities = isCustomer
+        ? 'Siparişleriniz, çekleriniz ve ürün kataloğu hakkında soru cevaplayabilirim.'
+        : 'ERP verilerinizi sorgulayabilir, rapor çıkarabilir ve işlem başlatabilirim: stok, sipariş, müşteri, çek, cari hesap, tedarikçi, envanter değeri, aylık karşılaştırma.';
+      const approval = isCustomer
+        ? ''
+        : '\n\nKritik işlemler (örneğin sipariş iptali) yönetici onayı ister: Onayla ya da Reddet seçersiniz, her adım denetim kaydına yazılır.';
+      return `${abilities}\n\nÖrnek sorular:\n${exampleLines}${approval}`;
+    }
+    if (/^(nasilsin|nasilsiniz|naber|ne haber|nasil gidiyor|iyi misin|(merhaba|selam) nasilsin)$/.test(t)) {
+      return `İyiyim, teşekkürler! ERP verilerinizle ilgili ne öğrenmek istersiniz?\n\nÖrneğin:\n${exampleLines}`;
+    }
+    if (/^((cok )?tesekkur(ler)?( ederim)?|sag ol(un)?|eyvallah|saol|tamam|tamamdir|anladim|harika|super|olur|ok|okey)$/.test(t)) {
+      return 'Rica ederim! Başka bir konuda yardımcı olabilirim.';
+    }
+    if (/^((merhaba|selam|gunaydin|iyi gunler|iyi aksamlar|hey|hi|hello)( (merhaba|selam|gunaydin|iyi gunler|iyi aksamlar))?)$/.test(t)) {
+      return isCustomer
+        ? `Merhaba! Siparişleriniz, çekleriniz ve ürün kataloğu hakkında yardımcı olabilirim.\n\nÖrneğin:\n${exampleLines}`
+        : `Merhaba! ERP sisteminizdeki ürünler, siparişler, müşteriler, çekler, tedarikçiler ve raporlar hakkında yardımcı olabilirim.\n\nÖrneğin:\n${exampleLines}`;
+    }
+    return null;
+  }
+
+  // Tek kelimelik girişleri ("stok", "çek") modelin doğru araca götüreceği açık soruya çevirir.
+  expandShortQuery(message) {
+    const t = this.foldText(message);
+    const map = {
+      stok: 'Stoku azalan ürünler hangileri?',
+      stoklar: 'Stoku azalan ürünler hangileri?',
+      cek: 'Vadesi geçmiş çekler hangileri?',
+      cekler: 'Vadesi geçmiş çekler hangileri?',
+      siparis: 'Bekleyen siparişler neler?',
+      siparisler: 'Bekleyen siparişler neler?',
+      musteri: 'Müşterilerimizi listele',
+      musteriler: 'Müşterilerimizi listele',
+      urun: 'Ürünleri listele',
+      urunler: 'Ürünleri listele',
+      tedarikci: 'Tedarikçileri listele',
+      tedarikciler: 'Tedarikçileri listele',
+      ozet: 'Genel özet ver',
+      rapor: 'Genel özet ver',
+      ciro: 'Toplam cirom ne kadar?',
+      borc: 'Hangi müşterimiz bize en çok borçlu?',
+      alacak: 'Vadesi geçmiş alacaklarımız var mı?',
+      'siparis ver': 'Sipariş oluştur',
+      'yeni siparis': 'Sipariş oluştur',
+      'siparis ekle': 'Sipariş oluştur'
+    };
+    if (map[t]) return map[t];
+    if (/^(bugun ne yapmaliyim|bugun nelere bakmaliyim|bugun oncelik(lerim)? ne|bugun ne var|bugunun ozeti)$/.test(t)) {
+      return 'Genel özet ver: kritik stok, vadesi geçmiş çekler ve bekleyen siparişler';
+    }
+    return null;
   }
 
   toPositiveNumber(value) {
@@ -461,7 +550,51 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
     }
 
     if (!raw) raw = 'Kayıt bulunamadı.';
-    return this.sanitizeCurrencyInAnswer(raw);
+    return this.repairNumbers(this.sanitizeCurrencyInAnswer(raw), toolContexts);
+  }
+
+  // Model araç verisindeki bir sayıyı bazen rakam bozarak yazar ("203.000" → "203.600").
+  // Cevaptaki ≥1.000 değerli bir sayı araç verisinde yoksa ve verideki tek bir sayıya %0,5'ten
+  // yakınsa o sayıyla değiştirilir. Modelin kendi hesapladığı (veriden uzak) sayılara dokunulmaz.
+  repairNumbers(text, toolContexts) {
+    try {
+      const known = new Set();
+      const collect = (v, depth = 0) => {
+        if (v === null || v === undefined || depth > 6) return;
+        if (typeof v === 'number' && Number.isFinite(v)) known.add(Math.round(v * 100) / 100);
+        else if (typeof v === 'string') {
+          if (/^-?\d+(\.\d+)?$/.test(v.trim())) known.add(Math.round(Number(v) * 100) / 100);
+          for (const m of v.matchAll(/\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+,\d+|\d{4,}/g)) {
+            const n = this.parseTrNumber(m[0]);
+            if (n !== null) known.add(Math.round(n * 100) / 100);
+          }
+        } else if (Array.isArray(v)) v.forEach((x) => collect(x, depth + 1));
+        else if (typeof v === 'object') Object.values(v).forEach((x) => collect(x, depth + 1));
+      };
+      (toolContexts || []).forEach((tc) => collect(tc.result));
+      if (!known.size) return text;
+
+      return String(text).replace(/\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d{4,}/g, (token) => {
+        const n = this.parseTrNumber(token);
+        if (n === null || n < 1000 || known.has(Math.round(n * 100) / 100)) return token;
+        const near = [...known].filter((k) => k >= 1000 && Math.abs(k - n) / k <= 0.005);
+        if (near.length !== 1) return token;
+        const fixed = near[0];
+        return Number.isInteger(fixed)
+          ? fixed.toLocaleString('tr-TR')
+          : fixed.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      });
+    } catch (_) {
+      return text;
+    }
+  }
+
+  parseTrNumber(token) {
+    const t = String(token).trim();
+    if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(t)) return Number(t.replace(/\./g, '').replace(',', '.'));
+    if (/^\d+,\d+$/.test(t)) return Number(t.replace(',', '.'));
+    if (/^\d+$/.test(t)) return Number(t);
+    return null;
   }
 
   detectFormTool(message) {
@@ -500,7 +633,7 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
       const approval = await requestApproval({ tool: toolName, args: validation.sanitizedArgs, risk });
       return {
         success: true,
-        answer: `⏳ İşlem onay bekliyor (Onay ID: ${approval.id}, risk: ${risk.level}).`,
+        answer: approvalRequestedMessage(toolName),
         steps: [{ type: 'approval_required', tool: toolName, approval_id: approval.id, risk_level: risk.level }],
         meta: { requires_human_approval: true, approval_id: approval.id }
       };
@@ -520,6 +653,13 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
   }
 
   async run({ userMessage, context, fallbackTools, hasMutationPermission, requestApproval }) {
+    const socialAnswer = this.matchSocial(userMessage, context?.role);
+    if (socialAnswer) {
+      return { success: true, answer: socialAnswer, steps: [], meta: { greeting: true, social: true } };
+    }
+    const expanded = this.expandShortQuery(userMessage);
+    if (expanded) userMessage = expanded;
+
     if (this.isGreeting(userMessage)) {
       const greetingAnswer = context?.role === 'customer'
         ? 'Merhaba! Siparişleriniz, çekleriniz ve ürün kataloğu hakkında yardımcı olabilirim. Ne öğrenmek istersiniz?'
@@ -582,10 +722,44 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
     }
 
     // Döviz kuru soruları → get_currency_rates
-    if (/dolar|euro|gbp|sterlin|doviz|kur\s*(nedir|soyle|goster|kac)|kac\s*(tl|lira)/.test(lowerMsg)) {
+    // ("kaç TL/lira" tek başına döviz sorusu değildir: "Mouse kaç lira?" ürün fiyatı sorar)
+    const asksCurrency = /dolar|euro|gbp|sterlin|doviz|\busd\b|\beur\b|kur\s*(nedir|soyle|goster|kac)|parite/.test(lowerMsg);
+    if (asksCurrency) {
       if (!(plan.steps || []).some((s) => s.tool === 'get_currency_rates')) {
         plan.steps = [{ tool: 'get_currency_rates', args: {} }];
       }
+    } else if ((plan.steps || []).some((s) => s.tool === 'get_currency_rates')) {
+      // Model "lira / TL" kelimesine takılıp döviz aracını seçtiyse çıkar
+      plan.steps = plan.steps.filter((s) => s.tool !== 'get_currency_rates');
+    }
+
+    // "En pahalı / en ucuz / en çok stoklu ürün" → sıralı ürün listesi (model araç seçmeyebiliyor)
+    const rankMatch = lowerMsg.match(/en\s*(pahali|ucuz)|fiyati\s*en\s*(yuksek|dusuk)|en\s*(yuksek|dusuk)\s*fiyat|(?:stogu\s*)?en\s*(cok|fazla|az)\s*(stok|stoklu|stogu)|stogu\s*en\s*(cok|fazla|az)/);
+    if (rankMatch && /urun|mal|kalem|malzeme|stok/.test(lowerMsg) || (rankMatch && /en\s*(pahali|ucuz)/.test(lowerMsg))) {
+      let sort = 'price_desc';
+      if (/en\s*ucuz|dusuk\s*fiyat|fiyati\s*en\s*dusuk/.test(lowerMsg)) sort = 'price_asc';
+      else if (/en\s*(cok|fazla)\s*(stok|stoklu|stogu)|stogu\s*en\s*(cok|fazla)/.test(lowerMsg)) sort = 'stock_desc';
+      else if (/en\s*az\s*(stok|stoklu|stogu)|stogu\s*en\s*az/.test(lowerMsg)) sort = 'stock_asc';
+      plan.steps = [{ tool: 'search_products', args: { sort, limit: 3 } }];
+    }
+
+    // "Kaç çeşit ürün var / ürün sayısı" → toplam ürün sayısı (arama terimi sanılıp 1 dönmesin)
+    if (/kac\s*(cesit\s*)?urun(\s*(var|satiyoruz|sat[iy]yor|kayitli))?\b|urun\s*(cesidi|sayisi|adedi)/.test(lowerMsg) && !/stok|fiyat/.test(lowerMsg)) {
+      plan.steps = [{ tool: 'get_dashboard_summary', args: {} }];
+    }
+
+    // Model hiç araç seçmediyse ve "listele/göster" türü basit bir liste isteniyorsa araca yönlendir
+    if (!(plan.steps || []).length && /listele|goster|say\b|kimler|hangileri|nelerdir|neler var/.test(lowerMsg)) {
+      if (/musteri/.test(lowerMsg)) plan.steps = [{ tool: 'search_customers', args: { limit: 20 } }];
+      else if (/tedarikci/.test(lowerMsg)) plan.steps = [{ tool: 'get_suppliers_list', args: {} }];
+      else if (/urun|mal\b/.test(lowerMsg)) plan.steps = [{ tool: 'search_products', args: { limit: 20 } }];
+    }
+
+    // Banka adı geçen çek soruları → banka filtresi (Halkbank çeki kimin?)
+    const bankMatch = lowerMsg.match(/halkbank|ziraat|vakifbank|garanti|akbank|is bankasi|yapi kredi|denizbank|qnb|finansbank|\bteb\b/);
+    if (bankMatch && /cek/.test(lowerMsg)) {
+      const bankNames = { halkbank: 'Halkbank', ziraat: 'Ziraat', vakifbank: 'Vakıfbank', garanti: 'Garanti', akbank: 'Akbank', 'is bankasi': 'İş Bankası', 'yapi kredi': 'Yapı Kredi', denizbank: 'Denizbank', qnb: 'QNB', finansbank: 'Finansbank', teb: 'TEB' };
+      plan.steps = [{ tool: 'search_cheques', args: { bank: bankNames[bankMatch[0].trim()] || bankMatch[0].trim(), limit: 10 } }];
     }
 
     // "Finansal özet" sorgularında model araç seçmeyebiliyor — zorla ekle.
@@ -731,7 +905,7 @@ ${JSON.stringify(annotatedBlocks, null, 2)}`;
     if (approvalStep) {
       return {
         success: true,
-        answer: `⏳ Bu işlem onay gerektiriyor ve onaya gönderildi (Onay ID: ${approvalStep.approval_id}, risk seviyesi: ${approvalStep.risk_level}).`,
+        answer: approvalRequestedMessage(approvalStep.tool),
         steps: [{ type: 'plan', plan }, ...execution.steps],
         meta: {
           orchestrator_mode: this.mode,
