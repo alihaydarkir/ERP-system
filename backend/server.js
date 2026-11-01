@@ -412,6 +412,8 @@ app.use('/api/chat', chatRoutes);
 console.log('✓ /api/chat registered');
 app.use('/api/ai', aiRoutes);
 console.log('✓ /api/ai registered');
+app.use('/api/alerts', require('./src/routes/alerts'));
+console.log('✓ /api/alerts registered');
 app.use('/api/reports', reportRoutes);
 console.log('✓ /api/reports registered');
 app.use('/api/export', exportRoutes);

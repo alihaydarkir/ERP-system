@@ -117,3 +117,26 @@ describe('AgentOrchestrator', () => {
     expect(resultStep.tool).toBe('set_product_stock');
   });
 });
+
+describe('AgentOrchestrator.repairNumbers: rakam bozulması düzeltmesi', () => {
+  const AgentOrchestrator = require('./agentOrchestrator');
+  const orch = new AgentOrchestrator({ tools: { definitions: [] }, gateway: {} });
+  const ctx = [{ tool: 'get_overdue_cheques', result: { total_overdue_amount: 203000, summary_text: '5 çek, genel toplam 203.000 TL', cheques: [{ amount: '75000.00' }] } }];
+
+  it('veriye çok yakın bozuk sayıyı düzeltir (203.600 → 203.000)', () => {
+    expect(orch.repairNumbers('Genel toplam 203.600 TL', ctx)).toBe('Genel toplam 203.000 TL');
+  });
+
+  it('veride olan sayıya dokunmaz', () => {
+    expect(orch.repairNumbers('75.000 TL ve 203.000 TL', ctx)).toBe('75.000 TL ve 203.000 TL');
+  });
+
+  it('veriden uzak (modelin kendi hesabı) sayıya dokunmaz', () => {
+    expect(orch.repairNumbers('Yarısı 101.500 TL eder', ctx)).toBe('Yarısı 101.500 TL eder');
+  });
+
+  it('küçük sayılara ve boş veriye dokunmaz', () => {
+    expect(orch.repairNumbers('5 çek, 130 gün', ctx)).toBe('5 çek, 130 gün');
+    expect(orch.repairNumbers('Toplam 203.600 TL', [])).toBe('Toplam 203.600 TL');
+  });
+});

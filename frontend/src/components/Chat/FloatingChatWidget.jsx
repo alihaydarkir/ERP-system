@@ -5,9 +5,14 @@ import useAuthStore from '../../store/authStore';
 import useChatSocket from '../../hooks/useChatSocket';
 import ChatInlineForm from './ChatInlineForm';
 import ChatSelectionList from './ChatSelectionList';
+import { approvalResultText } from '../../utils/approvalLabels';
 import { CheckCircle, XCircle } from 'lucide-react';
 
 const BOT_AVATAR = '🤖';
+
+// Sohbet açıldığında tek dokunuşla sorulabilen, gerçek veriyle doğrulanmış sorular
+const QUICK_ASKS = ['Vadesi geçmiş alacaklarımız var mı?', 'Stoku azalan ürünler hangileri?', 'Bekleyen siparişler neler?', 'Neler yapabilirsin?'];
+const QUICK_ASKS_CUSTOMER = ['Siparişlerim neler?', 'Çeklerim ne durumda?', 'Neler yapabilirsin?'];
 
 // ── Inline message bubble ──────────────────────────────────────
 function WidgetMessage({ msg, isLastAi, approvalState, onApprove, onReject, loading, onFormSubmit, onFormCancel, onSelectionPick }) {
@@ -128,6 +133,14 @@ export default function FloatingChatWidget() {
     }
   }, [open]);
 
+  // Esc ile paneli kapat
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+
   // ── WebSocket approval updates ─────────────────────────────
   const handleApprovalUpdate = useCallback((payload) => {
     setApprovalState((prev) => {
@@ -142,12 +155,7 @@ export default function FloatingChatWidget() {
 
     if (['approved', 'executed', 'rejected', 'failed'].includes(payload.status)) {
       const tool = payload.agent_tool || 'İşlem';
-      const text =
-        payload.status === 'approved' || payload.status === 'executed'
-          ? `✅ ${tool} başarıyla tamamlandı.`
-          : payload.status === 'failed'
-          ? `❌ ${tool} yürütülemedi: ${payload.execution_error || payload.error || 'Bilinmeyen hata'}`
-          : `❌ ${tool} reddedildi.`;
+      const text = approvalResultText(payload.status, tool, payload.execution_error || payload.error);
 
       setApprovalState(null);
       const savedId = pendingMsgIdRef.current;
@@ -304,7 +312,7 @@ export default function FloatingChatWidget() {
     const id = approvalState?.approvalId;
     setApprovalState(null);
     if (id) { try { await aiService.rejectAction(id); } catch { /* ignore */ } }
-    setMessages((prev) => [...prev, { id: Date.now(), role: 'ai', text: '❌ İşlem iptal edildi.' }]);
+    // Sonuç mesajı WebSocket'ten gelir; ikinci mesaj eklenmez.
   };
 
   const handleKey = (e) => {
@@ -324,7 +332,7 @@ export default function FloatingChatWidget() {
       {open && (
         <div style={{
           position: 'absolute', bottom: 64, right: 0,
-          width: 380, maxHeight: 560,
+          width: 'min(380px, calc(100vw - 32px))', maxHeight: 'min(560px, calc(100vh - 120px))',
           background: 'var(--bg-primary, #fff)',
           borderRadius: 16,
           boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
@@ -399,6 +407,23 @@ export default function FloatingChatWidget() {
                 </div>
               </div>
             )}
+            {/* Hazır sorular: yalnızca sohbet henüz başlamadıysa */}
+            {messages.length <= 1 && !loading && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '4px 0 8px 34px' }}>
+                {(user?.role === 'customer' ? QUICK_ASKS_CUSTOMER : QUICK_ASKS).map((q) => (
+                  <button
+                    key={q}
+                    type="button"
+                    onClick={() => sendMessage(q)}
+                    style={{
+                      background: 'var(--bg-secondary, #f1f5f9)', color: '#6366f1',
+                      border: '1px solid #c7d2fe', borderRadius: 999, padding: '5px 11px',
+                      fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
+                    }}
+                  >{q}</button>
+                ))}
+              </div>
+            )}
             <div ref={bottomRef} />
           </div>
 
@@ -443,19 +468,33 @@ export default function FloatingChatWidget() {
       {/* Floating Buton */}
       <button
         onClick={() => setOpen((o) => !o)}
-        title="ERP Asistanı"
+        title={open ? 'Asistanı kapat (Esc)' : 'AI Asistan: sorunuzu yazın'}
+        aria-label={open ? 'Asistanı kapat' : 'AI Asistanı aç'}
+        aria-expanded={open}
         style={{
-          width: 52, height: 52, borderRadius: '50%',
+          height: 52, minWidth: 52, borderRadius: 26,
+          padding: open ? 0 : '0 20px 0 16px',
           background: open ? '#8b5cf6' : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-          border: 'none', cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 24, boxShadow: '0 4px 16px rgba(99,102,241,0.5)',
+          color: '#fff', border: 'none', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+          fontSize: 15, fontWeight: 600, fontFamily: 'inherit',
+          boxShadow: '0 4px 16px rgba(99,102,241,0.5)',
           transition: 'transform 0.2s, box-shadow 0.2s', position: 'relative',
         }}
-        onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.08)')}
+        onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
         onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
       >
-        {open ? '✕' : '🤖'}
+        <span style={{ fontSize: 22, lineHeight: 1 }}>{open ? '✕' : '🤖'}</span>
+        {!open && <span>AI Asistan</span>}
+        {!open && approvalState?.requiresApproval && (
+          <span
+            title="Onayınızı bekleyen işlem var"
+            style={{
+              position: 'absolute', top: -2, left: -2, width: 14, height: 14, borderRadius: '50%',
+              background: '#f59e0b', border: '2px solid #fff',
+            }}
+          />
+        )}
         {!open && unread > 0 && (
           <span style={{
             position: 'absolute', top: -4, right: -4,

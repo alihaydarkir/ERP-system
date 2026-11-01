@@ -43,7 +43,7 @@ describe('tools permission checks', () => {
       }
     );
 
-    expect(result).toEqual({ total_orders: '1' });
+    expect(result).toMatchObject({ total_orders: '1' });
     expect(mockPool.query).toHaveBeenCalledTimes(1);
   });
 
@@ -51,5 +51,38 @@ describe('tools permission checks', () => {
     await expect(
       tools.execute('olmayan_tool', {}, { company_id: 1 })
     ).rejects.toThrow('Bilinmeyen araç');
+  });
+});
+
+describe('sorgu araçları veritabanı izinlerine bağlı', () => {
+  const { QUERY_TOOL_PERMISSIONS, getQueryPermission } = require('./toolPermissionMatrix');
+  const { definitions, isMutationTool } = require('./toolSchemas');
+
+  it('her sorgu aracının bir izni var (yeni araç eklenip unutulursa bu test kırılır)', () => {
+    const OPEN = new Set(['get_currency_rates']); // veri içermez
+    const missing = definitions
+      .map((d) => d.name)
+      .filter((n) => !isMutationTool(n) && !OPEN.has(n) && !QUERY_TOOL_PERMISSIONS[n]);
+    expect(missing).toEqual([]);
+  });
+
+  it('tedarikçi, depo ve fatura araçları kendi izinlerini ister', () => {
+    expect(getQueryPermission('get_suppliers_list')).toBe('suppliers.view');
+    expect(getQueryPermission('get_warehouse_stock')).toBe('warehouses.view');
+    expect(getQueryPermission('get_invoices_summary')).toBe('invoices.view');
+    expect(getQueryPermission('get_currency_rates')).toBeNull();
+  });
+
+  it('hasQueryPermission: yönetici ve müşteri rolü muaf, izinsiz kullanıcı reddedilir', async () => {
+    jest.resetModules();
+    jest.doMock('./../permissionService', () => ({ hasPermission: jest.fn(async (uid, perm) => uid === 1 && perm === 'products.view') }));
+    jest.doMock('../../config/database', () => ({ query: jest.fn() }));
+    const aiService = require('../aiService');
+    expect((await aiService.hasQueryPermission({ user_id: 9, role: 'admin', toolName: 'get_suppliers_list' })).allowed).toBe(true);
+    expect((await aiService.hasQueryPermission({ user_id: 9, role: 'customer', toolName: 'search_orders' })).allowed).toBe(true);
+    expect((await aiService.hasQueryPermission({ user_id: 1, role: 'user', toolName: 'search_products' })).allowed).toBe(true);
+    const denied = await aiService.hasQueryPermission({ user_id: 1, role: 'user', toolName: 'get_suppliers_list' });
+    expect(denied).toEqual({ allowed: false, requiredPermission: 'suppliers.view' });
+    expect((await aiService.hasQueryPermission({ user_id: 1, role: 'user', toolName: 'get_currency_rates' })).allowed).toBe(true);
   });
 });

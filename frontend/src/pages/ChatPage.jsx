@@ -8,6 +8,7 @@ import ChatQuickQuestions from '../components/Chat/ChatQuickQuestions';
 import ChatErrorBanner from '../components/Chat/ChatErrorBanner';
 import ChatMessagesPanel from '../components/Chat/ChatMessagesPanel';
 import useChatSocket from '../hooks/useChatSocket';
+import { approvalResultText } from '../utils/approvalLabels';
 
 const CHAT_STORAGE_KEY = 'erp_chat_history';
 const INITIAL_MESSAGE = {
@@ -90,12 +91,7 @@ export default function ChatPage() {
         if (['approved', 'executed'].includes(payload.status)) {
           window.dispatchEvent(new CustomEvent('erp:data_changed', { detail: { tool } }));
         }
-        const text =
-          payload.status === 'approved' || payload.status === 'executed'
-            ? `✅ ${tool} başarıyla tamamlandı.`
-            : payload.status === 'failed'
-            ? `❌ ${tool} yürütülemedi: ${payload.execution_error || payload.error || 'Bilinmeyen hata'}`
-            : `❌ ${tool} reddedildi.`;
+        const text = approvalResultText(payload.status, tool, payload.execution_error || payload.error);
 
         setMessages((prev) => ([
           ...prev,
@@ -335,13 +331,7 @@ export default function ChatPage() {
     if (id) {
       try { await aiService.rejectAction(id); } catch { /* ignore */ }
     }
-    setMessages(prev => [...prev, {
-      id: Date.now(),
-      type: 'ai',
-      text: '❌ İşlem iptal edildi.',
-      timestamp: new Date(),
-      steps: []
-    }]);
+    // Sonuç mesajı WebSocket'ten ("reddedildi, kayıtlarda değişiklik yapılmadı") gelir; ikinci mesaj eklenmez.
   };
 
   return (

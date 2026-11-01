@@ -7,6 +7,9 @@ const AgentOrchestrator = require('./agentOrchestrator');
 const aiApprovalService = require('./aiApprovalService');
 const { notifyAIApprovalRequested, notifyAIApprovalUpdated } = require('../websocket/notifier');
 const { logger } = require('../middleware/logger');
+const { approvalRequestedMessage } = require('../utils/approvalText');
+const glossaryChat = require('./glossaryChat');
+const { getQueryPermission } = require('./tools/toolPermissionMatrix');
 const {
   sanitizeUserInput,
   wrapExternalData,
@@ -194,6 +197,14 @@ class AIService {
       });
     };
 
+    context.hasQueryPermission = async ({ user_id: requestedUserId, role: requestedRole, toolName }) => {
+      return this.hasQueryPermission({
+        user_id: requestedUserId,
+        role: requestedRole,
+        toolName
+      });
+    };
+
     return context;
   }
 
@@ -224,7 +235,7 @@ class AIService {
       }
 
       case 'search_cheques': {
-        const list = Array.isArray(safeResult) ? safeResult : [];
+        const list = Array.isArray(safeResult) ? safeResult : (Array.isArray(safeResult?.cheques) ? safeResult.cheques : []);
         const count = list.length;
         const total = list.reduce((sum, row) => sum + Number(row?.amount || 0), 0);
         return {
@@ -525,6 +536,20 @@ class AIService {
     return { allowed, requiredPermission };
   }
 
+  // Sorgu araçları: kullanıcının veritabanı izni (ör. suppliers.view) yoksa veri verilmez.
+  // admin/super_admin tüm izne sahiptir; müşteri rolü zaten araç beyaz listesi ve kendi kaydıyla sınırlı.
+  async hasQueryPermission({ user_id, role, toolName }) {
+    if (!role || role === 'super_admin' || role === 'admin' || role === 'customer') {
+      return { allowed: true, requiredPermission: null };
+    }
+    const requiredPermission = getQueryPermission(toolName);
+    if (!requiredPermission) return { allowed: true, requiredPermission: null };
+    if (!user_id) return { allowed: false, requiredPermission };
+
+    const allowed = await PermissionService.hasPermission(user_id, requiredPermission);
+    return { allowed, requiredPermission };
+  }
+
   async logAgentMutation({ user_id, company_id, tool, args, result, error, status }) {
     try {
       await AuditLog.create({
@@ -600,7 +625,11 @@ class AIService {
 
     // 3) Sipariş iptal et
     if (/(sipariş.*iptal|order.*cancel)/.test(msg)) {
-      const orderId = (String(message || '').match(/(ORD[-\w]+|\b\d{1,10}\b)/i) || [])[1];
+      // Tam sipariş kodu (DEMO-ORD-004, ORD-1793039703589); yoksa düz numara. "ORD-004" diye kesmek
+      // onaydan sonra "Sipariş bulunamadı" hatasına yol açıyordu.
+      const text = String(message || '');
+      // Rakam içeren, tireli kodun tamamı: DEMO-ORD-004, ORD-1793540328513-78I5T2
+      const orderId = (text.match(/\b(?=[A-Za-z0-9-]*\d)[A-Za-z]{2,}(?:-[A-Za-z0-9]+)+\b/) || text.match(/\b\d{1,10}\b/) || [])[0];
       if (!orderId) return null;
       return {
         tool: 'cancel_order',
@@ -902,6 +931,37 @@ class AIService {
   // ── Ana Agent (Fetch-First Pattern) ──────────────────────────────────────
   // Önce veriyi çek, sonra modele sadece "yorumla" de
   async runAgent(userMessage, contextOrCompanyId) {
+    const ctx = typeof contextOrCompanyId === 'object' && contextOrCompanyId
+      ? contextOrCompanyId
+      : { company_id: contextOrCompanyId };
+
+    // Şirket jargonu: sözlük terimlerini çöz, tanımadığını sor, onayla öğren.
+    // Herhangi bir hata sohbeti bozmaz; normal akışa düşer.
+    let glossaryTurn = { message: String(userMessage || '') };
+    try {
+      if (String(userMessage || '').length <= this.maxInputLength) {
+        glossaryTurn = await glossaryChat.process({ message: String(userMessage || ''), context: ctx });
+      }
+    } catch (error) {
+      logger.warn(`Glossary turn failed: ${error.message}`);
+      glossaryTurn = { message: String(userMessage || '') };
+    }
+    if (glossaryTurn.response) return glossaryTurn.response;
+
+    const result = await this._runAgentCore(glossaryTurn.message ?? userMessage, contextOrCompanyId);
+
+    if (result && typeof result.answer === 'string') {
+      if (glossaryTurn.preface) result.answer = `${glossaryTurn.preface}\n\n${result.answer}`;
+      if (glossaryTurn.matches?.length) {
+        const seen = glossaryTurn.matches.map((m) => `"${m.term}" → ${m.canonical}`).join(', ');
+        result.answer = `${result.answer}\n\nℹ️ Anladığım: ${seen}`;
+        result.meta = { ...(result.meta || {}), glossary_matches: glossaryTurn.matches };
+      }
+    }
+    return result;
+  }
+
+  async _runAgentCore(userMessage, contextOrCompanyId) {
     const rawUserMessage = String(userMessage || '');
     if (rawUserMessage.length > this.maxInputLength) {
       return {
@@ -1158,7 +1218,7 @@ class AIService {
 
         return {
           success: true,
-          answer: `⏳ Bu işlem onaya gönderildi. Onay ID: ${approval.id}. Yetkili kullanıcı /api/ai/approvals/${approval.id}/approve endpoint'i ile işlemi tamamlayabilir.`,
+          answer: approvalRequestedMessage(action.tool, action.preview),
           steps,
           meta: {
             requires_human_approval: true,
@@ -1631,7 +1691,7 @@ Insights:`;
     if (/çek/.test(msg)) {
       try {
         const rows = await agentTools.execute('search_cheques', { limit: 10 }, { company_id });
-        const cheques = Array.isArray(rows) ? rows : [];
+        const cheques = Array.isArray(rows) ? rows : (Array.isArray(rows?.cheques) ? rows.cheques : []);
         if (cheques.length === 0) {
           return { answer: 'Sistemde çek bulunamadı.' };
         }

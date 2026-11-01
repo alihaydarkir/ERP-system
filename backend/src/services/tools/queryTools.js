@@ -5,10 +5,53 @@ const { externalRatesAllowed } = require('../../config/deployment');
 // Türkçe büyük/küçük harf duyarsız LIKE: C/POSIX collation'da ILIKE Türkçe
 // büyük harfleri (İ, Ş, Ğ...) eşleyemez — "yılmaz inşaat" araması
 // "Yılmaz İnşaat A.Ş." kaydını bulamaz. Önce TRANSLATE ile küçültüyoruz.
-const TR_UP = 'İIĞÜŞÖÇ';
-const TR_LO = 'iığüşöç';
+// Aksanları da düşürüyoruz: ASCII yazılan "anadolu insaat" → "Anadolu İnşaat".
+const TR_UP = 'İIıĞğÜüŞşÖöÇç';
+const TR_LO = 'iiigguussoocc';
 const trLike = (col, paramIdx) =>
   `LOWER(TRANSLATE(${col}, '${TR_UP}', '${TR_LO}')) LIKE LOWER(TRANSLATE($${paramIdx}, '${TR_UP}', '${TR_LO}'))`;
+
+// Konuşma dilindeki hitap ve ekleri aramadan ayıklar:
+// "Hasan Bey'in" → "Hasan", "Anadolu'nun" → "Anadolu", "Laptop'tan" → "Laptop".
+const HONORIFICS = new Set(['bey', 'hanım', 'hanim', 'abi', 'abla', 'hocam', 'sayın', 'sayin', 'usta']);
+const cleanNameQuery = (value) => {
+  const text = String(value ?? '');
+  const cleaned = text
+    .replace(/['’`´]\p{L}*/gu, '')
+    .split(/\s+/)
+    .filter((w) => w && !HONORIFICS.has(w.toLocaleLowerCase('tr-TR')))
+    .join(' ')
+    .trim();
+  return cleaned || text.trim();
+};
+
+// Sipariş toplamlarını kodda hesaplar (model üç sayıyı bile yanlış toplayabiliyor: 58.350 yerine 62.350).
+// Süzülmüş tüm küme üzerinden, limitten bağımsız; hata olursa liste yine döner.
+async function orderTotals(filterValues, where) {
+  try {
+    const agg = await pool.query(`
+      SELECT o.status, COUNT(*)::int AS count, COALESCE(SUM(o.total_amount), 0) AS total
+      FROM orders o
+      LEFT JOIN customers c ON o.customer_id = c.id
+      WHERE o.company_id = $1 ${where}
+      GROUP BY o.status
+    `, filterValues);
+    const rows = (agg?.rows || []).filter((r) => Number.isFinite(Number(r.total)) && Number.isFinite(Number(r.count)));
+    if (!rows.length) return {};
+    const statusTr = { pending: 'bekleyen', processing: 'işlenen', completed: 'tamamlanan', cancelled: 'iptal' };
+    const fmt = (n) => Number(n).toLocaleString('tr-TR');
+    const total = rows.reduce((s, r) => s + Number(r.total), 0);
+    const count = rows.reduce((s, r) => s + Number(r.count), 0);
+    return {
+      total_amount: total,
+      total_count: count,
+      summary_text: `${count} sipariş, genel toplam ${fmt(total)} TL. Duruma göre: `
+        + rows.map((r) => `${statusTr[r.status] || r.status} ${r.count} sipariş ${fmt(r.total)} TL`).join('; ') + '.'
+    };
+  } catch {
+    return {};
+  }
+}
 
 const queryTools = {
   async get_dashboard_summary({ company_id }) {
@@ -23,19 +66,39 @@ const queryTools = {
         (SELECT COALESCE(SUM(amount), 0) FROM cheques WHERE status = 'pending' AND due_date < CURRENT_DATE AND company_id = $1) AS overdue_cheques_amount,
         (SELECT COUNT(*) FROM orders WHERE status = 'pending' AND company_id = $1) AS pending_orders
     `, [company_id]);
-    return result.rows[0];
+    const row = result.rows[0];
+    if (!row) return row;
+    // Biçimli özet: model "62350.00" ham sayısını "623.500" diye okuyabiliyordu
+    const n = (v) => Number(v || 0).toLocaleString('tr-TR');
+    const summary_text = `Toplam gelir (tamamlanan siparişler): ${n(row.total_revenue)} TL. ${n(row.total_orders)} sipariş, ${n(row.pending_orders)} bekleyen; ${n(row.total_customers)} müşteri; ${n(row.total_products)} ürün, ${n(row.low_stock_count)} tanesi kritik stokta. Vadesi geçmiş çek: ${n(row.overdue_cheques_count)} adet, ${n(row.overdue_cheques_amount)} TL.`;
+    return { ...row, summary_text };
   },
 
-  async search_cheques({ status, limit = 10, company_id, role, user_id }) {
+  async search_cheques({ status, customer, bank, limit = 10, company_id, role, user_id }) {
     const values = [company_id];
     const clauses = [];
+
+    // "Halkbank çeki" → banka adına göre süz
+    const bankQuery = bank ? cleanNameQuery(bank) : '';
+    if (bankQuery) {
+      values.push(`%${bankQuery}%`);
+      clauses.push(trLike('ch.bank_name', values.length));
+    }
+
+    // "Anadolu'nun çekleri" → yalnızca o müşterinin çekleri (model tüm listeyi alıp kendi
+    // eşleştirdiğinde başka müşterinin çeki karışabiliyordu).
+    const customerQuery = customer ? cleanNameQuery(customer) : '';
+    if (customerQuery) {
+      values.push(`%${customerQuery}%`);
+      clauses.push(`(${trLike('c.full_name', values.length)} OR ${trLike('c.company_name', values.length)})`);
+    }
 
     if (role === 'customer') {
       const custR = await pool.query(
         `SELECT id FROM customers WHERE user_id = $1 AND company_id = $2 LIMIT 1`,
         [user_id, company_id]
       );
-      if (!custR.rows[0]) return [];
+      if (!custR.rows[0]) return { cheques: [], count: 0, total_amount: 0, summary_text: 'Çek kaydı yok.' };
       values.push(custR.rows[0].id);
       clauses.push(`ch.customer_id = $${values.length}`);
     }
@@ -46,6 +109,7 @@ const queryTools = {
     }
 
     const where = clauses.length ? 'AND ' + clauses.join(' AND ') : '';
+    const filterValues = [...values];
     values.push(Math.min(limit, 50));
     const result = await pool.query(`
       SELECT
@@ -66,7 +130,26 @@ const queryTools = {
       ORDER BY ch.due_date ASC
       LIMIT $${values.length}
     `, values);
-    return result.rows;
+
+    // Toplamları kodda hesapla (model toplamayı yanlış yapabiliyor); limitten bağımsız, tüm süzülmüş küme
+    const agg = await pool.query(`
+      SELECT ch.status, COUNT(*)::int AS count, COALESCE(SUM(ch.amount), 0) AS total
+      FROM cheques ch
+      LEFT JOIN customers c ON ch.customer_id = c.id
+      WHERE ch.company_id = $1 ${where}
+      GROUP BY ch.status
+    `, filterValues);
+    const statusTr = { pending: 'bekleyen', paid: 'ödenmiş/tahsil edilmiş', cancelled: 'iptal', teminat: 'teminat', musteriye_verildi: 'müşteriye verilen' };
+    const fmt = (n) => Number(n).toLocaleString('tr-TR');
+    const grand = agg.rows.reduce((s, r) => s + Number(r.total), 0);
+    const totalCount = agg.rows.reduce((s, r) => s + r.count, 0);
+    const by_status = agg.rows.map((r) => ({ status: r.status, count: r.count, total_amount: Number(r.total) }));
+    const summary_text = totalCount === 0
+      ? 'Bu filtreyle çek yok.'
+      : `${totalCount} çek, genel toplam ${fmt(grand)} TL. Duruma göre: `
+        + by_status.map((r) => `${statusTr[r.status] || r.status} ${r.count} çek ${fmt(r.total_amount)} TL`).join('; ') + '.';
+
+    return { cheques: result.rows, count: result.rows.length, total_amount: grand, by_status, summary_text };
   },
 
   async get_overdue_cheques({ company_id }) {
@@ -89,7 +172,24 @@ const queryTools = {
     `, [company_id]);
 
     const total = result.rows.reduce((sum, row) => sum + parseFloat(row.amount || 0), 0);
-    return { cheques: result.rows, total_overdue_amount: total, count: result.rows.length };
+
+    // Müşteri bazlı döküm: toplamın kime ait olduğu karışmasın
+    const byCustomerMap = new Map();
+    for (const row of result.rows) {
+      const key = row.customer_company || row.customer_name || 'Bilinmeyen';
+      const entry = byCustomerMap.get(key) || { customer: key, cheque_count: 0, total_amount: 0 };
+      entry.cheque_count += 1;
+      entry.total_amount += parseFloat(row.amount || 0);
+      byCustomerMap.set(key, entry);
+    }
+    const by_customer = [...byCustomerMap.values()].sort((a, b) => b.total_amount - a.total_amount);
+    const fmt = (n) => Number(n).toLocaleString('tr-TR');
+    const summary_text = result.rows.length === 0
+      ? 'Vadesi geçmiş çek yok.'
+      : `${result.rows.length} vadesi geçmiş çek, genel toplam ${fmt(total)} TL. Müşteri bazında: `
+        + by_customer.map((c) => `${c.customer} ${c.cheque_count} çek ${fmt(c.total_amount)} TL`).join('; ') + '.';
+
+    return { cheques: result.rows, total_overdue_amount: total, count: result.rows.length, by_customer, summary_text };
   },
 
   async get_due_soon_cheques({ days = 7, company_id, role, user_id }) {
@@ -201,33 +301,110 @@ const queryTools = {
     };
   },
 
-  async search_products({ search, limit = 20, company_id }) {
+  async search_products({ search, sort, limit = 20, company_id }) {
     const values = [company_id];
     let searchClause = '';
 
     if (search) {
-      values.push(`%${search}%`);
-      searchClause = `AND (${trLike('p.name', values.length)} OR ${trLike('p.category', values.length)})`;
+      values.push(`%${cleanNameQuery(search)}%`);
+      // Ad, kategori ya da stok kodu (SKU) ile aranır: "KBL-NYM-3X15 fiyatı"
+      searchClause = `AND (${trLike('p.name', values.length)} OR ${trLike('p.category', values.length)} OR ${trLike('p.sku', values.length)})`;
     }
 
+    // "En pahalı ürün", "en çok stoklu ürün" → sıralı liste (beyaz liste: SQL'e girdi kopyalanmaz)
+    const SORTS = {
+      price_desc: 'price DESC, name ASC',
+      price_asc: 'price ASC, name ASC',
+      stock_desc: 'stock_quantity DESC, name ASC',
+      stock_asc: 'stock_quantity ASC, name ASC'
+    };
+    const orderBy = SORTS[sort] || 'name ASC';
+
+    const aggValues = [...values];
     values.push(Math.min(limit, 50));
     const result = await pool.query(`
       SELECT id, name, category, price, stock_quantity, low_stock_threshold, sku
       FROM products p
       WHERE company_id = $1 ${searchClause}
-      ORDER BY name ASC
+      ORDER BY ${orderBy}
       LIMIT $${values.length}
     `, values);
-    return { products: result.rows, count: result.rows.length };
+
+    // Toplamlar kodda hesaplanır (model toplamayı yanlış yapabiliyor)
+    let summary_text;
+    let total_stock;
+    try {
+      const agg = await pool.query(`
+        SELECT COUNT(*)::int AS count, COALESCE(SUM(stock_quantity), 0)::int AS total_stock,
+               COALESCE(SUM(stock_quantity * price), 0) AS total_value
+        FROM products p WHERE company_id = $1 ${searchClause}
+      `, aggValues);
+      const a = agg?.rows?.[0];
+      if (a) {
+        total_stock = a.total_stock;
+        summary_text = `${a.count} ürün, toplam stok ${Number(a.total_stock).toLocaleString('tr-TR')} adet, stok değeri ${Number(a.total_value).toLocaleString('tr-TR')} TL.`;
+      }
+    } catch {
+      // özet alınamazsa liste yine döner
+    }
+    // Hazır Türkçe fiyat metni: model "18.50" değerini "18.500 TL" diye yanlış biçimlendirmesin
+    const products = result.rows.map((p) => (
+      p.price === null || p.price === undefined || !Number.isFinite(Number(p.price))
+        ? p
+        : { ...p, price_text: `${Number(p.price).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL` }
+    ));
+    const out = { products, count: products.length };
+    if (summary_text) { out.total_stock = total_stock; out.summary_text = summary_text; }
+    return out;
+  },
+
+  // Teklif / sepet toplamı: adet × fiyat kodda hesaplanır (model çarpmada yanılabiliyor)
+  async calculate_quote({ items, company_id }) {
+    const fmt = (n) => Number(n).toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    const lines = [];
+    const notFound = [];
+    for (const it of items || []) {
+      const q = cleanNameQuery(it.product);
+      const found = await pool.query(`
+        SELECT id, name, price, stock_quantity FROM products p
+        WHERE company_id = $1 AND is_active IS NOT FALSE AND ${trLike('p.name', 2)}
+        ORDER BY LENGTH(name) ASC, name ASC
+        LIMIT 3
+      `, [company_id, `%${q}%`]);
+      const p = found.rows[0];
+      if (!p) { notFound.push(it.product); continue; }
+      const qty = Number(it.quantity);
+      const unit = Number(p.price);
+      lines.push({
+        product: p.name,
+        quantity: qty,
+        unit_price: unit,
+        line_total: Math.round(unit * qty * 100) / 100,
+        in_stock: Number(p.stock_quantity) >= qty,
+        ambiguous: found.rows.length > 1
+      });
+    }
+    const total = Math.round(lines.reduce((s, l) => s + l.line_total, 0) * 100) / 100;
+    const parts = lines.map((l) => `${l.quantity} × ${l.product} (${fmt(l.unit_price)} TL) = ${fmt(l.line_total)} TL`);
+    const stockNote = lines.filter((l) => !l.in_stock).map((l) => `${l.product} için stok yetersiz`);
+    return {
+      lines,
+      total_amount: total,
+      not_found: notFound,
+      summary_text: `${parts.join('; ')}. Genel toplam: ${fmt(total)} TL.`
+        + (notFound.length ? ` Bulunamayan ürün: ${notFound.join(', ')}.` : '')
+        + (stockNote.length ? ` Uyarı: ${stockNote.join(', ')}.` : '')
+    };
   },
 
   async search_customers({ search, limit = 10, company_id }) {
     const values = [company_id];
     let searchClause = '';
 
+    // Ad, şirket ya da şehir ("Ankara'daki müşterimiz kim?") ile aranır
     if (search) {
-      values.push(`%${search}%`);
-      searchClause = `AND (${trLike('c.full_name', values.length)} OR ${trLike('c.company_name', values.length)})`;
+      values.push(`%${cleanNameQuery(search)}%`);
+      searchClause = `AND (${trLike('c.full_name', values.length)} OR ${trLike('c.company_name', values.length)} OR ${trLike('c.company_location', values.length)})`;
     }
 
     values.push(Math.min(limit, 50));
@@ -242,8 +419,15 @@ const queryTools = {
   },
 
   async get_orders_summary({ period = 'month', company_id }) {
-    const intervalMap = { today: "INTERVAL '1 day'", week: "INTERVAL '7 days'", month: "INTERVAL '30 days'" };
-    const interval = intervalMap[period] || intervalMap.month;
+    // "Bu ay" takvim ayıdır (1'inden bugüne), son 30 gün değil. Saat dilimi: İstanbul.
+    const sinceMap = {
+      today: "date_trunc('day', NOW() AT TIME ZONE 'Europe/Istanbul')",
+      week: "date_trunc('day', NOW() AT TIME ZONE 'Europe/Istanbul') - INTERVAL '6 days'",
+      month: "date_trunc('month', NOW() AT TIME ZONE 'Europe/Istanbul')",
+      last30: "(NOW() AT TIME ZONE 'Europe/Istanbul') - INTERVAL '30 days'"
+    };
+    const labelMap = { today: 'bugün', week: 'son 7 gün', month: 'bu ay (takvim ayı)', last30: 'son 30 gün' };
+    const key = sinceMap[period] ? period : 'month';
 
     const result = await pool.query(`
       SELECT
@@ -257,9 +441,12 @@ const queryTools = {
         COALESCE(AVG(total_amount), 0)                             AS avg_order_amount
       FROM orders
       WHERE company_id = $1
-        AND created_at >= NOW() - ${interval}
+        AND (created_at AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Istanbul' >= ${sinceMap[key]}
     `, [company_id]);
-    return { ...result.rows[0], period };
+    const row = result.rows[0];
+    const summaryText = `${labelMap[key]}: ${row.total_orders} sipariş, toplam ${Number(row.total_amount).toLocaleString('tr-TR')} TL`
+      + ` (${row.pending_orders} bekleyen, ${row.completed_orders} tamamlanan, ${row.cancelled_orders} iptal).`;
+    return { ...row, period: key, period_label: labelMap[key], summary_text: summaryText };
   },
 
   async get_orders_list({ status, limit = 15, company_id, role, user_id }) {
@@ -293,7 +480,7 @@ const queryTools = {
       ORDER BY o.created_at DESC
       LIMIT $${values.length}
     `, values);
-    return { orders: result.rows, count: result.rows.length };
+    return { orders: result.rows, count: result.rows.length, ...(await orderTotals(values.slice(0, -1), where)) };
   },
 
   async search_orders({ search, status, limit = 10, company_id, role, user_id }) {
@@ -326,7 +513,7 @@ const queryTools = {
       ORDER BY o.created_at DESC
       LIMIT $${values.length}
     `, values);
-    return { orders: result.rows, count: result.rows.length };
+    return { orders: result.rows, count: result.rows.length, ...(await orderTotals(values.slice(0, -1), where)) };
   },
 
   async get_suppliers_list({ search, limit = 20, company_id }) {
@@ -377,7 +564,28 @@ const queryTools = {
     return { summary: statsResult.rows[0], invoices: listResult.rows };
   },
 
-  async get_warehouse_stock({ company_id }) {
+  async get_warehouse_stock({ product, company_id }) {
+    // "Laptop'tan kaç tane kalmış?" → ürün adı verilirse o ürünün depo dökümü
+    const productQuery = product ? cleanNameQuery(product) : '';
+    if (productQuery) {
+      const found = await pool.query(`
+        SELECT p.id, p.name, p.sku, p.stock_quantity AS total_stock,
+          COALESCE(
+            json_agg(json_build_object('warehouse', w.warehouse_name, 'quantity', ws.quantity)
+                     ORDER BY w.warehouse_name) FILTER (WHERE w.id IS NOT NULL),
+            '[]'::json
+          ) AS by_warehouse
+        FROM products p
+        LEFT JOIN warehouse_stock ws ON ws.product_id = p.id
+        LEFT JOIN warehouses w ON w.id = ws.warehouse_id AND w.is_active = true
+        WHERE p.company_id = $1 AND (${trLike('p.name', 2)} OR ${trLike('p.sku', 2)})
+        GROUP BY p.id
+        ORDER BY p.name
+        LIMIT 10
+      `, [company_id, `%${productQuery}%`]);
+      return { products: found.rows, count: found.rows.length };
+    }
+
     const result = await pool.query(`
       SELECT
         w.id, w.warehouse_name, w.warehouse_code, w.city,
@@ -439,7 +647,7 @@ const queryTools = {
         LIMIT 1
       `, [company_id, user_id]);
     } else {
-      const search = `%${customer_name || ''}%`;
+      const search = `%${cleanNameQuery(customer_name)}%`;
       customerResult = await pool.query(`
         SELECT id, full_name, company_name, phone_number, company_location
         FROM customers
