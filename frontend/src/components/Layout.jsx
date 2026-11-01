@@ -179,7 +179,12 @@ export default function Layout({ children }) {
 
           {/* User Profile Summary in Sidebar Bottom */}
           <div className="p-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/60 backdrop-blur-sm">
-            <div className={`flex items-center ${sidebarOpen ? 'justify-between' : 'justify-center'}`}>
+            <Link
+              to="/profile"
+              title="Profil ve güvenlik (2FA)"
+              aria-label="Profil ve güvenlik ayarları"
+              className={`flex items-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${sidebarOpen ? 'justify-between' : 'justify-center'}`}
+            >
                {sidebarOpen ? (
                  <div className="flex items-center space-x-3 overflow-hidden">
                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-100 to-primary-200 dark:from-primary-900 dark:to-primary-800 text-primary-700 dark:text-primary-200 flex items-center justify-center font-bold text-lg shadow-sm shrink-0 border border-white dark:border-gray-700">
@@ -195,7 +200,7 @@ export default function Layout({ children }) {
                    {user?.username?.[0]?.toUpperCase()}
                 </div>
                )}
-            </div>
+            </Link>
           </div>
         </div>
         

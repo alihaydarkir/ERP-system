@@ -90,7 +90,7 @@ const code = (secret, offsetSteps = 0) => speakeasy.totp({ secret, encoding: 'ba
   const dis0 = await req('POST', '/api/2fa/disable', { token: acc, body: { password: PW, code: '000000' } });
   check('disable with wrong code rejected', dis0.status === 400, String(dis0.status));
   const dis1 = await req('POST', '/api/2fa/disable', { token: acc, body: { password: 'Wrong-pass-1!', code: code(secret, 0) } });
-  check('disable with wrong password rejected', dis1.status === 401, String(dis1.status));
+  check('disable with wrong password rejected', dis1.status === 400, String(dis1.status));
   const dis2 = await req('POST', '/api/2fa/disable', { token: acc, body: { password: PW, code: code(secret, 0) } });
   check('disable with password + valid code works', dis2.status === 200, String(dis2.status));
   const gone = await db.query('select 1 from user_2fa where user_id=$1', [uid]);

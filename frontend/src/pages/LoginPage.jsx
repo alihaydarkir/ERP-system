@@ -5,6 +5,7 @@ import useAuthStore from '../store/authStore';
 import { authService } from '../services/authService';
 import Button from '../components/UI/Button';
 import Input from '../components/UI/Input';
+import TwoFactorStep from '../components/Auth/TwoFactorStep';
 import { hasValidationErrors, validateLoginForm } from '../utils/validators/authValidators';
 import { Mail, Lock, ArrowRight, UserCheck } from 'lucide-react';
 
@@ -24,8 +25,16 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
+  // 2FA etkin hesapta parola doğrulanınca { tempToken } tutulur ve kod adımı gösterilir
+  const [twoFa, setTwoFa] = useState(null);
   const navigate = useNavigate();
   const { login } = useAuthStore();
+
+  const finishLogin = (payload) => {
+    login(payload.user, payload.company || null);
+    toast.success('Hoş geldiniz, ' + payload.user.username + '! 🎉');
+    navigate('/dashboard');
+  };
 
   const performLogin = async (loginEmail, loginPassword) => {
     setLoading(true);
@@ -33,10 +42,12 @@ export default function LoginPage() {
       const response = await authService.login(loginEmail, loginPassword);
       const payload = response?.data || {};
 
+      if (response.success && payload.requiresTwoFa && payload.tempToken) {
+        setTwoFa({ tempToken: payload.tempToken });
+        return;
+      }
       if (response.success) {
-        login(payload.user, payload.company || null);
-        toast.success('Hoş geldiniz, ' + payload.user.username + '! 🎉');
-        navigate('/dashboard');
+        finishLogin(payload);
       }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Giriş başarısız!');
@@ -119,6 +130,18 @@ export default function LoginPage() {
             </p>
           </div>
 
+          {twoFa ? (
+            <TwoFactorStep
+              tempToken={twoFa.tempToken}
+              onSuccess={finishLogin}
+              onBack={() => { setTwoFa(null); setPassword(''); }}
+              onExpired={(message) => {
+                setTwoFa(null);
+                setPassword('');
+                toast.error(message || 'Doğrulama süresi doldu, yeniden giriş yapın.');
+              }}
+            />
+          ) : (
           <form onSubmit={handleSubmit} className='space-y-6' noValidate>
             <Input
               id='login-email'
@@ -168,6 +191,7 @@ export default function LoginPage() {
               Giriş Yap
             </Button>
           </form>
+          )}
 
           <p className='mt-4 text-center text-xs text-gray-500 dark:text-gray-400'>
             Helix-Ware destek ekibi misiniz?{' '}

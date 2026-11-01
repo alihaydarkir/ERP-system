@@ -76,6 +76,8 @@ class User2FA {
       'UPDATE user_2fa SET is_enabled = true, failed_attempts = 0, locked_until = NULL, updated_at = NOW() WHERE user_id = $1 RETURNING id, user_id, is_enabled',
       [user_id]
     );
+    // Profil rozeti/listeler users.two_factor_enabled'ı okur: gerçek durumla eşit tut
+    await pool.query('UPDATE users SET two_factor_enabled = true WHERE id = $1', [user_id]);
     return result.rows[0];
   }
 
@@ -84,6 +86,7 @@ class User2FA {
       'UPDATE user_2fa SET is_enabled = false, updated_at = NOW() WHERE user_id = $1 RETURNING id, user_id, is_enabled',
       [user_id]
     );
+    await pool.query('UPDATE users SET two_factor_enabled = false WHERE id = $1', [user_id]);
     return result.rows[0];
   }
 
@@ -239,6 +242,7 @@ class User2FA {
       await client.query('BEGIN');
       await client.query('DELETE FROM user_2fa_backup_codes WHERE user_id = $1', [user_id]);
       await client.query('DELETE FROM user_2fa WHERE user_id = $1', [user_id]);
+      await client.query('UPDATE users SET two_factor_enabled = false WHERE id = $1', [user_id]);
       await client.query('COMMIT');
       return { success: true };
     } catch (error) {
