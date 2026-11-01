@@ -315,3 +315,10 @@ Hazır ama bağlanmamış 2FA kodu incelendi; bağlanmadan önce şu sorunlar ka
 - Destek oturumu `/api/2fa/*` yönetemez; yönetici sıfırlaması yalnızca aynı şirketin kullanıcıları için.
 - Migration 054: `secret` TEXT, `last_used_step`, `failed_attempts`, `locked_until`, `code_hash` (eski düz metin yedek kodlar silinir).
 Test: jest + sandbox `scripts/sandbox-regression/2fa-regression.js` (30 kontrol). **Frontend arayüzü bu dalda yok.**
+
+### 5. tur — 2FA arayüzü (feat/2fa-frontend)
+Profil: `TwoFactorSection` (QR + elle anahtar, ilk kodla etkinleştirme, yedek kodlar yalnızca bir kez + "kaydettim" onayı, yenileme, parola+kodla kapatma).
+Giriş: `LoginPage` `requiresTwoFa` yanıtını işler (önceden `payload.user` yok diye çökerdi) → `TwoFactorStep` → `/api/auth/2fa/verify`.
+Ek bulgular: `api.js` 401'de oturum yenilemeyi giriş/2FA uçlarında da deniyordu (yanlış kod kullanıcıyı atar / asıl hata gizlenir) → muaf;
+yanlış parola ile kapatma 401 yerine 400; `users.two_factor_enabled` bayrağı gerçek 2FA durumuyla eşitlendi (profil rozeti).
+Test: vitest 41 (18 yeni), eslint ., vite build; tarayıcıda gerçek yığınla uçtan uca (kurulum → çıkış → hatalı/doğru kodla giriş → yedek kodla kapatma).

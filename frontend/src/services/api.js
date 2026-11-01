@@ -65,6 +65,12 @@ api.interceptors.response.use(
     }
 
     const isRefreshEndpoint = String(originalRequest.url || '').includes('/api/auth/refresh');
+    // Kimlik doğrulama uçlarındaki 401 "geçersiz bilgi/kod" demektir (süresi dolmuş oturum değil):
+    // yenileme denenmez, kullanıcıya asıl hata gösterilir.
+    const isAuthFlowEndpoint = /\/api\/(auth\/(login|2fa\/verify)|support\/login)/.test(String(originalRequest.url || ''));
+    if (isAuthFlowEndpoint) {
+      return Promise.reject(error);
+    }
 
     if (isRefreshEndpoint) {
       useAuthStore.getState().logout();
